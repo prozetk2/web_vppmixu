@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum UserRole {
+  ADMIN
+  ACCOUNTANT
+  STAFF
+}
+
+model Role {
+  id    String   @id @default(cuid())
+  name  UserRole @unique
+  users User[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  role         Role?    @relation(fields: [roleId], references: [id])
+  roleId       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Category {
+  id        String      @id @default(cuid())
+  name      String
+  code      String?     @unique
+  parentId  String?
+  parent    Category?   @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children  Category[]  @relation("CategoryToCategory")
+  products  Product[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  deletedAt DateTime?
+}
+
+model Unit {
+  id        String   @id @default(cuid())
+  name      String
+  symbol    String?
+  products  Product[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id         String        @id @default(cuid())
+  name       String
+  barcode    String?       @unique
+  category   Category?     @relation(fields: [categoryId], references: [id])
+  categoryId String?
+  unit       Unit          @relation(fields: [unitId], references: [id])
+  unitId     String
+  price      Decimal       @db.Decimal(12, 2)
+  cost       Decimal?      @db.Decimal(12, 2)
+  status     ProductStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  deletedAt  DateTime?
+}
