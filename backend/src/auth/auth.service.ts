@@ -2,28 +2,46 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly supabase: SupabaseService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
-  private async validateUser(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-      include: { role: true },
-    });
+  async validateUser(username: string, password: string) {
+    console.log('Validating user:', username);
 
-    if (!user || !user.passwordHash) {
+    const { data: user, error } = await this.supabase
+      .getClient()
+      .from('app_user')
+      .select(`
+        *,
+        user_role (
+          role (
+            id,
+            code,
+            name
+          )
+        )
+      `)
+      .eq('username', username)
+      .single();
+
+    console.log('Supabase response:', { user, error });
+
+    if (error || !user || !user.password_hash) {
+      console.log('User not found or no password hash');
       throw new UnauthorizedException('INVALID_CREDENTIALS');
     }
 
-    const isValid = await bcrypt.compare(password, user.passwordHash);
+    const isValid = await bcrypt.compare(password, user.password_hash);
+    console.log('Password valid:', isValid);
+
     if (!isValid) {
       throw new UnauthorizedException('INVALID_CREDENTIALS');
     }
@@ -32,67 +50,59 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    const user = await this.validateUser(loginDto.email, loginDto.password);
+    const user = await this.validateUser(loginDto.username, loginDto.password);
 
+    const roles = user.user_role?.map((ur: any) => ur.role.code) || [];
     const payload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role?.name ?? user.roleId,
+      sub: user.id.toString(),
+      username: user.username,
+      roles: roles,
     };
 
     const token = await this.jwtService.signAsync(payload, {
       secret: this.configService.get<string>('JWT_SECRET') ?? 'changeme',
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN') ?? '1d',
+      expiresIn: (this.configService.get<string>('JWT_EXPIRES_IN') ?? '1d') as any,
     });
 
     return {
-      token,
+      access_token: token,
       user: {
-        id: user.id,
+        id: user.id.toString(),
+        username: user.username,
         email: user.email,
-        role: payload.role,
-        name: user.name,
+        roles: roles,
+        fullName: user.full_name,
       },
     };
   }
 
   async getProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { role: true },
-    });
+    const { data: user, error } = await this.supabase
+      .getClient()
+      .from('app_user')
+      .select(`
+        *,
+        user_role (
+          role (
+            id,
+            code,
+            name
+          )
+        )
+      `)
+      .eq('id', userId)
+      .single();
 
-    if (!user) {
+    if (error || !user) {
       throw new UnauthorizedException('USER_NOT_FOUND');
     }
 
     return {
-      id: user.id,
+      id: user.id.toString(),
+      username: user.username,
       email: user.email,
-      role: user.role?.name ?? user.roleId,
-      name: user.name,
+      roles: user.user_role?.map((ur: any) => ur.role.code) || [],
+      fullName: user.full_name,
     };
-  }
-
-  async seedDefaultAdmin() {
-    const adminEmail = 'admin@example.com';
-    const existing = await this.prisma.user.findUnique({ where: { email: adminEmail } });
-    if (existing) return existing;
-
-    const passwordHash = await bcrypt.hash('admin123', 10);
-    return this.prisma.user.create({
-      data: {
-        email: adminEmail,
-        passwordHash,
-        name: 'Admin',
-        role: {
-          connectOrCreate: {
-            where: { name: 'ADMIN' },
-            create: { name: 'ADMIN' },
-          },
-        },
-      },
-      include: { role: true },
-    });
   }
 }

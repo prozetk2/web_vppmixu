@@ -3,72 +3,369 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-enum ProductStatus {
-  ACTIVE
-  INACTIVE
+model AccountingEntry {
+  id            BigInt   @id @default(autoincrement())
+  entryDate     DateTime @map("entry_date") @db.Date
+  description   String?
+  referenceType String?  @map("reference_type")
+  referenceId   BigInt?  @map("reference_id")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  lines AccountingLine[]
+
+  @@map("accounting_entry")
 }
 
-enum UserRole {
-  ADMIN
-  ACCOUNTANT
-  STAFF
-}
+model AccountingLine {
+  id                BigInt          @id @default(autoincrement())
+  accountingEntryId BigInt          @map("accounting_entry_id")
+  accountId         BigInt          @map("account_id")
+  debit             Decimal?        @default(0)
+  credit            Decimal?        @default(0)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz
 
-model Role {
-  id    String   @id @default(cuid())
-  name  UserRole @unique
-  users User[]
+  entry   AccountingEntry @relation(fields: [accountingEntryId], references: [id])
+  account ChartOfAccount  @relation(fields: [accountId], references: [id])
+
+  @@map("accounting_line")
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  name         String?
-  role         Role?    @relation(fields: [roleId], references: [id])
-  roleId       String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id           BigInt    @id @default(autoincrement())
+  username     String    @unique
+  email        String?   @unique
+  passwordHash String?   @map("password_hash")
+  fullName     String?   @map("full_name")
+  phone        String?
+  enabled      Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime? @map("updated_at") @db.Timestamptz
+
+  auditLogs      AuditLog[]
+  stockMovements StockMovement[]
+  userRoles      UserRole[]
+
+  @@map("app_user")
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  actorId    BigInt?  @map("actor_id")
+  action     String?
+  targetType String?  @map("target_type")
+  targetId   BigInt?  @map("target_id")
+  payload    Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@map("audit_log")
+}
+
+model BankAccount {
+  id            BigInt   @id @default(autoincrement())
+  storeId       BigInt?  @map("store_id")
+  bankName      String?  @map("bank_name")
+  accountNumber String?  @map("account_number")
+  currency      String?  @default("VND")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  store Store? @relation(fields: [storeId], references: [id])
+
+  @@map("bank_account")
 }
 
 model Category {
-  id        String      @id @default(cuid())
-  name      String
-  code      String?     @unique
-  parentId  String?
-  parent    Category?   @relation("CategoryToCategory", fields: [parentId], references: [id])
-  children  Category[]  @relation("CategoryToCategory")
-  products  Product[]
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  deletedAt DateTime?
+  id          BigInt  @id @default(autoincrement())
+  name        String
+  code        String? @unique
+  parentId    BigInt? @map("parent_id")
+  description String?
+
+  parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryToCategory")
+  products Product[]
+
+  @@map("category")
 }
 
-model Unit {
-  id        String   @id @default(cuid())
+model ChartOfAccount {
+  id       BigInt  @id @default(autoincrement())
+  code     String  @unique
+  name     String
+  parentId BigInt? @map("parent_id")
+  type     String?
+
+  parent   ChartOfAccount?  @relation("ChartToChart", fields: [parentId], references: [id])
+  children ChartOfAccount[] @relation("ChartToChart")
+  lines    AccountingLine[]
+
+  @@map("chart_of_account")
+}
+
+model Customer {
+  id        BigInt   @id @default(autoincrement())
+  code      String?  @unique
   name      String
-  symbol    String?
-  products  Product[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  email     String?
+  phone     String?
+  address   String?
+  taxNumber String?  @map("tax_number")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  invoices Invoice[]
+  orders   Order[]
+
+  @@map("customer")
+}
+
+model Inventory {
+  id          BigInt   @id @default(autoincrement())
+  variantId   BigInt   @map("variant_id")
+  warehouseId BigInt   @map("warehouse_id")
+  quantity    BigInt   @default(0)
+  reserved    BigInt   @default(0)
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+  warehouse Warehouse      @relation(fields: [warehouseId], references: [id])
+
+  @@map("inventory")
+}
+
+model Invoice {
+  id            BigInt    @id @default(autoincrement())
+  invoiceNumber String?   @unique @map("invoice_number")
+  orderId       BigInt?   @map("order_id")
+  storeId       BigInt?   @map("store_id")
+  customerId    BigInt?   @map("customer_id")
+  totalAmount   Decimal?  @map("total_amount")
+  taxAmount     Decimal?  @map("tax_amount")
+  status        String?   @default("DRAFT")
+  issuedAt      DateTime? @map("issued_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  order     Order?            @relation(fields: [orderId], references: [id])
+  store     Store?            @relation(fields: [storeId], references: [id])
+  customer  Customer?         @relation(fields: [customerId], references: [id])
+  eInvoices InvoiceEInvoice[]
+
+  @@map("invoice")
+}
+
+model InvoiceEInvoice {
+  id         BigInt    @id @default(autoincrement())
+  invoiceId  BigInt    @map("invoice_id")
+  provider   String?
+  externalId String?   @map("external_id")
+  signed     Boolean?  @default(false)
+  pdfUrl     String?   @map("pdf_url")
+  xmlContent String?   @map("xml_content")
+  issuedAt   DateTime? @map("issued_at") @db.Timestamptz
+  status     String?
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@map("invoice_einvoice")
+}
+
+model Order {
+  id             BigInt    @id @default(autoincrement())
+  orderNumber    String?   @unique @map("order_number")
+  storeId        BigInt?   @map("store_id")
+  customerId     BigInt?   @map("customer_id")
+  channel        String?
+  status         String    @default("PENDING")
+  totalAmount    Decimal   @default(0) @map("total_amount")
+  subtotal       Decimal   @default(0)
+  taxAmount      Decimal?  @default(0) @map("tax_amount")
+  discountAmount Decimal?  @default(0) @map("discount_amount")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime? @map("updated_at") @db.Timestamptz
+
+  store      Store?      @relation(fields: [storeId], references: [id])
+  customer   Customer?   @relation(fields: [customerId], references: [id])
+  invoices   Invoice[]
+  orderItems OrderItem[]
+  payments   Payment[]
+
+  @@map("order")
+}
+
+model OrderItem {
+  id         BigInt  @id @default(autoincrement())
+  orderId    BigInt  @map("order_id")
+  variantId  BigInt  @map("variant_id")
+  quantity   BigInt
+  unitPrice  Decimal @map("unit_price")
+  totalPrice Decimal @map("total_price")
+  discount   Decimal? @default(0)
+
+  order   Order          @relation(fields: [orderId], references: [id])
+  variant ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@map("order_item")
+}
+
+model Payment {
+  id        BigInt    @id @default(autoincrement())
+  orderId   BigInt?   @map("order_id")
+  amount    Decimal
+  method    String?
+  status    String    @default("PENDING")
+  reference String?
+  paidAt    DateTime? @map("paid_at") @db.Timestamptz
+
+  order Order? @relation(fields: [orderId], references: [id])
+
+  @@map("payment")
 }
 
 model Product {
-  id         String        @id @default(cuid())
-  name       String
-  barcode    String?       @unique
-  category   Category?     @relation(fields: [categoryId], references: [id])
-  categoryId String?
-  unit       Unit          @relation(fields: [unitId], references: [id])
-  unitId     String
-  price      Decimal       @db.Decimal(12, 2)
-  cost       Decimal?      @db.Decimal(12, 2)
-  status     ProductStatus @default(ACTIVE)
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-  deletedAt  DateTime?
+  id           BigInt    @id @default(autoincrement())
+  sku          String?   @unique
+  name         String
+  description  String?
+  categoryId   BigInt?   @map("category_id")
+  defaultPrice Decimal   @default(0) @map("default_price")
+  defaultCost  Decimal?  @default(0) @map("default_cost")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime? @map("updated_at") @db.Timestamptz
+
+  category Category?        @relation(fields: [categoryId], references: [id])
+  variants ProductVariant[]
+
+  @@map("product")
+}
+
+model ProductVariant {
+  id         BigInt    @id @default(autoincrement())
+  productId  BigInt    @map("product_id")
+  sku        String?
+  barcode    String?
+  attributes Json?
+  price      Decimal?
+  cost       Decimal?
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime? @map("updated_at") @db.Timestamptz
+
+  product        Product         @relation(fields: [productId], references: [id])
+  inventory      Inventory[]
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+
+  @@map("product_variant")
+}
+
+model Role {
+  id          BigInt  @id @default(autoincrement())
+  code        String  @unique
+  name        String?
+  description String?
+
+  userRoles UserRole[]
+
+  @@map("role")
+}
+
+model StockMovement {
+  id              BigInt   @id @default(autoincrement())
+  movementType    String   @map("movement_type")
+  reference       String?
+  variantId       BigInt   @map("variant_id")
+  fromWarehouseId BigInt?  @map("from_warehouse_id")
+  toWarehouseId   BigInt?  @map("to_warehouse_id")
+  quantity        BigInt
+  performedBy     BigInt?  @map("performed_by")
+  performedAt     DateTime @default(now()) @map("performed_at") @db.Timestamptz
+  note            String?
+
+  variant       ProductVariant @relation(fields: [variantId], references: [id])
+  fromWarehouse Warehouse?     @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouse   Warehouse?     @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  performer     User?          @relation(fields: [performedBy], references: [id])
+
+  @@map("stock_movement")
+}
+
+model Store {
+  id        BigInt    @id @default(autoincrement())
+  code      String?   @unique
+  name      String
+  address   String?
+  taxNumber String?   @map("tax_number")
+  phone     String?
+  email     String?
+  settings  Json?
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime? @map("updated_at") @db.Timestamptz
+
+  bankAccounts BankAccount[]
+  invoices     Invoice[]
+  orders       Order[]
+  warehouses   Warehouse[]
+
+  @@map("store")
+}
+
+model Supplier {
+  id        BigInt   @id @default(autoincrement())
+  code      String?  @unique
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  taxNumber String?  @map("tax_number")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("supplier")
+}
+
+model Transaction {
+  id          BigInt   @id @default(autoincrement())
+  relatedType String?  @map("related_type")
+  relatedId   BigInt?  @map("related_id")
+  amount      Decimal
+  gateway     String?
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  metadata    Json?
+
+  @@map("transaction")
+}
+
+model UserRole {
+  userId     BigInt   @map("user_id")
+  roleId     BigInt   @map("role_id")
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+  @@map("user_role")
+}
+
+model Warehouse {
+  id        BigInt   @id @default(autoincrement())
+  storeId   BigInt?  @map("store_id")
+  code      String?
+  name      String
+  address   String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  store Store? @relation(fields: [storeId], references: [id])
+
+  inventory          Inventory[]
+  stockMovementsFrom StockMovement[] @relation("FromWarehouse")
+  stockMovementsTo   StockMovement[] @relation("ToWarehouse")
+
+  @@map("warehouse")
 }
