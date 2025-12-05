@@ -1,35 +1,102 @@
-# web_vppmixu
+# Warehouse Management System
 
-## Backend (NestJS + Prisma + Supabase)
-- Cấu hình sẵn ValidationPipe, HttpExceptionFilter (response chuẩn `{ data | error }`), ResponseInterceptor.
-- Modules: Auth (JWT, bcrypt, @Roles), Products, Categories, Units, PrismaService.
-- Prisma schema: `backend/prisma/schema.prisma` (User/Role, Product/Category/Unit, soft delete).
-- API contract nháp: `docs/api-contract.md` (Auth, Product/Category/Unit).
-- Seed admin: `npm run seed:admin` (admin@example.com / admin123).
+A full-stack warehouse and debt management application built with NestJS, React, and Supabase.
 
-### Chạy local
+## Tech Stack
+
+### Backend
+- **NestJS** - Node.js framework
+- **Supabase** - PostgreSQL database & authentication
+- **Prisma** - Database ORM (optional)
+- **JWT** - Authentication
+- **bcrypt** - Password hashing
+
+### Frontend
+- **React** - UI library
+- **Vite** - Build tool
+- **Axios** - HTTP client
+- **TypeScript** - Type safety
+
+## Features
+
+- ✅ User Authentication (JWT)
+- ✅ Product Management
+- ✅ Category Management
+- ✅ Warehouse Management
+- ✅ Customer Management
+- ✅ Supplier Management
+
+## Setup
+
+### Prerequisites
+- Node.js 18+
+- Supabase account
+
+### Backend Setup
+
+1. Navigate to backend directory:
 ```bash
 cd backend
-cp .env.example .env  # điền DATABASE_URL, JWT_SECRET, JWT_EXPIRES_IN, PORT
+```
+
+2. Install dependencies:
+```bash
 npm install
-npm run prisma:generate
-# nếu có DB: npm run prisma:migrate -- --name init
+```
+
+3. Copy `.env.example` to `.env` and fill in your Supabase credentials:
+```bash
+cp .env.example .env
+```
+
+4. Run database migration in Supabase SQL Editor:
+```bash
+# Copy content from supabase-migration.sql and run in Supabase SQL Editor
+```
+
+5. Start development server:
+```bash
 npm run start:dev
 ```
 
-### Docker / Compose
-- Build backend: `docker build -t web-vpp-backend ./backend`
-- Compose API + Postgres: `docker compose up --build`
-  - DATABASE_URL mặc định: `postgresql://app:app@db:5432/appdb?schema=public`
-  - Seed admin (sau khi up): `docker compose exec api npm run seed:admin`
+Backend will run on `http://localhost:3000`
 
-### Test
-- Unit: `cd backend && npm test`
-- E2E (cần DB riêng): `npm run test:e2e`
-- Với compose: `docker compose run --rm api npm test`
+### Frontend Setup
 
-### Biến môi trường chính (backend/.env.example)
-- `DATABASE_URL` (team data cung cấp)
-- `JWT_SECRET` (tự sinh: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
-- `JWT_EXPIRES_IN` (mặc định 1d)
-- `PORT` (mặc định 3000)
+1. Navigate to frontend directory:
+```bash
+cd frontend
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Start development server:
+```bash
+npm run dev
+```
+
+Frontend will run on `http://localhost:5173`
+
+## Default Login
+
+- **Username:** `admin`
+- **Password:** `admin123`
+
+## API Endpoints
+
+### Authentication
+- `POST /auth/login` - Login
+- `GET /auth/me` - Get current user
+
+### Products
+- `GET /products` - List all products
+- `POST /products` - Create product
+- `PUT /products/:id` - Update product
+- `DELETE /products/:id` - Delete product
+
+## License
+
+MIT
