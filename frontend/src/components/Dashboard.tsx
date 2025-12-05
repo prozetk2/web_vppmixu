@@ -39,6 +39,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const fetchData = async () => {
         setLoading(true);
         try {
+            console.log(`Fetching ${activeTab} data...`);
             let response;
             switch (activeTab) {
                 case 'products':
@@ -57,9 +58,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     response = await suppliersAPI.getAll();
                     break;
             }
-            setData(response?.data || []);
-        } catch (error) {
-            console.error('Failed to fetch data:', error);
+            console.log(`${activeTab} response:`, response?.data);
+            // Handle both {data: [...]} and [...] formats
+            const result = Array.isArray(response?.data) ? response.data : (response?.data?.data || []);
+            setData(result);
+        } catch (error: any) {
+            console.error(`Failed to fetch ${activeTab} data:`, error);
+            console.error('Error details:', error.response?.data || error.message);
             setData([]);
         } finally {
             setLoading(false);

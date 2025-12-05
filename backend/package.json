@@ -21,7 +21,13 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "seed:admin": "ts-node src/auth/seed.ts"
+    "seed:admin": "ts-node src/auth/seed.ts",
+    "seed:data": "ts-node src/seed-data.ts",
+    "seed:supabase": "ts-node src/seed-supabase.ts",
+    "check:data": "ts-node src/check-data.ts",
+    "seed:your-data": "ts-node src/seed-from-your-data.ts",
+    "validate:excel": "ts-node src/validate-excel.ts",
+    "generate:sample-excel": "ts-node src/generate-sample-excel.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -39,7 +45,8 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

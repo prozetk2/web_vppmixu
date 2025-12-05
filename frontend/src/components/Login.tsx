@@ -19,8 +19,15 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
         try {
             const response = await authAPI.login(username, password);
-            localStorage.setItem('token', response.data.access_token);
-            onLoginSuccess();
+            console.log('Login response:', response);
+            // Backend returns {data: {data: {access_token, user}}}
+            const token = response.data?.data?.access_token || response.data?.access_token;
+            if (token) {
+                localStorage.setItem('token', token);
+                onLoginSuccess();
+            } else {
+                setError('Không nhận được token từ server');
+            }
         } catch (err: any) {
             setError(err.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không đúng');
         } finally {

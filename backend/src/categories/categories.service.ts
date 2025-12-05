@@ -1,60 +1,84 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly supabase: SupabaseService) { }
 
   async create(dto: CreateCategoryDto) {
-    return this.prisma.category.create({
-      data: {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('category')
+      .insert({
         name: dto.name,
         code: dto.code,
-        parentId: dto.parentId ? BigInt(dto.parentId) : null,
-      },
-    });
+        parent_id: dto.parentId || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
-  findAll() {
-    return this.prisma.category.findMany({
-      // where: { deletedAt: null }, // deletedAt removed from schema
-      // orderBy: { createdAt: 'desc' }, // createdAt removed from schema
-    });
+  async findAll() {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('category')
+      .select('*')
+      .order('id', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
   }
 
   async findOne(id: string) {
-    const category = await this.prisma.category.findUnique({ where: { id: BigInt(id) } });
-    if (!category) {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('category')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
       throw new NotFoundException('CATEGORY_NOT_FOUND');
     }
-    return category;
+    return data;
   }
 
   async update(id: string, dto: UpdateCategoryDto) {
-    await this.ensureExists(id);
-    return this.prisma.category.update({
-      where: { id: BigInt(id) },
-      data: {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('category')
+      .update({
         name: dto.name,
         code: dto.code,
-        parentId: dto.parentId ? BigInt(dto.parentId) : null,
-      },
-    });
+        parent_id: dto.parentId || null,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException('CATEGORY_NOT_FOUND');
+    }
+    return data;
   }
 
   async remove(id: string) {
-    await this.ensureExists(id);
-    // Hard delete since deletedAt is gone, or implement soft delete if schema supports it (it doesn't currently)
-    return this.prisma.category.delete({ where: { id: BigInt(id) } });
-  }
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('category')
+      .delete()
+      .eq('id', id)
+      .select()
+      .single();
 
-  private async ensureExists(id: string) {
-    const category = await this.prisma.category.findUnique({ where: { id: BigInt(id) } });
-    if (!category) {
+    if (error || !data) {
       throw new NotFoundException('CATEGORY_NOT_FOUND');
     }
-    return category;
+    return data;
   }
 }
