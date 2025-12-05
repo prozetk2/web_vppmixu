@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { authAPI } from '../services/api';
+import './Login.css';
 
 interface LoginProps {
     onLoginSuccess: () => void;
@@ -21,61 +22,77 @@ export default function Login({ onLoginSuccess }: LoginProps) {
             localStorage.setItem('token', response.data.access_token);
             onLoginSuccess();
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Login failed');
+            setError(err.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không đúng');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
-            <div className="bg-white p-8 rounded-lg shadow-2xl w-96">
-                <h1 className="text-3xl font-bold text-center mb-6 text-gray-800">
-                    Warehouse Management
-                </h1>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Username
+        <div className="login-container">
+            <div className="login-card">
+                <div className="login-header">
+                    <h1 className="login-title">Quản lý kho hàng</h1>
+                    <p className="login-subtitle">Đăng nhập để tiếp tục</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="login-form">
+                    <div className="form-group">
+                        <label htmlFor="username" className="form-label">
+                            Tên đăng nhập
                         </label>
                         <input
+                            id="username"
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="Enter username"
+                            className="form-input"
+                            placeholder="Nhập tên đăng nhập"
                             required
+                            autoFocus
                         />
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Password
+
+                    <div className="form-group">
+                        <label htmlFor="password" className="form-label">
+                            Mật khẩu
                         </label>
                         <input
+                            id="password"
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="Enter password"
+                            className="form-input"
+                            placeholder="Nhập mật khẩu"
                             required
                         />
                     </div>
+
                     {error && (
-                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                        <div className="error-message">
                             {error}
                         </div>
                     )}
+
                     <button
                         type="submit"
                         disabled={loading}
-                        className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-medium"
+                        className="btn-primary"
                     >
-                        {loading ? 'Logging in...' : 'Login'}
+                        {loading ? (
+                            <>
+                                <span className="spinner"></span>
+                                Đang đăng nhập...
+                            </>
+                        ) : (
+                            'Đăng nhập'
+                        )}
                     </button>
                 </form>
-                <p className="mt-4 text-sm text-gray-600 text-center">
-                    Default: admin / password
-                </p>
+
+                <div className="demo-hint">
+                    Tài khoản demo: <span className="highlight">admin</span> / <span className="highlight">admin123</span>
+                </div>
             </div>
         </div>
     );
