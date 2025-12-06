@@ -1,0 +1,7 @@
+FROM node:20-alpine
+WORKDIR /app
+
+# Install dependencies (include dev) to support Nest watch inside container
+COPY package*.json ./
+RUN npm install
+COPY prisma ./prisma

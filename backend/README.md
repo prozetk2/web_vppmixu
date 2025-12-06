@@ -1,41 +1,68 @@
 # Backend (NestJS + Prisma + JWT)
 
 ## Yêu cầu
-- Node.js >= 18, npm
-- Supabase `DATABASE_URL` do team data cung cấp
+- Node.js >= 18, npm (nếu chạy không dùng Docker)
+- Supabase: `SUPABASE_URL`, `SUPABASE_ANON_KEY`
+- Postgres (Compose đã kèm db nội bộ)
 
-## Thiết lập
-1) Sao chép file env: `cp .env.example .env` và điền `DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `PORT` (mặc định 3000).
-2) Cài đặt: `npm install`
-3) Sinh Prisma Client: `npm run prisma:generate`
-4) (Nếu được phép) migrate: `npm run prisma:migrate -- --name init`
-5) Chạy dev: `npm run start:dev`
+## Chuẩn bị môi trường
+1) Sao chép env: `cp .env.example .env`
+2) Điền các biến:
+   - `SUPABASE_URL`, `SUPABASE_ANON_KEY`
+   - `DATABASE_URL`, `DIRECT_URL` (dùng Supabase hoặc Postgres riêng)
+   - `JWT_SECRET`, `JWT_EXPIRES_IN`, `PORT` (mặc định 3000)
 
-## Scripts chính
-- `npm run start:dev`: chạy server watch mode
-- `npm run lint`: eslint
-- `npm run test` / `npm run test:e2e`: test
-- `npm run prisma:generate` / `npm run prisma:migrate`
-- `npm run prisma:migrate:deploy`: deploy migration khi chạy prod/container
-- `npm run seed:admin`: seed tài khoản admin mặc định `admin@example.com / admin123`
+## Chạy bằng Docker Compose
+Trong thư mục `backend`:
+```bash
+# build + chạy (khuyến nghị khi đổi Dockerfile)
+docker compose up --build
 
-## API hiện tại (đối chiếu docs/api-contract.md)
-- Auth: `POST /auth/login` (email, password), `GET /auth/me` (Bearer JWT)
-- Products: CRUD + list có search/pagination, soft delete, barcode unique
-- Categories: CRUD + soft delete
-- Units: CRUD
+# hoặc dùng script npm tương đương
+npm run docker:dev          # docker compose -f docker-compose.yml up
+npm run docker:dev:rebuild  # docker compose -f docker-compose.yml up --build --remove-orphans
 
-## Response chuẩn
-- Success: `{ data, meta? }`
-- Error: `{ error: { code, message, details? }, meta? }`
+# dừng container
+docker compose down
+```
+Mặc định map cổng: API `http://localhost:3000`, Postgres `localhost:5432`.
+Container `api` sẽ chạy `prisma migrate deploy` trước khi start và yêu cầu đủ biến Supabase.
 
-## Lưu ý
-- Guard mặc định JWT + RBAC (@Roles) cho các mutation.
-- Prisma schema đặt ở `prisma/schema.prisma` (role/user/product/category/unit). Team data có thể điều chỉnh thêm bảng/field khác.
+## Chạy local (không Docker)
+```bash
+npm install
+npm run prisma:generate
+npm run start:dev
+```
 
-## Docker
-- Build image BE: `docker build -t web-vpp-backend ./backend`
-- Compose (API + Postgres local): `docker compose up --build`
-  - `DATABASE_URL` mặc định trong compose: `postgresql://app:app@db:5432/appdb?schema=public` (override qua env host).
-  - Port: API `3000`, Postgres `5432`.
-- Container `api` chạy `prisma migrate deploy` rồi start `dist/main`. Muốn seed admin: `docker compose exec api npm run seed:admin`.
+## Lệnh tiện dụng
+- Prisma client: `npm run prisma:generate`
+- Migrate dev: `npm run prisma:migrate -- --name init`
+- Deploy migrate (prod/container): `npm run prisma:migrate:deploy`
+- Seed admin: `npm run seed:admin`
+
+## Curl kiểm tra nhanh API
+Giả sử server chạy tại `http://localhost:3000`.
+
+```bash
+# 1) Healthcheck
+curl -i http://localhost:3000/health
+
+# 2) Đăng nhập (lấy token)
+curl -i -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"admin123"}'
+
+# 3) Lấy thông tin user hiện tại (thay <TOKEN> bằng access token nhận ở bước 2)
+curl -i http://localhost:3000/auth/me \
+  -H "Authorization: Bearer <TOKEN>"
+
+# 4) Tạo sản phẩm mới (cần token)
+curl -i -X POST http://localhost:3000/products \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Bút bi","barcode":"BB001","price":5000,"categoryId":1}'
+
+# 5) Liệt kê sản phẩm
+curl -i http://localhost:3000/products
+```

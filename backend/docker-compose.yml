@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: appdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://app:app@db:5432/appdb?schema=public
+      DIRECT_URL: postgresql://app:app@db:5432/appdb?schema=public
+      PORT: ${PORT:-3000}
+      JWT_SECRET: ${JWT_SECRET:-45a3ffb283c047be6709c6f003d2ee2cca3797684af8e69cc0fdad34fa7d532f}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    command: sh -c "npm run prisma:migrate:deploy && npm run start:prod"
+
+volumes:
+  db_data:
