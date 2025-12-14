@@ -6,6 +6,7 @@ import {
     customersAPI,
     suppliersAPI
 } from '../services/api';
+import ImportModal from './ImportModal';
 import './Dashboard.css';
 
 interface DashboardProps {
@@ -19,6 +20,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [user, setUser] = useState<any>(null);
+    const [showImportModal, setShowImportModal] = useState(false);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -69,6 +71,24 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleImport = async (file: File) => {
+        let response;
+        switch (activeTab) {
+            case 'categories':
+                response = await categoriesAPI.importFromExcel(file);
+                break;
+            default:
+                throw new Error('Import not implemented for this module');
+        }
+
+        // Refresh data after successful import
+        if (response.data.success) {
+            await fetchData();
+        }
+
+        return response.data;
     };
 
     const tabs = [
@@ -181,7 +201,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     <div className="content-card">
                         <div className="card-header">
                             <h2 className="card-title">{activeTabInfo?.label}</h2>
-                            <span className="card-count">{data.length} bản ghi</span>
+                            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                <span className="card-count">{data.length} bản ghi</span>
+                                <button
+                                    className="btn-import"
+                                    onClick={() => setShowImportModal(true)}
+                                    title="Import từ Excel"
+                                >
+                                    Import
+                                </button>
+                            </div>
                         </div>
 
                         {loading ? (
@@ -219,6 +248,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     </div>
                 </div>
             </main>
+
+            <ImportModal
+                isOpen={showImportModal}
+                onClose={() => setShowImportModal(false)}
+                onImport={handleImport}
+                moduleName={activeTabInfo?.label || ''}
+            />
         </div>
     );
 }
