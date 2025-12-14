@@ -1,70 +1,87 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 
 @Injectable()
 export class CustomersService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(private readonly supabase: SupabaseService) { }
 
     async create(dto: CreateCustomerDto) {
-        return this.prisma.customer.create({
-            data: {
-                code: dto.code,
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('customer')
+            .insert({
                 name: dto.name,
                 email: dto.email,
                 phone: dto.phone,
                 address: dto.address,
-                taxNumber: dto.taxNumber,
-            },
-        });
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
     }
 
-    findAll() {
-        return this.prisma.customer.findMany({
-            orderBy: { createdAt: 'desc' },
-        });
+    async findAll() {
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('customer')
+            .select('*')
+            .order('id', { ascending: true });
+
+        if (error) throw error;
+        return data || [];
     }
 
     async findOne(id: string) {
-        const customer = await this.prisma.customer.findUnique({
-            where: { id: BigInt(id) },
-        });
-        if (!customer) {
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('customer')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error || !data) {
             throw new NotFoundException('CUSTOMER_NOT_FOUND');
         }
-        return customer;
+        return data;
     }
 
     async update(id: string, dto: UpdateCustomerDto) {
-        await this.ensureExists(id);
-        return this.prisma.customer.update({
-            where: { id: BigInt(id) },
-            data: {
-                code: dto.code,
-                name: dto.name,
-                email: dto.email,
-                phone: dto.phone,
-                address: dto.address,
-                taxNumber: dto.taxNumber,
-            },
-        });
+        const updateData: any = {};
+        if (dto.name !== undefined) updateData.name = dto.name;
+        if (dto.email !== undefined) updateData.email = dto.email;
+        if (dto.phone !== undefined) updateData.phone = dto.phone;
+        if (dto.address !== undefined) updateData.address = dto.address;
+
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('customer')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error || !data) {
+            throw new NotFoundException('CUSTOMER_NOT_FOUND');
+        }
+        return data;
     }
 
     async remove(id: string) {
-        await this.ensureExists(id);
-        return this.prisma.customer.delete({
-            where: { id: BigInt(id) },
-        });
-    }
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('customer')
+            .delete()
+            .eq('id', id)
+            .select()
+            .single();
 
-    private async ensureExists(id: string) {
-        const customer = await this.prisma.customer.findUnique({
-            where: { id: BigInt(id) },
-        });
-        if (!customer) {
+        if (error || !data) {
             throw new NotFoundException('CUSTOMER_NOT_FOUND');
         }
-        return customer;
+        return data;
     }
 }

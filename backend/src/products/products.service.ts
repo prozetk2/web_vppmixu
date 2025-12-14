@@ -1,89 +1,91 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { CreateProductDto } from './dto/create-product.dto';
-import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly supabase: SupabaseService) { }
 
   async create(dto: CreateProductDto) {
-    return this.prisma.product.create({
-      data: {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('product')
+      .insert({
         name: dto.name,
-        sku: dto.barcode,
-        categoryId: dto.categoryId ? BigInt(dto.categoryId) : null,
-        defaultPrice: dto.price,
-        defaultCost: dto.cost ?? 0,
-      },
-    });
+        sku: dto.sku,
+        description: dto.description,
+        default_price: dto.defaultPrice,
+        default_cost: dto.defaultCost,
+        category_id: dto.categoryId ? BigInt(dto.categoryId) : null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
   }
 
-  async findAll(query: ProductQueryDto) {
-    const { page, limit, search, categoryId, includeDeleted } = query;
+  async findAll() {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('product')
+      .select('*')
+      .order('id', { ascending: true });
 
-    const where: Prisma.ProductWhereInput = {
-      // ...(includeDeleted ? {} : { deletedAt: null }), // deletedAt gone
-      ...(categoryId ? { categoryId: BigInt(categoryId) } : {}),
-    };
-
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const [items, total] = await Promise.all([
-      this.prisma.product.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        include: { category: true },
-      }),
-      this.prisma.product.count({ where }),
-    ]);
-
-    return { data: items, meta: { page, limit, total } };
+    if (error) throw error;
+    return data || [];
   }
 
   async findOne(id: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { id: BigInt(id) },
-      include: { category: true, variants: true },
-    });
-    if (!product) {
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('product')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !data) {
       throw new NotFoundException('PRODUCT_NOT_FOUND');
     }
-    return product;
+    return data;
   }
 
   async update(id: string, dto: UpdateProductDto) {
-    await this.ensureExists(id);
-    return this.prisma.product.update({
-      where: { id: BigInt(id) },
-      data: {
-        name: dto.name,
-        categoryId: dto.categoryId ? BigInt(dto.categoryId) : null,
-        defaultPrice: dto.price,
-        defaultCost: dto.cost,
-      },
-    });
+    const updateData: any = {};
+    if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.sku !== undefined) updateData.sku = dto.sku;
+    if (dto.description !== undefined) updateData.description = dto.description;
+    if (dto.defaultPrice !== undefined) updateData.default_price = dto.defaultPrice;
+    if (dto.defaultCost !== undefined) updateData.default_cost = dto.defaultCost;
+    if (dto.categoryId !== undefined) updateData.category_id = dto.categoryId ? BigInt(dto.categoryId) : null;
+
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('product')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new NotFoundException('PRODUCT_NOT_FOUND');
+    }
+    return data;
   }
 
   async remove(id: string) {
-    await this.ensureExists(id);
-    return this.prisma.product.delete({ where: { id: BigInt(id) } });
-  }
+    const { data, error } = await this.supabase
+      .getClient()
+      .from('product')
+      .delete()
+      .eq('id', id)
+      .select()
+      .single();
 
-  private async ensureExists(id: string) {
-    const product = await this.prisma.product.findUnique({ where: { id: BigInt(id) } });
-    if (!product) {
+    if (error || !data) {
       throw new NotFoundException('PRODUCT_NOT_FOUND');
     }
-    return product;
+    return data;
   }
 }

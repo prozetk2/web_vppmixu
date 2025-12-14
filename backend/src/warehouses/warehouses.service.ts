@@ -1,66 +1,87 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
 
 @Injectable()
 export class WarehousesService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(private readonly supabase: SupabaseService) { }
 
     async create(dto: CreateWarehouseDto) {
-        return this.prisma.warehouse.create({
-            data: {
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('warehouse')
+            .insert({
                 name: dto.name,
                 code: dto.code,
                 address: dto.address,
-                storeId: dto.storeId ? BigInt(dto.storeId) : null,
-            },
-        });
+                store_id: dto.storeId ? BigInt(dto.storeId) : null,
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
     }
 
-    findAll() {
-        return this.prisma.warehouse.findMany({
-            orderBy: { createdAt: 'desc' },
-        });
+    async findAll() {
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('warehouse')
+            .select('*')
+            .order('id', { ascending: true });
+
+        if (error) throw error;
+        return data || [];
     }
 
     async findOne(id: string) {
-        const warehouse = await this.prisma.warehouse.findUnique({
-            where: { id: BigInt(id) },
-        });
-        if (!warehouse) {
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('warehouse')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error || !data) {
             throw new NotFoundException('WAREHOUSE_NOT_FOUND');
         }
-        return warehouse;
+        return data;
     }
 
     async update(id: string, dto: UpdateWarehouseDto) {
-        await this.ensureExists(id);
-        return this.prisma.warehouse.update({
-            where: { id: BigInt(id) },
-            data: {
-                name: dto.name,
-                code: dto.code,
-                address: dto.address,
-                storeId: dto.storeId ? BigInt(dto.storeId) : null,
-            },
-        });
+        const updateData: any = {};
+        if (dto.name !== undefined) updateData.name = dto.name;
+        if (dto.code !== undefined) updateData.code = dto.code;
+        if (dto.address !== undefined) updateData.address = dto.address;
+        if (dto.storeId !== undefined) updateData.store_id = dto.storeId ? BigInt(dto.storeId) : null;
+
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('warehouse')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error || !data) {
+            throw new NotFoundException('WAREHOUSE_NOT_FOUND');
+        }
+        return data;
     }
 
     async remove(id: string) {
-        await this.ensureExists(id);
-        return this.prisma.warehouse.delete({
-            where: { id: BigInt(id) },
-        });
-    }
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('warehouse')
+            .delete()
+            .eq('id', id)
+            .select()
+            .single();
 
-    private async ensureExists(id: string) {
-        const warehouse = await this.prisma.warehouse.findUnique({
-            where: { id: BigInt(id) },
-        });
-        if (!warehouse) {
+        if (error || !data) {
             throw new NotFoundException('WAREHOUSE_NOT_FOUND');
         }
-        return warehouse;
+        return data;
     }
 }

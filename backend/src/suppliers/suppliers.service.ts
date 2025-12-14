@@ -1,70 +1,87 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseService } from '../supabase/supabase.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 
 @Injectable()
 export class SuppliersService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(private readonly supabase: SupabaseService) { }
 
     async create(dto: CreateSupplierDto) {
-        return this.prisma.supplier.create({
-            data: {
-                code: dto.code,
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('supplier')
+            .insert({
                 name: dto.name,
                 email: dto.email,
                 phone: dto.phone,
                 address: dto.address,
-                taxNumber: dto.taxNumber,
-            },
-        });
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
     }
 
-    findAll() {
-        return this.prisma.supplier.findMany({
-            orderBy: { createdAt: 'desc' },
-        });
+    async findAll() {
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('supplier')
+            .select('*')
+            .order('id', { ascending: true });
+
+        if (error) throw error;
+        return data || [];
     }
 
     async findOne(id: string) {
-        const supplier = await this.prisma.supplier.findUnique({
-            where: { id: BigInt(id) },
-        });
-        if (!supplier) {
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('supplier')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error || !data) {
             throw new NotFoundException('SUPPLIER_NOT_FOUND');
         }
-        return supplier;
+        return data;
     }
 
     async update(id: string, dto: UpdateSupplierDto) {
-        await this.ensureExists(id);
-        return this.prisma.supplier.update({
-            where: { id: BigInt(id) },
-            data: {
-                code: dto.code,
-                name: dto.name,
-                email: dto.email,
-                phone: dto.phone,
-                address: dto.address,
-                taxNumber: dto.taxNumber,
-            },
-        });
+        const updateData: any = {};
+        if (dto.name !== undefined) updateData.name = dto.name;
+        if (dto.email !== undefined) updateData.email = dto.email;
+        if (dto.phone !== undefined) updateData.phone = dto.phone;
+        if (dto.address !== undefined) updateData.address = dto.address;
+
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('supplier')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error || !data) {
+            throw new NotFoundException('SUPPLIER_NOT_FOUND');
+        }
+        return data;
     }
 
     async remove(id: string) {
-        await this.ensureExists(id);
-        return this.prisma.supplier.delete({
-            where: { id: BigInt(id) },
-        });
-    }
+        const { data, error } = await this.supabase
+            .getClient()
+            .from('supplier')
+            .delete()
+            .eq('id', id)
+            .select()
+            .single();
 
-    private async ensureExists(id: string) {
-        const supplier = await this.prisma.supplier.findUnique({
-            where: { id: BigInt(id) },
-        });
-        if (!supplier) {
+        if (error || !data) {
             throw new NotFoundException('SUPPLIER_NOT_FOUND');
         }
-        return supplier;
+        return data;
     }
 }

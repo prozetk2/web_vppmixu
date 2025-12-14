@@ -6,13 +6,11 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
 import { CategoriesModule } from './categories/categories.module';
-
-
-
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { CustomersModule } from './customers/customers.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { SupabaseModule } from './supabase/supabase.module';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -20,6 +18,7 @@ import { SupabaseModule } from './supabase/supabase.module';
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
     }),
+    CommonModule,
     SupabaseModule,
     PrismaModule,
     AuthModule,

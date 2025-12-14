@@ -10,5 +10,9 @@ export class CreateCategoryDto {
 
   @IsOptional()
   @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
   parentId?: string;
 }
