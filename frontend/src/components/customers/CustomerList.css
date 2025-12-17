@@ -1,0 +1,409 @@
+.customer-page {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.customer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.customer-header h2 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.btn-add {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-add:hover {
+    background: #2563eb;
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.btn-import {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #f0fdf4;
+    color: #16a34a;
+    border: 1px solid #16a34a;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-import:hover:not(:disabled) {
+    background: #16a34a;
+    color: white;
+}
+
+.btn-import:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.import-note {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.import-note.success {
+    background: #f0fdf4;
+    color: #16a34a;
+}
+
+.import-note.error {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+/* Table */
+.customer-table-wrapper {
+    overflow-x: auto;
+}
+
+.customer-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.customer-table th,
+.customer-table td {
+    padding: 0.875rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.customer-table th {
+    background: #f9fafb;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+}
+
+.customer-table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.customer-name {
+    font-weight: 500;
+    color: #1e293b;
+    cursor: pointer;
+}
+
+.customer-name:hover {
+    color: #3b82f6;
+    text-decoration: underline;
+}
+
+.customer-code {
+    font-family: monospace;
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.customer-contact {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.debt-badge {
+    display: inline-flex;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.debt-badge.positive {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.debt-badge.zero {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.actions-cell {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-edit,
+.btn-delete {
+    padding: 0.375rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.btn-edit {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
+.btn-edit:hover {
+    background: #2563eb;
+    color: white;
+}
+
+.btn-delete {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.btn-delete:hover {
+    background: #dc2626;
+    color: white;
+}
+
+/* Empty & Loading */
+.customer-empty,
+.customer-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 2rem;
+    color: #6b7280;
+}
+
+.customer-empty-icon {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Form */
+.customer-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-label {
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.required {
+    color: #ef4444;
+}
+
+.form-input {
+    padding: 0.625rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.875rem;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-input.error {
+    border-color: #ef4444;
+}
+
+.error-text {
+    color: #ef4444;
+    font-size: 0.75rem;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.btn {
+    padding: 0.625rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.btn-secondary {
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    color: #374151;
+}
+
+.btn-primary {
+    background: #3b82f6;
+    border: none;
+    color: white;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Detail Modal */
+.customer-detail {
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.detail-info {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.info-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+    text-transform: uppercase;
+}
+
+.info-value {
+    font-weight: 500;
+    color: #1e293b;
+}
+
+.debt-summary {
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.debt-summary h4 {
+    margin: 0 0 0.75rem;
+    font-size: 0.9rem;
+}
+
+.debt-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.debt-stat {
+    text-align: center;
+}
+
+.debt-stat-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.debt-stat-value.positive {
+    color: #dc2626;
+}
+
+.debt-stat-value.zero {
+    color: #16a34a;
+}
+
+.debt-stat-label {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+/* Orders table in detail */
+.orders-section h4 {
+    margin: 0 0 0.75rem;
+    font-size: 0.9rem;
+}
+
+.orders-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.orders-table th,
+.orders-table td {
+    padding: 0.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+}
+
+.orders-table th {
+    background: #f9fafb;
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+}
+
+.order-status {
+    display: inline-flex;
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+.order-status.COMPLETED {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.order-status.RETURNED {
+    background: #f3e8ff;
+    color: #9333ea;
+}
+
+.detail-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 1rem;
+    border-top: 1px solid #e5e7eb;
+}

@@ -19,10 +19,18 @@ export default function Login({ onLoginSuccess }: LoginProps) {
 
         try {
             const response = await authAPI.login(username, password);
-            localStorage.setItem('token', response.data.access_token);
+            const token = response.data?.data?.access_token || response.data?.access_token;
+            if (!token) {
+                throw new Error('Không lấy được token đăng nhập');
+            }
+            localStorage.setItem('token', token);
             onLoginSuccess();
         } catch (err: any) {
-            setError(err.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không đúng');
+            const apiMessage =
+                err.response?.data?.error?.message ||
+                err.response?.data?.message ||
+                err.message;
+            setError(apiMessage || 'Tên đăng nhập hoặc mật khẩu không đúng');
         } finally {
             setLoading(false);
         }

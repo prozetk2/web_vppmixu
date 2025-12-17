@@ -135,6 +135,7 @@ model Inventory {
   variant   ProductVariant @relation(fields: [variantId], references: [id])
   warehouse Warehouse      @relation(fields: [warehouseId], references: [id])
 
+  @@unique([variantId, warehouseId])
   @@map("inventory")
 }
 
@@ -260,7 +261,9 @@ model ProductVariant {
   inventory      Inventory[]
   orderItems     OrderItem[]
   stockMovements StockMovement[]
+  purchaseItems  PurchaseItem[]
 
+  @@unique([productId, sku])
   @@map("product_variant")
 }
 
@@ -325,7 +328,41 @@ model Supplier {
   taxNumber String?  @map("tax_number")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
+  purchaseOrders PurchaseOrder[]
+
   @@map("supplier")
+}
+
+model PurchaseOrder {
+  id            BigInt    @id @default(autoincrement())
+  orderNumber   String?   @unique @map("order_number")
+  supplierId    BigInt    @map("supplier_id")
+  warehouseId   BigInt?   @map("warehouse_id")
+  status        String    @default("PENDING")
+  totalAmount   Decimal   @default(0) @map("total_amount")
+  note          String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  confirmedAt   DateTime? @map("confirmed_at") @db.Timestamptz
+
+  supplier      Supplier        @relation(fields: [supplierId], references: [id])
+  warehouse     Warehouse?      @relation(fields: [warehouseId], references: [id])
+  purchaseItems PurchaseItem[]
+
+  @@map("purchase_order")
+}
+
+model PurchaseItem {
+  id              BigInt  @id @default(autoincrement())
+  purchaseOrderId BigInt  @map("purchase_order_id")
+  variantId       BigInt  @map("variant_id")
+  quantity        BigInt
+  unitCost        Decimal @map("unit_cost")
+  totalCost       Decimal @map("total_cost")
+
+  purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])
+  variant       ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@map("purchase_item")
 }
 
 model Transaction {
@@ -366,6 +403,7 @@ model Warehouse {
   inventory          Inventory[]
   stockMovementsFrom StockMovement[] @relation("FromWarehouse")
   stockMovementsTo   StockMovement[] @relation("ToWarehouse")
+  purchaseOrders     PurchaseOrder[]
 
   @@map("warehouse")
 }

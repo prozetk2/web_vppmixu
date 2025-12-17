@@ -38,4 +38,14 @@ export class CustomersController {
     remove(@Param('id') id: string) {
         return this.customersService.remove(id);
     }
+
+    @Get(':id/orders')
+    getOrders(@Param('id') id: string) {
+        return this.customersService.getOrders(id);
+    }
+
+    @Get(':id/debts')
+    getDebts(@Param('id') id: string) {
+        return this.customersService.getDebts(id);
+    }
 }

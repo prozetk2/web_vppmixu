@@ -10,6 +10,4 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
       console.log('Prisma connection failed, but continuing...');
     }
   }
-
-
 }

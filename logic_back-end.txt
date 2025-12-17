@@ -1,0 +1,134 @@
+các logic back-end: 
+- module Auth & User: 
+	+ logic đăng nhập -> trả JWT -> FE lưu 
+	+ Mỗi request bảo vệ → decode JWT → biết user/role → check quyền
+- module Product: 
+	// Product
+	createProduct(payload)
+	updateProduct(productId, payload)
+	deleteProductSoft(productId)           // set isActive = false
+	getProductById(productId)
+	getProductByBarcode(barcode)
+	searchProducts(filter)                 // name, barcode, category, paging
+
+	// Category
+	createCategory(payload)
+	updateCategory(categoryId, payload)
+	deleteCategory(categoryId)
+	listCategories()
+- Module Inventory:(tồn kho, phiếu nhập/xuất/điều chỉnh) 
+- Module POS / SALES (bán hàng, hóa đơn, trả hàng)
+- Module PURCHASE (mua hàng, nhập kho, công nợ NCC)
+- Module CUSTOMER & SUPPLIER (đối tác, công nợ)	
+-7. Module REPORTS (doanh thu, tồn kho, top sản phẩm…)
+-8. Module SETTINGS (cấu hình hệ thống)	
+
+Ộ TRÌNH ĐỂ HOÀN THÀNH DỰ ÁN (THEO FUNCTION/LOGIC)
+
+Giả định: bạn đã có base (DB Supabase, BE TS docker, FE setup).
+
+Giai đoạn 1 – Nền tảng nghiệp vụ (Core Engine)
+
+Auth & User
+
+Code các hàm: login, generateAccessToken, getUserById, checkPermission
+
+API: /auth/login, /auth/me
+
+Product & Category
+
+Các hàm CRUD sản phẩm + barcode unique
+
+API: /products, /categories
+
+Inventory core
+
+Các hàm: increaseStock, decreaseStock, adjustStock, getStockByProduct
+
+Chưa cần màn hình, chỉ cần logic chuẩn để dùng cho sales/purchase sau.
+
+✅ Kết quả: bạn đã có “engine” sản phẩm + tồn kho cơ bản.
+
+Giai đoạn 2 – POS / Bán hàng (giống KiotViet)
+
+Viết logic cart:
+
+addItemToCart, updateCartItemQuantity, calculateCartTotal
+
+Viết logic sale:
+
+validateSaleRequest
+
+generateInvoiceCode
+
+createSaleInvoiceFromCart (kèm transaction)
+
+commitStockForSale
+
+applyPaymentToInvoice
+
+Viết logic trả hàng:
+
+validateReturnRequest
+
+createReturnInvoice
+
+updateStockForReturn
+
+updateCustomerDebtForReturn
+
+✅ Kết quả: POS bán hàng chạy được, tồn kho thay đổi đúng, công nợ cập nhật.
+
+Giai đoạn 3 – Purchase / Nhập hàng
+
+Viết các hàm:
+
+createPurchaseOrder
+
+confirmPurchaseOrder
+
+applyStockImportFromPurchase
+
+createSupplierDebtRecord
+
+Màn hình nhập hàng FE + list phiếu nhập.
+
+✅ Kết quả: có flow mua hàng → nhập kho → công nợ NCC.
+
+Giai đoạn 4 – Đối tác & Công nợ
+
+Customer:
+
+createCustomer, updateCustomer, calculateCustomerDebt, getCustomerTransactionHistory
+
+Supplier:
+
+createSupplier, updateSupplier, calculateSupplierDebt
+
+FE:
+
+Màn khách hàng: list, detail, công nợ
+
+Màn nhà cung cấp: list, detail, công nợ
+
+✅ Kết quả: giống KiotViet: xem được công nợ khách và NCC.
+
+Giai đoạn 5 – Report & Hoàn thiện
+
+Implement các hàm report:
+
+getRevenueReport, getDailyRevenueSeries, getTopSellingProducts, getInventorySnapshot
+
+FE: các màn:
+
+Báo cáo doanh thu theo ngày/tháng
+
+Top sản phẩm
+
+Tồn kho tổng hợp
+
+Settings:
+
+getSystemSettings, updateSystemSettings, getVatRate
+
+Dùng getVatRate ở logic sale/purchase thay vì hard-code.

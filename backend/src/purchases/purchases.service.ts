@@ -1,0 +1,288 @@
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreatePurchaseDto } from './dto/create-purchase.dto';
+import { PurchaseQueryDto } from './dto/purchase-query.dto';
+
+@Injectable()
+export class PurchasesService {
+    constructor(private readonly prisma: PrismaService) { }
+
+    // Generate purchase order number: PN + YYYYMMDD + sequence
+    private async generateOrderNumber(): Promise<string> {
+        const today = new Date();
+        const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+        const prefix = `PN${dateStr}`;
+
+        const lastOrder = await this.prisma.purchaseOrder.findFirst({
+            where: {
+                orderNumber: { startsWith: prefix },
+            },
+            orderBy: { orderNumber: 'desc' },
+        });
+
+        let seq = 1;
+        if (lastOrder?.orderNumber) {
+            const lastSeq = parseInt(lastOrder.orderNumber.slice(-4), 10);
+            seq = isNaN(lastSeq) ? 1 : lastSeq + 1;
+        }
+
+        return `${prefix}${String(seq).padStart(4, '0')}`;
+    }
+
+    async create(dto: CreatePurchaseDto) {
+        if (!dto.items || dto.items.length === 0) {
+            throw new BadRequestException('PURCHASE_ITEMS_REQUIRED');
+        }
+
+        // Verify supplier exists
+        const supplier = await this.prisma.supplier.findUnique({
+            where: { id: BigInt(dto.supplierId) },
+        });
+        if (!supplier) {
+            throw new NotFoundException('SUPPLIER_NOT_FOUND');
+        }
+
+        // Get product variants
+        const productIds = dto.items.map((item) => BigInt(item.productId));
+        const products = await this.prisma.product.findMany({
+            where: { id: { in: productIds } },
+            include: {
+                variants: {
+                    where: { active: true },
+                    take: 1,
+                },
+            },
+        });
+
+        const productMap = new Map<string, any>();
+        for (const p of products) {
+            const variant = p.variants[0];
+            if (variant) {
+                productMap.set(p.id.toString(), { product: p, variant });
+            }
+        }
+
+        // Calculate totals
+        let totalAmount = 0;
+        const purchaseItems: any[] = [];
+
+        for (const item of dto.items) {
+            const info = productMap.get(item.productId);
+            if (!info) {
+                throw new BadRequestException(`PRODUCT_NOT_FOUND: ${item.productId}`);
+            }
+
+            const totalCost = item.unitCost * item.quantity;
+            totalAmount += totalCost;
+
+            purchaseItems.push({
+                variantId: info.variant.id,
+                quantity: BigInt(item.quantity),
+                unitCost: item.unitCost,
+                totalCost,
+            });
+        }
+
+        // Create purchase order
+        const orderNumber = await this.generateOrderNumber();
+        const order = await this.prisma.purchaseOrder.create({
+            data: {
+                orderNumber,
+                supplierId: BigInt(dto.supplierId),
+                warehouseId: dto.warehouseId ? BigInt(dto.warehouseId) : null,
+                status: 'PENDING',
+                totalAmount,
+                note: dto.note,
+                purchaseItems: {
+                    create: purchaseItems,
+                },
+            },
+            include: {
+                supplier: true,
+                warehouse: true,
+                purchaseItems: {
+                    include: {
+                        variant: {
+                            include: { product: true },
+                        },
+                    },
+                },
+            },
+        });
+
+        return order;
+    }
+
+    async findAll(query: PurchaseQueryDto) {
+        const { search, supplierId, status, fromDate, toDate, page = 1, limit = 20 } = query;
+        const skip = (page - 1) * limit;
+
+        const where: any = {};
+
+        if (search) {
+            where.orderNumber = { contains: search, mode: 'insensitive' };
+        }
+
+        if (supplierId) {
+            where.supplierId = BigInt(supplierId);
+        }
+
+        if (status) {
+            where.status = status;
+        }
+
+        if (fromDate || toDate) {
+            where.createdAt = {};
+            if (fromDate) where.createdAt.gte = new Date(fromDate);
+            if (toDate) where.createdAt.lte = new Date(toDate + 'T23:59:59');
+        }
+
+        const [data, total] = await Promise.all([
+            this.prisma.purchaseOrder.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    supplier: true,
+                    warehouse: true,
+                    purchaseItems: {
+                        include: {
+                            variant: {
+                                include: { product: true },
+                            },
+                        },
+                    },
+                },
+            }),
+            this.prisma.purchaseOrder.count({ where }),
+        ]);
+
+        return {
+            data,
+            meta: {
+                total,
+                page,
+                limit,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+    }
+
+    async findOne(id: string) {
+        const order = await this.prisma.purchaseOrder.findUnique({
+            where: { id: BigInt(id) },
+            include: {
+                supplier: true,
+                warehouse: true,
+                purchaseItems: {
+                    include: {
+                        variant: {
+                            include: { product: true },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!order) {
+            throw new NotFoundException('PURCHASE_ORDER_NOT_FOUND');
+        }
+
+        return order;
+    }
+
+    async confirm(id: string) {
+        const order = await this.findOne(id);
+
+        if (order.status === 'CONFIRMED') {
+            throw new BadRequestException('ORDER_ALREADY_CONFIRMED');
+        }
+
+        if (order.status === 'CANCELLED') {
+            throw new BadRequestException('ORDER_IS_CANCELLED');
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Update order status
+            await tx.purchaseOrder.update({
+                where: { id: BigInt(id) },
+                data: {
+                    status: 'CONFIRMED',
+                    confirmedAt: new Date(),
+                },
+            });
+
+            // 2. Find warehouse
+            let warehouseId = order.warehouseId;
+            if (!warehouseId) {
+                const firstWh = await tx.warehouse.findFirst({ orderBy: { createdAt: 'asc' } });
+                if (firstWh) warehouseId = firstWh.id;
+            }
+
+            if (!warehouseId) {
+                throw new BadRequestException('NO_WAREHOUSE_AVAILABLE');
+            }
+
+            // 3. Add inventory (nhập kho)
+            for (const item of order.purchaseItems) {
+                let inv = await tx.inventory.findFirst({
+                    where: {
+                        variantId: item.variantId,
+                        warehouseId: warehouseId,
+                    },
+                });
+
+                if (!inv) {
+                    inv = await tx.inventory.create({
+                        data: {
+                            variantId: item.variantId,
+                            warehouseId: warehouseId,
+                            quantity: 0,
+                        },
+                    });
+                }
+
+                // Add stock
+                await tx.inventory.update({
+                    where: { id: inv.id },
+                    data: { quantity: { increment: Number(item.quantity) } },
+                });
+
+                // Record movement
+                await tx.stockMovement.create({
+                    data: {
+                        movementType: 'PURCHASE',
+                        variantId: item.variantId,
+                        toWarehouseId: warehouseId,
+                        quantity: Number(item.quantity),
+                        note: `Nhập hàng: ${order.orderNumber}`,
+                    },
+                });
+            }
+
+            return this.findOne(id);
+        });
+    }
+
+    async cancel(id: string) {
+        const order = await this.findOne(id);
+
+        if (order.status === 'CONFIRMED') {
+            throw new BadRequestException('CANNOT_CANCEL_CONFIRMED_ORDER');
+        }
+
+        if (order.status === 'CANCELLED') {
+            throw new BadRequestException('ORDER_ALREADY_CANCELLED');
+        }
+
+        return this.prisma.purchaseOrder.update({
+            where: { id: BigInt(id) },
+            data: { status: 'CANCELLED' },
+            include: {
+                supplier: true,
+                purchaseItems: true,
+            },
+        });
+    }
+}

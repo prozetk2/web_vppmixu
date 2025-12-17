@@ -18,10 +18,23 @@ export class WarehousesService {
         });
     }
 
-    findAll() {
-        return this.prisma.warehouse.findMany({
+    async findAll() {
+        const warehouses = await this.prisma.warehouse.findMany({
             orderBy: { createdAt: 'desc' },
+            include: {
+                _count: {
+                    select: {
+                        inventory: true,
+                    },
+                },
+            },
         });
+
+        // Transform to add itemCount field
+        return warehouses.map((wh) => ({
+            ...wh,
+            itemCount: wh._count?.inventory || 0,
+        }));
     }
 
     async findOne(id: string) {

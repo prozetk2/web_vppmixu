@@ -5,7 +5,7 @@ CREATE TABLE public.accounting_entry (
   id bigint NOT NULL DEFAULT nextval('accounting_entry_id_seq'::regclass),
   entry_date date NOT NULL,
   description text,
-  reference_type character varying,
+  reference_type text,
   reference_id bigint,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT accounting_entry_pkey PRIMARY KEY (id)
@@ -23,11 +23,11 @@ CREATE TABLE public.accounting_line (
 );
 CREATE TABLE public.app_user (
   id bigint NOT NULL DEFAULT nextval('app_user_id_seq'::regclass),
-  username character varying NOT NULL UNIQUE,
-  email character varying UNIQUE,
-  password_hash character varying,
-  full_name character varying,
-  phone character varying,
+  username text NOT NULL UNIQUE,
+  email text UNIQUE,
+  password_hash text,
+  full_name text,
+  phone text,
   enabled boolean NOT NULL DEFAULT true,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone,
@@ -36,8 +36,8 @@ CREATE TABLE public.app_user (
 CREATE TABLE public.audit_log (
   id bigint NOT NULL DEFAULT nextval('audit_log_id_seq'::regclass),
   actor_id bigint,
-  action character varying,
-  target_type character varying,
+  action text,
+  target_type text,
   target_id bigint,
   payload jsonb,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -47,39 +47,30 @@ CREATE TABLE public.audit_log (
 CREATE TABLE public.bank_account (
   id bigint NOT NULL DEFAULT nextval('bank_account_id_seq'::regclass),
   store_id bigint,
-  bank_name character varying,
-  account_number character varying,
-  currency character varying DEFAULT 'VND'::character varying,
+  bank_name text,
+  account_number text,
+  currency text DEFAULT 'VND'::character varying,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT bank_account_pkey PRIMARY KEY (id),
   CONSTRAINT bank_account_store_id_fkey FOREIGN KEY (store_id) REFERENCES public.store(id)
 );
-CREATE TABLE public.category (
-  id bigint NOT NULL DEFAULT nextval('category_id_seq'::regclass),
-  name character varying NOT NULL,
-  code character varying UNIQUE,
-  parent_id bigint,
-  description text,
-  CONSTRAINT category_pkey PRIMARY KEY (id),
-  CONSTRAINT category_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.category(id)
-);
 CREATE TABLE public.chart_of_account (
   id bigint NOT NULL DEFAULT nextval('chart_of_account_id_seq'::regclass),
-  code character varying NOT NULL UNIQUE,
-  name character varying NOT NULL,
+  code text NOT NULL UNIQUE,
+  name text NOT NULL,
   parent_id bigint,
-  type character varying,
+  type text,
   CONSTRAINT chart_of_account_pkey PRIMARY KEY (id),
   CONSTRAINT chart_of_account_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.chart_of_account(id)
 );
 CREATE TABLE public.customer (
   id bigint NOT NULL DEFAULT nextval('customer_id_seq'::regclass),
-  code character varying UNIQUE,
-  name character varying NOT NULL,
-  email character varying,
-  phone character varying,
+  code text UNIQUE,
+  name text NOT NULL,
+  email text,
+  phone text,
   address text,
-  tax_number character varying,
+  tax_number text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT customer_pkey PRIMARY KEY (id)
 );
@@ -96,13 +87,13 @@ CREATE TABLE public.inventory (
 );
 CREATE TABLE public.invoice (
   id bigint NOT NULL DEFAULT nextval('invoice_id_seq'::regclass),
-  invoice_number character varying UNIQUE,
+  invoice_number text UNIQUE,
   order_id bigint,
   store_id bigint,
   customer_id bigint,
   total_amount numeric,
   tax_amount numeric,
-  status character varying DEFAULT 'DRAFT'::character varying,
+  status text DEFAULT 'DRAFT'::character varying,
   issued_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT invoice_pkey PRIMARY KEY (id),
@@ -113,24 +104,24 @@ CREATE TABLE public.invoice (
 CREATE TABLE public.invoice_einvoice (
   id bigint NOT NULL DEFAULT nextval('invoice_einvoice_id_seq'::regclass),
   invoice_id bigint NOT NULL,
-  provider character varying,
-  external_id character varying,
+  provider text,
+  external_id text,
   signed boolean DEFAULT false,
   pdf_url text,
   xml_content text,
   issued_at timestamp with time zone,
-  status character varying,
+  status text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT invoice_einvoice_pkey PRIMARY KEY (id),
   CONSTRAINT invoice_einvoice_invoice_id_fkey FOREIGN KEY (invoice_id) REFERENCES public.invoice(id)
 );
 CREATE TABLE public.order (
   id bigint NOT NULL DEFAULT nextval('order_id_seq'::regclass),
-  order_number character varying UNIQUE,
+  order_number text UNIQUE,
   store_id bigint,
   customer_id bigint,
-  channel character varying,
-  status character varying NOT NULL DEFAULT 'PENDING'::character varying,
+  channel text,
+  status text NOT NULL DEFAULT 'PENDING'::character varying,
   total_amount numeric NOT NULL DEFAULT 0,
   subtotal numeric NOT NULL DEFAULT 0,
   tax_amount numeric DEFAULT 0,
@@ -157,31 +148,30 @@ CREATE TABLE public.payment (
   id bigint NOT NULL DEFAULT nextval('payment_id_seq'::regclass),
   order_id bigint,
   amount numeric NOT NULL,
-  method character varying,
-  status character varying NOT NULL DEFAULT 'PENDING'::character varying,
-  reference character varying,
+  method text,
+  status text NOT NULL DEFAULT 'PENDING'::character varying,
+  reference text,
   paid_at timestamp with time zone,
   CONSTRAINT payment_pkey PRIMARY KEY (id),
   CONSTRAINT payment_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.order(id)
 );
 CREATE TABLE public.product (
   id bigint NOT NULL DEFAULT nextval('product_id_seq'::regclass),
-  sku character varying UNIQUE,
-  name character varying NOT NULL,
+  sku text UNIQUE,
+  name text NOT NULL,
   description text,
   category_id bigint,
   default_price numeric NOT NULL DEFAULT 0,
   default_cost numeric DEFAULT 0,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone,
-  CONSTRAINT product_pkey PRIMARY KEY (id),
-  CONSTRAINT product_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.category(id)
+  CONSTRAINT product_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.product_variant (
   id bigint NOT NULL DEFAULT nextval('product_variant_id_seq'::regclass),
   product_id bigint NOT NULL,
-  sku character varying,
-  barcode character varying,
+  sku text,
+  barcode text,
   attributes jsonb,
   price numeric,
   cost numeric,
@@ -191,16 +181,41 @@ CREATE TABLE public.product_variant (
   CONSTRAINT product_variant_pkey PRIMARY KEY (id),
   CONSTRAINT product_variant_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.product(id)
 );
+CREATE TABLE public.purchase_item (
+  id bigint NOT NULL DEFAULT nextval('purchase_item_id_seq'::regclass),
+  purchase_order_id bigint NOT NULL,
+  variant_id bigint NOT NULL,
+  quantity bigint NOT NULL,
+  unit_cost numeric NOT NULL,
+  total_cost numeric NOT NULL,
+  CONSTRAINT purchase_item_pkey PRIMARY KEY (id),
+  CONSTRAINT purchase_item_purchase_order_id_fkey FOREIGN KEY (purchase_order_id) REFERENCES public.purchase_order(id),
+  CONSTRAINT purchase_item_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variant(id)
+);
+CREATE TABLE public.purchase_order (
+  id bigint NOT NULL DEFAULT nextval('purchase_order_id_seq'::regclass),
+  order_number text,
+  supplier_id bigint NOT NULL,
+  warehouse_id bigint,
+  status text NOT NULL DEFAULT 'PENDING'::text,
+  total_amount numeric NOT NULL DEFAULT 0,
+  note text,
+  created_at timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  confirmed_at timestamp with time zone,
+  CONSTRAINT purchase_order_pkey PRIMARY KEY (id),
+  CONSTRAINT purchase_order_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.supplier(id),
+  CONSTRAINT purchase_order_warehouse_id_fkey FOREIGN KEY (warehouse_id) REFERENCES public.warehouse(id)
+);
 CREATE TABLE public.role (
   id bigint NOT NULL DEFAULT nextval('role_id_seq'::regclass),
-  code character varying NOT NULL UNIQUE,
-  name character varying,
+  code text NOT NULL UNIQUE,
+  name text,
   description text,
   CONSTRAINT role_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.stock_movement (
   id bigint NOT NULL DEFAULT nextval('stock_movement_id_seq'::regclass),
-  movement_type character varying NOT NULL,
+  movement_type text NOT NULL,
   reference text,
   variant_id bigint NOT NULL,
   from_warehouse_id bigint,
@@ -217,12 +232,12 @@ CREATE TABLE public.stock_movement (
 );
 CREATE TABLE public.store (
   id bigint NOT NULL DEFAULT nextval('store_id_seq'::regclass),
-  code character varying UNIQUE,
-  name character varying NOT NULL,
+  code text UNIQUE,
+  name text NOT NULL,
   address text,
-  tax_number character varying,
-  phone character varying,
-  email character varying,
+  tax_number text,
+  phone text,
+  email text,
   settings jsonb,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone,
@@ -230,22 +245,22 @@ CREATE TABLE public.store (
 );
 CREATE TABLE public.supplier (
   id bigint NOT NULL DEFAULT nextval('supplier_id_seq'::regclass),
-  code character varying UNIQUE,
-  name character varying NOT NULL,
-  email character varying,
-  phone character varying,
+  code text UNIQUE,
+  name text NOT NULL,
+  email text,
+  phone text,
   address text,
-  tax_number character varying,
+  tax_number text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT supplier_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.transaction (
   id bigint NOT NULL DEFAULT nextval('transaction_id_seq'::regclass),
-  related_type character varying,
+  related_type text,
   related_id bigint,
   amount numeric NOT NULL,
-  gateway character varying,
-  status character varying NOT NULL DEFAULT 'PENDING'::character varying,
+  gateway text,
+  status text NOT NULL DEFAULT 'PENDING'::character varying,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   metadata jsonb,
   CONSTRAINT transaction_pkey PRIMARY KEY (id)
@@ -261,8 +276,8 @@ CREATE TABLE public.user_role (
 CREATE TABLE public.warehouse (
   id bigint NOT NULL DEFAULT nextval('warehouse_id_seq'::regclass),
   store_id bigint,
-  code character varying,
-  name character varying NOT NULL,
+  code text,
+  name text NOT NULL,
   address text,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT warehouse_pkey PRIMARY KEY (id),

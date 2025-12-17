@@ -1,21 +1,27 @@
 import { useState, useEffect } from 'react';
 import {
-    productsAPI,
-    categoriesAPI,
-    warehousesAPI,
     customersAPI,
     suppliersAPI
 } from '../services/api';
+import ProductList from './products/ProductList';
+import CategoryList from './categories/CategoryList';
+import InventoryOverview from './inventory/InventoryOverview';
+import DashboardOverview from './dashboard/DashboardOverview';
+import WarehouseList from './warehouses/WarehouseList';
+import POSPage from './sales/POSPage';
+import SalesList from './sales/SalesList';
+import PurchaseList from './purchases/PurchaseList';
+import CustomerList from './customers/CustomerList';
 import './Dashboard.css';
 
 interface DashboardProps {
     onLogout: () => void;
 }
 
-type TabType = 'products' | 'categories' | 'warehouses' | 'customers' | 'suppliers';
+type TabType = 'overview' | 'pos' | 'purchases' | 'sales' | 'products' | 'categories' | 'inventory' | 'warehouses' | 'customers' | 'suppliers';
 
 export default function Dashboard({ onLogout }: DashboardProps) {
-    const [activeTab, setActiveTab] = useState<TabType>('products');
+    const [activeTab, setActiveTab] = useState<TabType>('overview');
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [user, setUser] = useState<any>(null);
@@ -33,7 +39,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     }, []);
 
     useEffect(() => {
-        fetchData();
+        // Only fetch for non-specialized tabs
+        if (!['overview', 'products', 'categories', 'inventory', 'warehouses', 'pos', 'sales'].includes(activeTab)) {
+            fetchData();
+        }
     }, [activeTab]);
 
     const fetchData = async () => {
@@ -41,15 +50,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         try {
             let response;
             switch (activeTab) {
-                case 'products':
-                    response = await productsAPI.getAll();
-                    break;
-                case 'categories':
-                    response = await categoriesAPI.getAll();
-                    break;
-                case 'warehouses':
-                    response = await warehousesAPI.getAll();
-                    break;
                 case 'customers':
                     response = await customersAPI.getAll();
                     break;
@@ -57,7 +57,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     response = await suppliersAPI.getAll();
                     break;
             }
-            setData(response?.data || []);
+            setData(response?.data?.data || response?.data || []);
         } catch (error) {
             console.error('Failed to fetch data:', error);
             setData([]);
@@ -67,19 +67,20 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     };
 
     const tabs = [
-        { id: 'products' as TabType, label: 'Sản phẩm' },
-        { id: 'categories' as TabType, label: 'Danh mục' },
-        { id: 'warehouses' as TabType, label: 'Kho hàng' },
-        { id: 'customers' as TabType, label: 'Khách hàng' },
-        { id: 'suppliers' as TabType, label: 'Nhà cung cấp' },
+        { id: 'overview' as TabType, label: 'Tổng quan', icon: '🏠' },
+        { id: 'pos' as TabType, label: 'Bán hàng', icon: '💰' },
+        { id: 'purchases' as TabType, label: 'Nhập hàng', icon: '📥' },
+        { id: 'sales' as TabType, label: 'Hóa đơn', icon: '📄' },
+        { id: 'products' as TabType, label: 'Sản phẩm', icon: '📦' },
+        { id: 'categories' as TabType, label: 'Danh mục', icon: '📁' },
+        { id: 'inventory' as TabType, label: 'Tồn kho', icon: '📊' },
+        { id: 'warehouses' as TabType, label: 'Kho hàng', icon: '🏭' },
+        { id: 'customers' as TabType, label: 'Khách hàng', icon: '👥' },
+        { id: 'suppliers' as TabType, label: 'Nhà cung cấp', icon: '🚚' },
     ];
 
     const getTableHeaders = () => {
         switch (activeTab) {
-            case 'products':
-                return ['Mã', 'Tên sản phẩm', 'SKU', 'Giá bán', 'Giá vốn'];
-            case 'categories':
-                return ['Mã', 'Tên danh mục', 'Mã danh mục', 'Mô tả'];
             case 'warehouses':
                 return ['Mã', 'Tên kho', 'Mã kho', 'Địa chỉ'];
             case 'customers':
@@ -93,21 +94,6 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
     const renderTableRow = (item: any) => {
         switch (activeTab) {
-            case 'products':
-                return [
-                    item.id,
-                    item.name,
-                    item.sku || '—',
-                    item.defaultPrice ? `${item.defaultPrice.toLocaleString()}đ` : '—',
-                    item.defaultCost ? `${item.defaultCost.toLocaleString()}đ` : '—',
-                ];
-            case 'categories':
-                return [
-                    item.id,
-                    item.name,
-                    item.code || '—',
-                    item.description || '—',
-                ];
             case 'warehouses':
                 return [
                     item.id,
@@ -129,7 +115,89 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         }
     };
 
-    const activeTabInfo = tabs.find(t => t.id === activeTab);
+    const renderContent = () => {
+        // Use specialized components for different tabs
+        if (activeTab === 'overview') {
+            return <DashboardOverview />;
+        }
+
+        if (activeTab === 'products') {
+            return <ProductList />;
+        }
+
+        if (activeTab === 'categories') {
+            return <CategoryList />;
+        }
+
+        if (activeTab === 'inventory') {
+            return <InventoryOverview />;
+        }
+
+        if (activeTab === 'pos') {
+            return <POSPage />;
+        }
+
+        if (activeTab === 'sales') {
+            return <SalesList />;
+        }
+
+        if (activeTab === 'purchases') {
+            return <PurchaseList />;
+        }
+
+        if (activeTab === 'warehouses') {
+            return <WarehouseList />;
+        }
+
+        if (activeTab === 'customers') {
+            return <CustomerList />;
+        }
+
+        // Render generic table for other tabs
+        const activeTabInfo = tabs.find(t => t.id === activeTab);
+
+        return (
+            <div className="content-card">
+                <div className="card-header">
+                    <h2 className="card-title">{activeTabInfo?.label}</h2>
+                    <span className="card-count">{data.length} bản ghi</span>
+                </div>
+
+                {loading ? (
+                    <div className="loading-state">
+                        <div className="spinner-large"></div>
+                        <p>Đang tải dữ liệu...</p>
+                    </div>
+                ) : data.length === 0 ? (
+                    <div className="empty-state">
+                        <h3>Chưa có dữ liệu</h3>
+                        <p>Bắt đầu thêm {activeTabInfo?.label.toLowerCase()} đầu tiên</p>
+                    </div>
+                ) : (
+                    <div className="table-wrapper">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    {getTableHeaders().map((header, index) => (
+                                        <th key={index}>{header}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {data.map((item) => (
+                                    <tr key={item.id}>
+                                        {renderTableRow(item).map((cell, cellIndex) => (
+                                            <td key={cellIndex}>{cell}</td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     return (
         <div className="dashboard-container">
@@ -165,6 +233,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
                                 >
+                                    <span className="tab-icon">{tab.icon}</span>
                                     {tab.label}
                                 </button>
                             ))}
@@ -173,45 +242,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 </nav>
 
                 <div className="container">
-                    <div className="content-card">
-                        <div className="card-header">
-                            <h2 className="card-title">{activeTabInfo?.label}</h2>
-                            <span className="card-count">{data.length} bản ghi</span>
-                        </div>
-
-                        {loading ? (
-                            <div className="loading-state">
-                                <div className="spinner-large"></div>
-                                <p>Đang tải dữ liệu...</p>
-                            </div>
-                        ) : data.length === 0 ? (
-                            <div className="empty-state">
-                                <h3>Chưa có dữ liệu</h3>
-                                <p>Bắt đầu thêm {activeTabInfo?.label.toLowerCase()} đầu tiên</p>
-                            </div>
-                        ) : (
-                            <div className="table-wrapper">
-                                <table className="data-table">
-                                    <thead>
-                                        <tr>
-                                            {getTableHeaders().map((header, index) => (
-                                                <th key={index}>{header}</th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {data.map((item) => (
-                                            <tr key={item.id}>
-                                                {renderTableRow(item).map((cell, cellIndex) => (
-                                                    <td key={cellIndex}>{cell}</td>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
+                    {renderContent()}
                 </div>
             </main>
         </div>

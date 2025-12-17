@@ -13,6 +13,10 @@ import { WarehousesModule } from './warehouses/warehouses.module';
 import { CustomersModule } from './customers/customers.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { SupabaseModule } from './supabase/supabase.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { SalesModule } from './sales/sales.module';
+import { PurchasesModule } from './purchases/purchases.module';
 
 @Module({
   imports: [
@@ -28,6 +32,10 @@ import { SupabaseModule } from './supabase/supabase.module';
     WarehousesModule,
     CustomersModule,
     SuppliersModule,
+    InventoryModule,
+    DashboardModule,
+    SalesModule,
+    PurchasesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

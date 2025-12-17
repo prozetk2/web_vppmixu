@@ -14,8 +14,6 @@ export class AuthService {
   ) { }
 
   async validateUser(username: string, password: string) {
-    console.log('Validating user:', username);
-
     const { data: user, error } = await this.supabase
       .getClient()
       .from('app_user')
@@ -32,15 +30,11 @@ export class AuthService {
       .eq('username', username)
       .single();
 
-    console.log('Supabase response:', { user, error });
-
     if (error || !user || !user.password_hash) {
-      console.log('User not found or no password hash');
       throw new UnauthorizedException('INVALID_CREDENTIALS');
     }
 
     const isValid = await bcrypt.compare(password, user.password_hash);
-    console.log('Password valid:', isValid);
 
     if (!isValid) {
       throw new UnauthorizedException('INVALID_CREDENTIALS');

@@ -1,7 +1,15 @@
+ARG DATABASE_URL="postgresql://app:app@localhost:5432/appdb?schema=public"
+ARG DIRECT_URL="postgresql://app:app@localhost:5432/appdb?schema=public"
+
 FROM node:20-alpine
 WORKDIR /app
+RUN apk add --no-cache openssl libc6-compat
+ARG DATABASE_URL
+ARG DIRECT_URL
+ENV DATABASE_URL=${DATABASE_URL}
+ENV DIRECT_URL=${DIRECT_URL}
 
 # Install dependencies (include dev) to support Nest watch inside container
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 COPY prisma ./prisma

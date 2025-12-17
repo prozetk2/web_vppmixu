@@ -1,0 +1,239 @@
+.stock-adjustment-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-label {
+    font-weight: 500;
+    font-size: 0.875rem;
+    color: var(--text-primary, #374151);
+}
+
+.required {
+    color: var(--danger, #ef4444);
+}
+
+.form-select,
+.form-input,
+.form-textarea {
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 8px;
+    font-size: 0.875rem;
+    background: white;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-select:focus,
+.form-input:focus,
+.form-textarea:focus {
+    outline: none;
+    border-color: var(--primary, #3b82f6);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-input.error,
+.form-select.error {
+    border-color: var(--danger, #ef4444);
+}
+
+.error-text {
+    color: var(--danger, #ef4444);
+    font-size: 0.75rem;
+}
+
+/* Movement type buttons */
+.movement-type-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.type-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    border: 2px solid var(--border-color, #e5e7eb);
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.type-btn:hover {
+    border-color: var(--primary, #3b82f6);
+    background: var(--bg-hover, #f9fafb);
+}
+
+.type-btn.active {
+    border-color: var(--primary, #3b82f6);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.type-btn.active.import {
+    border-color: var(--success, #10b981);
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.type-btn.active.export {
+    border-color: var(--danger, #ef4444);
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.type-btn.active.adjust {
+    border-color: var(--warning, #f59e0b);
+    background: rgba(245, 158, 11, 0.05);
+}
+
+.type-icon {
+    font-size: 1.25rem;
+}
+
+.type-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Form row */
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+/* Form actions */
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+    margin-top: 0.5rem;
+}
+
+.btn {
+    padding: 0.625rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 500;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-secondary {
+    background: var(--bg-muted, #f3f4f6);
+    border: 1px solid var(--border-color, #d1d5db);
+    color: var(--text-primary, #374151);
+}
+
+.btn-secondary:hover {
+    background: var(--bg-hover, #e5e7eb);
+}
+
+.btn-primary {
+    background: var(--primary, #3b82f6);
+    border: none;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-dark, #2563eb);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.spinner-small {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin-right: 0.5rem;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Note about type */
+.type-hint {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #6b7280);
+    margin-top: -0.25rem;
+}
+
+/* Import section */
+.import-section {
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border-color, #e5e7eb);
+}
+
+.import-file-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.btn-import-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--bg-muted, #f3f4f6);
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.btn-import-file:hover {
+    background: var(--bg-hover, #e5e7eb);
+}
+
+.import-hint {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #6b7280);
+}
+
+.import-help {
+    font-size: 0.7rem;
+    color: var(--text-muted, #9ca3af);
+    margin: 0.25rem 0 0;
+}
+
+.import-note {
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+}
+
+.import-note.success {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success, #059669);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.import-note.error {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger, #dc2626);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}

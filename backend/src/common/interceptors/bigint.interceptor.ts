@@ -1,4 +1,5 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import { Decimal } from '@prisma/client/runtime/library';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
@@ -15,6 +16,11 @@ export class BigIntInterceptor implements NestInterceptor {
 
         if (typeof data === 'bigint') {
             return data.toString();
+        }
+
+        if (data instanceof Decimal) {
+            // Convert Prisma Decimal to number for API consumers (keep precision from DB)
+            return data.toNumber();
         }
 
         if (Array.isArray(data)) {
