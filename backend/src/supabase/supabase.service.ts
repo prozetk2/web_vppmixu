@@ -10,7 +10,7 @@ export class SupabaseService implements OnModuleInit {
 
     onModuleInit() {
         const supabaseUrl = this.configService.get<string>('SUPABASE_URL');
-        const supabaseKey = this.configService.get<string>('SUPABASE_ANON_KEY');
+        const supabaseKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
 
         if (!supabaseUrl || !supabaseKey) {
             throw new Error('Missing Supabase credentials');
