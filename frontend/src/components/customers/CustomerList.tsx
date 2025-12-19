@@ -308,6 +308,11 @@ export default function CustomerList() {
             notes: customer.notes || '',
             creditLimit: customer.creditLimit?.toString() || '0',
             paymentTerms: customer.paymentTerms || '',
+            // Thống kê tài chính
+            currentDebt: customer.currentDebt?.toString() || '',
+            debtDays: customer.debtDays?.toString() || '',
+            totalSales: customer.totalSales?.toString() || '',
+            totalSalesAfterReturn: customer.totalSalesAfterReturn?.toString() || '',
         });
         setErrors({});
         setIsFormOpen(true);
