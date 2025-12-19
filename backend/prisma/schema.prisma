@@ -110,13 +110,68 @@ model ChartOfAccount {
 
 model Customer {
   id        BigInt   @id @default(autoincrement())
-  code      String?  @unique
+  code      String?  // Bỏ tạm unique constraint
   name      String
   email     String?
   phone     String?
   address   String?
   taxNumber String?  @map("tax_number")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  
+  // Thông tin từ Excel
+  customerType    String?  @map("customer_type")        // Loại khách
+  branch          String?                               // Chi nhánh tạo
+  deliveryArea    String?  @map("delivery_area")        // Khu vực giao hàng
+  ward            String?                               // Phường/Xã
+  company         String?                               // Công ty
+  idNumber        String?  @map("id_number")            // Số CMND/CCCD
+  birthDate       DateTime? @map("birth_date") @db.Date // Ngày sinh
+  gender          String?                               // Giới tính
+  facebook        String?                               // Facebook
+  customerGroup   String?  @map("customer_group")       // Nhóm khách hàng
+  notes           String?                               // Ghi chú
+  creator         String?                               // Người tạo
+  lastTransaction DateTime? @map("last_transaction") @db.Date // Ngày giao dịch cuối
+  
+  // Thống kê tài chính (từ Excel hoặc tự tính)
+  debtDays              Int?     @default(0) @map("debt_days")                    // Số ngày nợ
+  currentDebt           Decimal? @default(0) @map("current_debt")                 // Nợ cần thu hiện tại
+  totalSales            Decimal? @default(0) @map("total_sales")                  // Tổng bán
+  totalSalesAfterReturn Decimal? @default(0) @map("total_sales_after_return")     // Tổng bán trừ trả hàng
+  
+  // Thông tin bổ sung (giữ lại cho tương lai)
+  contactPerson String?  @map("contact_person")      
+  position      String?                               
+  fax           String?                               
+  website       String?                               
+  
+  // Địa chỉ chi tiết (giữ lại)
+  street        String?                               
+  district      String?                               
+  city          String?                               
+  country       String?  @default("Vietnam")          
+  postalCode    String?  @map("postal_code")          
+  
+  // Thông tin ngân hàng (giữ lại)
+  bankName      String?  @map("bank_name")            
+  bankAccount   String?  @map("bank_account")         
+  bankBranch    String?  @map("bank_branch")          
+  
+  // Thông tin kinh doanh (giữ lại)
+  industry      String?                               
+  companySize   String?  @map("company_size")         
+  
+  // Phân loại (giữ lại)
+  priority      String?  @default("NORMAL")           
+  source        String?                               
+  
+  // Thông tin tài chính (giữ lại)
+  creditLimit   Decimal? @default(0) @map("credit_limit")  
+  paymentTerms  String?  @map("payment_terms")        
+  
+  // Metadata
+  active        Boolean  @default(true)               
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   invoices Invoice[]
   orders   Order[]

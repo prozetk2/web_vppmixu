@@ -10,6 +10,8 @@ import './CustomerList.css';
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
+
+
 interface Customer {
     id: string;
     code?: string;
@@ -18,6 +20,48 @@ interface Customer {
     phone?: string;
     address?: string;
     taxNumber?: string;
+
+    // Thông tin bổ sung
+    contactPerson?: string;
+    position?: string;
+    fax?: string;
+    website?: string;
+
+    // Địa chỉ chi tiết
+    street?: string;
+    ward?: string;
+    district?: string;
+    city?: string;
+    country?: string;
+    postalCode?: string;
+
+    // Thông tin ngân hàng
+    bankName?: string;
+    bankAccount?: string;
+    bankBranch?: string;
+
+    // Thông tin kinh doanh
+    customerType?: string;
+    industry?: string;
+    companySize?: string;
+
+    // Phân loại & Ghi chú
+    customerGroup?: string;
+    priority?: string;
+    source?: string;
+    notes?: string;
+
+    // Thông tin tài chính
+    creditLimit?: number;
+    paymentTerms?: string;
+
+    active?: boolean;
+
+    // Thống kê (từ API)
+    currentDebt?: number;        // Nợ hiện tại
+    debtDays?: number;           // Số ngày nợ
+    totalSales?: number;         // Tổng bán
+    totalSalesAfterReturn?: number; // Tổng bán trừ trả hàng
 }
 
 interface DebtData {
@@ -42,9 +86,75 @@ interface FormData {
     phone: string;
     address: string;
     taxNumber: string;
+
+    // Thông tin bổ sung
+    contactPerson: string;
+    position: string;
+    fax: string;
+    website: string;
+
+    // Địa chỉ chi tiết
+    street: string;
+    ward: string;
+    district: string;
+    city: string;
+    country: string;
+    postalCode: string;
+
+    // Thông tin ngân hàng
+    bankName: string;
+    bankAccount: string;
+    bankBranch: string;
+
+    // Thông tin kinh doanh
+    customerType: string;
+    industry: string;
+    companySize: string;
+
+    // Phân loại & Ghi chú
+    customerGroup: string;
+    priority: string;
+    source: string;
+    notes: string;
+
+    // Thông tin tài chính
+    creditLimit: string;
+    paymentTerms: string;
 }
 
 export default function CustomerList() {
+    // Helper function to create empty form data
+    const createEmptyFormData = (): FormData => ({
+        code: '',
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        taxNumber: '',
+        contactPerson: '',
+        position: '',
+        fax: '',
+        website: '',
+        street: '',
+        ward: '',
+        district: '',
+        city: '',
+        country: 'Vietnam',
+        postalCode: '',
+        bankName: '',
+        bankAccount: '',
+        bankBranch: '',
+        customerType: 'INDIVIDUAL',
+        industry: '',
+        companySize: '',
+        customerGroup: '',
+        priority: 'NORMAL',
+        source: '',
+        notes: '',
+        creditLimit: '0',
+        paymentTerms: '',
+    });
+
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -52,14 +162,7 @@ export default function CustomerList() {
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [debtData, setDebtData] = useState<DebtData | null>(null);
-    const [formData, setFormData] = useState<FormData>({
-        code: '',
-        name: '',
-        email: '',
-        phone: '',
-        address: '',
-        taxNumber: '',
-    });
+    const [formData, setFormData] = useState<FormData>(createEmptyFormData());
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
     const [importNote, setImportNote] = useState('');
@@ -90,7 +193,7 @@ export default function CustomerList() {
 
     const openAddModal = () => {
         setEditingCustomer(null);
-        setFormData({ code: '', name: '', email: '', phone: '', address: '', taxNumber: '' });
+        setFormData(createEmptyFormData());
         setErrors({});
         setIsFormOpen(true);
     };
@@ -104,6 +207,28 @@ export default function CustomerList() {
             phone: customer.phone || '',
             address: customer.address || '',
             taxNumber: customer.taxNumber || '',
+            contactPerson: customer.contactPerson || '',
+            position: customer.position || '',
+            fax: customer.fax || '',
+            website: customer.website || '',
+            street: customer.street || '',
+            ward: customer.ward || '',
+            district: customer.district || '',
+            city: customer.city || '',
+            country: customer.country || 'Vietnam',
+            postalCode: customer.postalCode || '',
+            bankName: customer.bankName || '',
+            bankAccount: customer.bankAccount || '',
+            bankBranch: customer.bankBranch || '',
+            customerType: customer.customerType || 'INDIVIDUAL',
+            industry: customer.industry || '',
+            companySize: customer.companySize || '',
+            customerGroup: customer.customerGroup || '',
+            priority: customer.priority || 'NORMAL',
+            source: customer.source || '',
+            notes: customer.notes || '',
+            creditLimit: customer.creditLimit?.toString() || '0',
+            paymentTerms: customer.paymentTerms || '',
         });
         setErrors({});
         setIsFormOpen(true);
@@ -201,30 +326,53 @@ export default function CustomerList() {
                 throw new Error('Định dạng file không được hỗ trợ');
             }
 
-            if (parsedCustomers.length === 0) {
+            if (!parsedCustomers || parsedCustomers.length === 0) {
                 setImportNote('❌ Không tìm thấy dữ liệu khách hàng trong file');
                 return;
             }
 
+            console.log('Total parsed customers:', parsedCustomers.length);
+            console.log('First customer sample:', parsedCustomers[0]);
+
             // Bulk create customers
             let successCount = 0;
             let failCount = 0;
+            const errors: string[] = [];
 
             for (const customer of parsedCustomers) {
                 if (!customer.name) continue;
-                try {
-                    await customersAPI.create({
-                        code: customer.code || '',
-                        name: customer.name,
-                        email: customer.email || '',
-                        phone: customer.phone || '',
-                        address: customer.address || '',
-                        taxNumber: customer.taxNumber || '',
-                    });
-                    successCount++;
-                } catch {
-                    failCount++;
+
+                let retryCount = 0;
+                let success = false;
+
+                while (!success && retryCount < 3) {
+                    try {
+                        console.log('Importing customer:', customer);
+                        await customersAPI.create(customer as any);
+                        successCount++;
+                        success = true;
+                    } catch (error: any) {
+                        const errorMsg = error.response?.data?.message || error.message;
+                        console.error('Import error for customer:', customer.name, errorMsg);
+
+                        // Nếu lỗi duplicate code, thử thêm suffix
+                        if (errorMsg.includes('code') && errorMsg.includes('unique') && retryCount < 2) {
+                            retryCount++;
+                            customer.code = (customer.code || '') + `_${retryCount}`;
+                            console.log('Retrying with new code:', customer.code);
+                        } else {
+                            failCount++;
+                            if (errors.length < 5) {
+                                errors.push(`${customer.name}: ${errorMsg}`);
+                            }
+                            break;
+                        }
+                    }
                 }
+            }
+
+            if (errors.length > 0) {
+                console.log('First 5 errors:', errors);
             }
 
             setImportNote(`✅ Import thành công ${successCount} khách hàng${failCount > 0 ? ` (${failCount} lỗi)` : ''}`);
@@ -240,6 +388,28 @@ export default function CustomerList() {
     };
 
     const parseExcel = async (file: File): Promise<Partial<FormData>[]> => {
+        // Helper function to convert Excel serial date to JS Date
+        const excelDateToJSDate = (serial: any): string | undefined => {
+            if (!serial) return undefined;
+
+            // If it's already a valid date string, return it
+            if (typeof serial === 'string' && serial.includes('/')) {
+                return serial;
+            }
+
+            // If it's an Excel serial number
+            const num = typeof serial === 'number' ? serial : parseFloat(serial);
+            if (isNaN(num)) return undefined;
+
+            // Excel epoch starts at 1900-01-01
+            const excelEpoch = new Date(1900, 0, 1);
+            const days = num - 2; // Excel has a bug with leap year 1900, so subtract 2
+            const jsDate = new Date(excelEpoch.getTime() + days * 24 * 60 * 60 * 1000);
+
+            // Return ISO string
+            return jsDate.toISOString().split('T')[0];
+        };
+
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -266,52 +436,94 @@ export default function CustomerList() {
                         const row = jsonData[i];
                         if (!row || row.every((c) => !c)) continue;
 
-                        const customer: Partial<FormData> = {};
-                        headers.forEach((h, idx) => {
-                            const val = String(row[idx] || '').trim();
-                            if (!val) return; // Skip empty values
+                        const customer: any = {};
 
-                            // Mã khách hàng
-                            if (h.includes('mã') && (h.includes('kh') || h.includes('khách')) || h.includes('code')) {
-                                customer.code = val;
+                        headers.forEach((h, idx) => {
+                            const val = row[idx];
+                            if (val === null || val === undefined || val === '') return;
+
+                            const strVal = String(val).trim();
+
+                            // Map các cột theo tên chính xác từ Excel
+                            if (h.includes('loại khách')) {
+                                customer.customerType = strVal;
                             }
-                            // Tên khách hàng - nhiều pattern
-                            else if (
-                                h.includes('tên kh') ||
-                                h.includes('tên khách') ||
-                                h.includes('họ tên') ||
-                                h.includes('name') ||
-                                (h.includes('tên') && !h.includes('công ty'))
-                            ) {
-                                customer.name = val;
+                            else if (h.includes('chi nhánh')) {
+                                customer.branch = strVal;
                             }
-                            // Email
-                            else if (h.includes('email') || h.includes('e-mail')) {
-                                customer.email = val;
+                            else if (h.includes('mã khách')) {
+                                customer.code = strVal;
                             }
-                            // Điện thoại - nhiều pattern
-                            else if (
-                                h.includes('điện thoại') ||
-                                h.includes('đt') ||
-                                h.includes('phone') ||
-                                h.includes('sđt') ||
-                                h.includes('di động') ||
-                                h.includes('mobile')
-                            ) {
-                                customer.phone = val;
+                            else if (h.includes('tên khách')) {
+                                customer.name = strVal;
                             }
-                            // Địa chỉ
-                            else if (h.includes('địa chỉ') || h.includes('address') || h.includes('dia chi')) {
-                                customer.address = val;
+                            else if (h.includes('điện thoại')) {
+                                customer.phone = strVal;
                             }
-                            // Mã số thuế
-                            else if (
-                                h.includes('mã số thuế') ||
-                                h.includes('mst') ||
-                                h.includes('thuế') ||
-                                h.includes('tax')
-                            ) {
-                                customer.taxNumber = val;
+                            else if (h.includes('địa chỉ') && !h.includes('khu vực')) {
+                                customer.address = strVal;
+                            }
+                            else if (h.includes('khu vực giao')) {
+                                customer.deliveryArea = strVal;
+                            }
+                            else if (h.includes('phường') || h.includes('xã')) {
+                                customer.ward = strVal;
+                            }
+                            else if (h.includes('công ty') && !h.includes('mã số')) {
+                                customer.company = strVal;
+                            }
+                            else if (h.includes('mã số thuế')) {
+                                customer.taxNumber = strVal;
+                            }
+                            else if (h.includes('cmnd') || h.includes('cccd')) {
+                                customer.idNumber = strVal;
+                            }
+                            else if (h.includes('ngày sinh')) {
+                                customer.birthDate = excelDateToJSDate(val);
+                            }
+                            else if (h.includes('giới tính')) {
+                                customer.gender = strVal;
+                            }
+                            else if (h.includes('email')) {
+                                customer.email = strVal;
+                            }
+                            else if (h.includes('facebook')) {
+                                customer.facebook = strVal;
+                            }
+                            else if (h.includes('nhóm khách')) {
+                                customer.customerGroup = strVal;
+                            }
+                            else if (h.includes('ghi chú')) {
+                                customer.notes = strVal;
+                            }
+                            else if (h.includes('người tạo')) {
+                                customer.creator = strVal;
+                            }
+                            else if (h.includes('ngày giao dịch cuối')) {
+                                customer.lastTransaction = excelDateToJSDate(val);
+                            }
+                            else if (h.includes('số ngày nợ')) {
+                                // Parse số
+                                const num = typeof val === 'number' ? val : parseFloat(strVal.replace(/[^0-9.-]/g, ''));
+                                if (!isNaN(num)) customer.debtDays = num;
+                            }
+                            else if (h.includes('nợ cần thu') || h.includes('nợ hiện tại')) {
+                                // Parse số tiền
+                                const num = typeof val === 'number' ? val : parseFloat(strVal.replace(/[^0-9.-]/g, ''));
+                                if (!isNaN(num)) customer.currentDebt = num;
+                            }
+                            else if (h.includes('tổng bán') && !h.includes('trừ')) {
+                                // Parse số tiền
+                                const num = typeof val === 'number' ? val : parseFloat(strVal.replace(/[^0-9.-]/g, ''));
+                                if (!isNaN(num)) customer.totalSales = num;
+                            }
+                            else if (h.includes('tổng bán trừ')) {
+                                // Parse số tiền
+                                const num = typeof val === 'number' ? val : parseFloat(strVal.replace(/[^0-9.-]/g, ''));
+                                if (!isNaN(num)) customer.totalSalesAfterReturn = num;
+                            }
+                            else if (h.includes('trạng thái')) {
+                                customer.status = strVal;
                             }
                         });
 
@@ -451,8 +663,11 @@ export default function CustomerList() {
                                 <th>Mã KH</th>
                                 <th>Tên khách hàng</th>
                                 <th>Điện thoại</th>
-                                <th>Email</th>
-                                <th>Thao tác</th>
+                                <th className="text-right">Nợ hiện tại</th>
+                                <th className="text-center">Số ngày nợ</th>
+                                <th className="text-right">Tổng bán</th>
+                                <th className="text-right">Tổng bán trừ TH</th>
+                                <th className="text-center">Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -465,7 +680,24 @@ export default function CustomerList() {
                                         </span>
                                     </td>
                                     <td className="customer-contact">{c.phone || '—'}</td>
-                                    <td className="customer-contact">{c.email || '—'}</td>
+                                    <td className="text-right">
+                                        <span className={c.currentDebt && c.currentDebt > 0 ? 'debt-amount' : ''}>
+                                            {c.currentDebt ? formatCurrency(c.currentDebt) : '0'}đ
+                                        </span>
+                                    </td>
+                                    <td className="text-center">
+                                        {c.debtDays && c.debtDays > 0 ? (
+                                            <span className={c.debtDays > 30 ? 'debt-days-warning' : 'debt-days'}>
+                                                {c.debtDays} ngày
+                                            </span>
+                                        ) : '—'}
+                                    </td>
+                                    <td className="text-right">
+                                        {c.totalSales ? formatCurrency(c.totalSales) : '0'}đ
+                                    </td>
+                                    <td className="text-right">
+                                        {c.totalSalesAfterReturn ? formatCurrency(c.totalSalesAfterReturn) : '0'}đ
+                                    </td>
                                     <td>
                                         <div className="actions-cell">
                                             <button onClick={() => openEditModal(c)} className="btn-edit">

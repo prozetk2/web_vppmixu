@@ -133,6 +133,41 @@
     font-size: 0.875rem;
 }
 
+/* Text alignment */
+.text-right {
+    text-align: right;
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* Debt styling */
+.debt-amount {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+.debt-days {
+    display: inline-flex;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.debt-days-warning {
+    display: inline-flex;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #fee2e2;
+    color: #dc2626;
+}
+
 .debt-badge {
     display: inline-flex;
     padding: 0.25rem 0.5rem;

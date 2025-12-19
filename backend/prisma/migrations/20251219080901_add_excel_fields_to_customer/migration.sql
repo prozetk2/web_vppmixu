@@ -1,0 +1,15 @@
+-- AlterTable
+ALTER TABLE "customer" ADD COLUMN     "birth_date" DATE,
+ADD COLUMN     "branch" TEXT,
+ADD COLUMN     "company" TEXT,
+ADD COLUMN     "creator" TEXT,
+ADD COLUMN     "current_debt" DECIMAL(65,30) DEFAULT 0,
+ADD COLUMN     "debt_days" INTEGER DEFAULT 0,
+ADD COLUMN     "delivery_area" TEXT,
+ADD COLUMN     "facebook" TEXT,
+ADD COLUMN     "gender" TEXT,
+ADD COLUMN     "id_number" TEXT,
+ADD COLUMN     "last_transaction" DATE,
+ADD COLUMN     "total_sales" DECIMAL(65,30) DEFAULT 0,
+ADD COLUMN     "total_sales_after_return" DECIMAL(65,30) DEFAULT 0,
+ALTER COLUMN "customer_type" DROP DEFAULT;
