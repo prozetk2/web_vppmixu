@@ -4,7 +4,7 @@ import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import * as XLSX from 'xlsx';
 import * as pdfjsLib from 'pdfjs-dist';
-import { MdPeople, MdHourglassEmpty, MdDownload, MdAttachMoney, MdDescription } from 'react-icons/md';
+import { MdPeople, MdHourglassEmpty, MdDownload, MdAttachMoney, MdDescription, MdSearch } from 'react-icons/md';
 import './CustomerList.css';
 
 // Configure PDF.js worker
@@ -62,6 +62,8 @@ interface Customer {
     debtDays?: number;           // Số ngày nợ
     totalSales?: number;         // Tổng bán
     totalSalesAfterReturn?: number; // Tổng bán trừ trả hàng
+
+    createdAt: string;           // Ngày tạo
 }
 
 interface DebtData {
@@ -120,6 +122,12 @@ interface FormData {
     // Thông tin tài chính
     creditLimit: string;
     paymentTerms: string;
+
+    // Thống kê tài chính (tùy chọn)
+    currentDebt?: string;
+    debtDays?: string;
+    totalSales?: string;
+    totalSalesAfterReturn?: string;
 }
 
 export default function CustomerList() {
@@ -156,6 +164,7 @@ export default function CustomerList() {
     });
 
     const [customers, setCustomers] = useState<Customer[]>([]);
+    const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -169,6 +178,16 @@ export default function CustomerList() {
     const [importing, setImporting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Search & Filter state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debtFilter, setDebtFilter] = useState<'all' | 'has-debt' | 'no-debt'>('all');
+    const [debtDaysFilter, setDebtDaysFilter] = useState<'all' | '<30' | '>30' | '>60'>('all');
+    const [sortBy, setSortBy] = useState<'name' | 'debt' | 'date'>('date');
+
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(20);
+
     const toast = useToast();
 
     useEffect(() => {
@@ -181,6 +200,59 @@ export default function CustomerList() {
             console.log('🎯 totalOrders:', debtData.totalOrders, 'formatted:', formatCurrency(debtData.totalOrders));
         }
     }, [debtData]);
+
+    // Apply search, filter, and sort
+    useEffect(() => {
+        let result = [...customers];
+
+        // Search
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            result = result.filter(c =>
+                c.name?.toLowerCase().includes(query) ||
+                c.code?.toLowerCase().includes(query) ||
+                c.phone?.toLowerCase().includes(query)
+            );
+        }
+
+        // Filter by debt
+        if (debtFilter === 'has-debt') {
+            result = result.filter(c => c.currentDebt && c.currentDebt > 0);
+        } else if (debtFilter === 'no-debt') {
+            result = result.filter(c => !c.currentDebt || c.currentDebt === 0);
+        }
+
+        // Filter by debt days
+        if (debtDaysFilter === '<30') {
+            result = result.filter(c => c.debtDays && c.debtDays > 0 && c.debtDays < 30);
+        } else if (debtDaysFilter === '>30') {
+            result = result.filter(c => c.debtDays && c.debtDays >= 30 && c.debtDays < 60);
+        } else if (debtDaysFilter === '>60') {
+            result = result.filter(c => c.debtDays && c.debtDays >= 60);
+        }
+
+        // Sort
+        if (sortBy === 'name') {
+            result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        } else if (sortBy === 'debt') {
+            result.sort((a, b) => (Number(b.currentDebt) || 0) - (Number(a.currentDebt) || 0));
+        } else if (sortBy === 'date') {
+            result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        }
+
+        setFilteredCustomers(result);
+    }, [customers, searchQuery, debtFilter, debtDaysFilter, sortBy]);
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, debtFilter, debtDaysFilter, itemsPerPage]);
+
+    // Calculate pagination
+    const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedCustomers = filteredCustomers.slice(startIndex, endIndex);
 
     const fetchCustomers = async () => {
         setLoading(true);
@@ -661,6 +733,77 @@ export default function CustomerList() {
                 </div>
             )}
 
+            {/* Search & Filter Bar */}
+            <div className="search-filter-bar">
+                <div className="search-box">
+                    <MdSearch className="search-icon" />
+                    <input
+                        type="text"
+                        placeholder="Tìm kiếm theo tên, mã KH, hoặc số điện thoại..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="search-input"
+                    />
+                    {searchQuery && (
+                        <button
+                            className="clear-search"
+                            onClick={() => setSearchQuery('')}
+                            title="Xóa tìm kiếm"
+                        >
+                            ×
+                        </button>
+                    )}
+                </div>
+
+                <div className="filter-controls">
+                    <select
+                        value={debtFilter}
+                        onChange={(e) => setDebtFilter(e.target.value as any)}
+                        className="filter-select"
+                    >
+                        <option value="all">Tất cả</option>
+                        <option value="has-debt">Có nợ</option>
+                        <option value="no-debt">Không nợ</option>
+                    </select>
+
+                    <select
+                        value={debtDaysFilter}
+                        onChange={(e) => setDebtDaysFilter(e.target.value as any)}
+                        className="filter-select"
+                    >
+                        <option value="all">Tất cả ngày nợ</option>
+                        <option value="<30">&lt; 30 ngày</option>
+                        <option value=">30">30-60 ngày</option>
+                        <option value=">60">&gt; 60 ngày</option>
+                    </select>
+
+                    <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as any)}
+                        className="filter-select"
+                    >
+                        <option value="date">Mới nhất</option>
+                        <option value="name">Theo tên</option>
+                        <option value="debt">Nợ cao nhất</option>
+                    </select>
+
+                    <select
+                        value={itemsPerPage}
+                        onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                        className="filter-select"
+                    >
+                        <option value="10">10 / trang</option>
+                        <option value="20">20 / trang</option>
+                        <option value="50">50 / trang</option>
+                        <option value="100">100 / trang</option>
+                    </select>
+                </div>
+
+                <div className="result-count">
+                    <span>{filteredCustomers.length}</span> / {customers.length} khách hàng
+                </div>
+            </div>
+
             <div className="customer-table-wrapper">
                 {loading ? (
                     <div className="customer-loading">Đang tải...</div>
@@ -684,7 +827,7 @@ export default function CustomerList() {
                             </tr>
                         </thead>
                         <tbody>
-                            {customers.map((c) => (
+                            {paginatedCustomers.map((c) => (
                                 <tr key={c.id}>
                                     <td className="customer-code">{c.code || '—'}</td>
                                     <td>
@@ -727,6 +870,70 @@ export default function CustomerList() {
                     </table>
                 )}
             </div>
+
+            {/* Pagination */}
+            {!loading && filteredCustomers.length > 0 && (
+                <div className="pagination-container">
+                    <div className="pagination-info">
+                        Hiển thị {startIndex + 1} - {Math.min(endIndex, filteredCustomers.length)} của {filteredCustomers.length} khách hàng
+                    </div>
+
+                    <div className="pagination-controls">
+                        <button
+                            className="pagination-btn"
+                            onClick={() => setCurrentPage(1)}
+                            disabled={currentPage === 1}
+                        >
+                            ««
+                        </button>
+                        <button
+                            className="pagination-btn"
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                        >
+                            ‹
+                        </button>
+
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                            let pageNum;
+                            if (totalPages <= 5) {
+                                pageNum = i + 1;
+                            } else if (currentPage <= 3) {
+                                pageNum = i + 1;
+                            } else if (currentPage >= totalPages - 2) {
+                                pageNum = totalPages - 4 + i;
+                            } else {
+                                pageNum = currentPage - 2 + i;
+                            }
+
+                            return (
+                                <button
+                                    key={pageNum}
+                                    className={`pagination-btn ${currentPage === pageNum ? 'active' : ''}`}
+                                    onClick={() => setCurrentPage(pageNum)}
+                                >
+                                    {pageNum}
+                                </button>
+                            );
+                        })}
+
+                        <button
+                            className="pagination-btn"
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                        >
+                            ›
+                        </button>
+                        <button
+                            className="pagination-btn"
+                            onClick={() => setCurrentPage(totalPages)}
+                            disabled={currentPage === totalPages}
+                        >
+                            »»
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Add/Edit Modal */}
             <Modal
@@ -806,6 +1013,58 @@ export default function CustomerList() {
                             className="form-input"
                             placeholder="MST (nếu có)"
                         />
+                    </div>
+
+                    {/* Thống kê tài chính (tùy chọn) */}
+                    <div className="form-section">
+                        <h4 className="form-section-title">📊 Thống kê tài chính (tùy chọn)</h4>
+                        <p className="form-section-note">Các trường này sẽ tự động tính từ đơn hàng. Chỉ nhập nếu muốn thiết lập giá trị ban đầu.</p>
+
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label className="form-label">Nợ hiện tại (đ)</label>
+                                <input
+                                    type="number"
+                                    value={formData.currentDebt || ''}
+                                    onChange={(e) => setFormData({ ...formData, currentDebt: e.target.value })}
+                                    className="form-input"
+                                    placeholder="0"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Số ngày nợ</label>
+                                <input
+                                    type="number"
+                                    value={formData.debtDays || ''}
+                                    onChange={(e) => setFormData({ ...formData, debtDays: e.target.value })}
+                                    className="form-input"
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label className="form-label">Tổng bán (đ)</label>
+                                <input
+                                    type="number"
+                                    value={formData.totalSales || ''}
+                                    onChange={(e) => setFormData({ ...formData, totalSales: e.target.value })}
+                                    className="form-input"
+                                    placeholder="0"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">Tổng bán trừ TH (đ)</label>
+                                <input
+                                    type="number"
+                                    value={formData.totalSalesAfterReturn || ''}
+                                    onChange={(e) => setFormData({ ...formData, totalSalesAfterReturn: e.target.value })}
+                                    className="form-input"
+                                    placeholder="0"
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     <div className="form-actions">
