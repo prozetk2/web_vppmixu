@@ -36,6 +36,17 @@ npm run prisma:generate
 npm run start:dev
 ```
 
+## Cap nhat schema Prisma (khi co thay doi tu dong doi)
+1) Sua `prisma/schema.prisma`.
+2) Tao migration moi (can ket noi DB thuc, uu tien `DIRECT_URL` cong 5432):\
+   `npm run prisma:migrate -- --name <ten-migration>`\
+   (Neu dung Supabase, dung `DIRECT_URL` cong 5432 thay vi pgbouncer 6543 cho migrate.)
+3) Commit thu muc `prisma/migrations` vao repo.
+4) Rebuild va chay lai Docker:\
+   - Dung DB noi bo: `docker compose up --build`\
+   - Dung DB ngoai/Supabase: `docker compose up --build api --no-deps`
+5) Prisma client se duoc generate trong qua trinh build; neu chay local nho `npm run prisma:generate`.
+
 ## Lenh thuong dung
 - `npm run prisma:generate`
 - `npm run prisma:migrate -- --name <ten>`
