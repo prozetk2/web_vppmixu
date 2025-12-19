@@ -12,6 +12,7 @@ import POSPage from './sales/POSPage';
 import SalesList from './sales/SalesList';
 import PurchaseList from './purchases/PurchaseList';
 import CustomerList from './customers/CustomerList';
+import SupplierList from './suppliers/SupplierList';
 import {
     MdHome,
     MdShoppingCart,
@@ -165,7 +166,9 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             return <CustomerList />;
         }
 
-        // Render generic table for other tabs
+        if (activeTab === 'suppliers') {
+            return <SupplierList />;
+        }
         const activeTabInfo = tabs.find(t => t.id === activeTab);
 
         return (
