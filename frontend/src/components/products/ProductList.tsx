@@ -4,6 +4,7 @@ import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import Pagination from '../shared/Pagination';
 import ProductForm from './ProductForm';
+import { MdSearch, MdInventory, MdEdit, MdDelete } from 'react-icons/md';
 import './ProductList.css';
 
 interface Product {
@@ -196,7 +197,7 @@ export default function ProductList() {
             <div className="product-toolbar">
                 <div className="search-filter">
                     <div className="search-box">
-                        <span className="search-icon">🔍</span>
+                        <span className="search-icon"><MdSearch /></span>
                         <input
                             type="text"
                             placeholder="Tìm kiếm theo tên, SKU..."
@@ -243,7 +244,7 @@ export default function ProductList() {
                     </div>
                 ) : products.length === 0 ? (
                     <div className="empty-state">
-                        <div className="empty-icon">📦</div>
+                        <div className="empty-icon"><MdInventory size={64} /></div>
                         <h3>Chưa có sản phẩm</h3>
                         <p>Bắt đầu thêm sản phẩm đầu tiên của bạn</p>
                         <button onClick={handleAdd} className="btn-add">
@@ -280,14 +281,14 @@ export default function ProductList() {
                                             onClick={() => handleEdit(product)}
                                             title="Sửa"
                                         >
-                                            ✏️
+                                            <MdEdit />
                                         </button>
                                         <button
                                             className="btn-icon btn-delete"
                                             onClick={() => handleDeleteClick(product)}
                                             title="Xóa"
                                         >
-                                            🗑️
+                                            <MdDelete />
                                         </button>
                                     </td>
                                 </tr>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { purchasesAPI, suppliersAPI, productsAPI, warehousesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
+import { MdDownload, MdInventory, MdCheck, MdClose } from 'react-icons/md';
 import './PurchaseList.css';
 
 interface PurchaseItem {
@@ -226,7 +227,7 @@ export default function PurchaseList() {
             <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
 
             <div className="purchase-header">
-                <h2>📥 Nhập hàng</h2>
+                <h2><MdDownload /> Nhập hàng</h2>
                 <button onClick={openCreateModal} className="btn-create">
                     ➕ Tạo đơn nhập
                 </button>
@@ -253,7 +254,7 @@ export default function PurchaseList() {
                     <div className="purchase-loading">Đang tải...</div>
                 ) : purchases.length === 0 ? (
                     <div className="purchase-empty">
-                        <div className="purchase-empty-icon">📦</div>
+                        <div className="purchase-empty-icon"><MdInventory size={64} /></div>
                         <p>Chưa có đơn nhập hàng</p>
                     </div>
                 ) : (
@@ -290,13 +291,13 @@ export default function PurchaseList() {
                                                         className="btn-confirm"
                                                         onClick={() => handleConfirm(p.id)}
                                                     >
-                                                        ✓ Nhập kho
+                                                        <MdCheck /> Nhập kho
                                                     </button>
                                                     <button
                                                         className="btn-cancel"
                                                         onClick={() => handleCancel(p.id)}
                                                     >
-                                                        ✕ Hủy
+                                                        <MdClose /> Hủy
                                                     </button>
                                                 </>
                                             )}
@@ -407,7 +408,7 @@ export default function PurchaseList() {
                                         onClick={() => removeItem(idx)}
                                         className="btn-remove-item"
                                     >
-                                        ✕
+                                        <MdClose />
                                     </button>
                                 )}
                             </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { productsAPI, customersAPI, warehousesAPI, salesAPI, inventoryAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
+import { MdSearch, MdShoppingCart, MdClose, MdCheckCircle } from 'react-icons/md';
 import './POSPage.css';
 
 interface Product {
@@ -205,7 +206,7 @@ export default function POSPage() {
                 <div className="pos-search">
                     <input
                         type="text"
-                        placeholder="🔍 Tìm sản phẩm theo tên hoặc mã SKU..."
+                        placeholder="Tìm sản phẩm theo tên hoặc mã SKU..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="search-input"
@@ -233,13 +234,13 @@ export default function POSPage() {
             {/* Right: Cart */}
             <div className="pos-cart">
                 <div className="cart-header">
-                    <h3>🛒 Giỏ hàng</h3>
+                    <h3><MdShoppingCart /> Giỏ hàng</h3>
                     {cart.length > 0 && <span className="cart-count">{cart.length}</span>}
                 </div>
 
                 {cart.length === 0 ? (
                     <div className="cart-empty">
-                        <div className="cart-empty-icon">🛒</div>
+                        <div className="cart-empty-icon"><MdShoppingCart size={48} /></div>
                         <p>Chưa có sản phẩm</p>
                     </div>
                 ) : (
@@ -272,7 +273,7 @@ export default function POSPage() {
                                     className="cart-item-remove"
                                     onClick={() => removeFromCart(item.product.id)}
                                 >
-                                    ✕
+                                    <MdClose />
                                 </button>
                             </div>
                         ))}
@@ -340,7 +341,7 @@ export default function POSPage() {
             {showSuccess && (
                 <div className="success-overlay" onClick={closeSuccess}>
                     <div className="success-modal" onClick={(e) => e.stopPropagation()}>
-                        <div className="success-icon">✅</div>
+                        <div className="success-icon"><MdCheckCircle size={64} /></div>
                         <h2>Thanh toán thành công!</h2>
                         <p>Mã đơn hàng: <strong>{lastOrderNumber}</strong></p>
                         <button onClick={closeSuccess}>Đóng</button>

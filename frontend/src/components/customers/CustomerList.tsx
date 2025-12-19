@@ -4,6 +4,7 @@ import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import * as XLSX from 'xlsx';
 import * as pdfjsLib from 'pdfjs-dist';
+import { MdPeople, MdHourglassEmpty, MdDownload, MdAttachMoney, MdDescription } from 'react-icons/md';
 import './CustomerList.css';
 
 // Configure PDF.js worker
@@ -373,7 +374,7 @@ export default function CustomerList() {
             <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
 
             <div className="customer-header">
-                <h2>👥 Quản lý khách hàng</h2>
+                <h2><MdPeople /> Quản lý khách hàng</h2>
                 <div className="header-actions">
                     <input
                         type="file"
@@ -383,7 +384,7 @@ export default function CustomerList() {
                         style={{ display: 'none' }}
                     />
                     <button onClick={handleImportClick} className="btn-import" disabled={importing}>
-                        {importing ? '⏳ Đang import...' : '📥 Import'}
+                        {importing ? <><MdHourglassEmpty /> Đang import...</> : <><MdDownload /> Import</>}
                     </button>
                     <button onClick={openAddModal} className="btn-add">
                         ➕ Thêm KH
@@ -402,7 +403,7 @@ export default function CustomerList() {
                     <div className="customer-loading">Đang tải...</div>
                 ) : customers.length === 0 ? (
                     <div className="customer-empty">
-                        <div className="customer-empty-icon">👥</div>
+                        <div className="customer-empty-icon"><MdPeople size={64} /></div>
                         <p>Chưa có khách hàng</p>
                     </div>
                 ) : (
@@ -563,7 +564,7 @@ export default function CustomerList() {
                         </div>
 
                         <div className="debt-summary">
-                            <h4>💰 Công nợ</h4>
+                            <h4><MdAttachMoney /> Công nợ</h4>
                             {debtData ? (
                                 <div className="debt-stats">
                                     <div className="debt-stat">
@@ -592,7 +593,7 @@ export default function CustomerList() {
 
                         {debtData && debtData.orders.length > 0 && (
                             <div className="orders-section">
-                                <h4>📄 Lịch sử đơn hàng ({debtData.orderCount})</h4>
+                                <h4><MdDescription /> Lịch sử đơn hàng ({debtData.orderCount})</h4>
                                 <table className="orders-table">
                                     <thead>
                                         <tr>

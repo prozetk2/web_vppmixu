@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { dashboardAPI } from '../../services/api';
+import { MdAttachMoney, MdUndo, MdTrendingUp, MdShoppingCart, MdBarChart, MdList, MdDescription, MdInventory, MdPeople, MdArrowUpward, MdArrowDownward } from 'react-icons/md';
 import './DashboardOverview.css';
 
 interface Stats {
@@ -159,34 +160,34 @@ export default function DashboardOverview() {
                 <h2>Kết quả bán hàng hôm nay</h2>
                 <div className="summary-cards">
                     <div className="summary-card">
-                        <div className="card-icon revenue">💰</div>
+                        <div className="card-icon revenue"><MdAttachMoney /></div>
                         <div className="card-content">
                             <div className="card-label">Doanh thu</div>
                             <div className="card-value">{formatFullCurrency(stats?.revenue || 0)}</div>
                         </div>
                     </div>
                     <div className="summary-card">
-                        <div className="card-icon returns">↩️</div>
+                        <div className="card-icon returns"><MdUndo /></div>
                         <div className="card-content">
                             <div className="card-label">Trả hàng</div>
                             <div className="card-value">{formatFullCurrency(stats?.returns || 0)}</div>
                         </div>
                     </div>
                     <div className="summary-card">
-                        <div className="card-icon net">📈</div>
+                        <div className="card-icon net"><MdTrendingUp /></div>
                         <div className="card-content">
                             <div className="card-label">Doanh thu thuần</div>
                             <div className="card-value">{formatFullCurrency(stats?.netRevenue || 0)}</div>
                             {stats && (
                                 <div className={`card-change ${stats.changePercent >= 0 ? 'positive' : 'negative'}`}>
-                                    {stats.changePercent >= 0 ? '↑' : '↓'} {Math.abs(stats.changePercent).toFixed(2)}%
+                                    {stats.changePercent >= 0 ? <MdArrowUpward /> : <MdArrowDownward />} {Math.abs(stats.changePercent).toFixed(2)}%
                                     <span> so với hôm qua</span>
                                 </div>
                             )}
                         </div>
                     </div>
                     <div className="summary-card">
-                        <div className="card-icon orders">🛒</div>
+                        <div className="card-icon orders"><MdShoppingCart /></div>
                         <div className="card-content">
                             <div className="card-label">Đơn hàng</div>
                             <div className="card-value">{stats?.orderCount || 0}</div>
@@ -227,7 +228,7 @@ export default function DashboardOverview() {
                     </div>
                     {chartData.length === 0 ? (
                         <div className="empty-chart">
-                            <div className="empty-chart-icon">📊</div>
+                            <div className="empty-chart-icon"><MdBarChart size={48} /></div>
                             <p>Chưa có dữ liệu</p>
                         </div>
                     ) : (
@@ -256,14 +257,14 @@ export default function DashboardOverview() {
                     </div>
                     {activities.length === 0 ? (
                         <div className="empty-chart">
-                            <div className="empty-chart-icon">📋</div>
+                            <div className="empty-chart-icon"><MdList size={48} /></div>
                             <p>Chưa có hoạt động</p>
                         </div>
                     ) : (
                         <div className="activities-list">
                             {activities.map((activity) => (
                                 <div key={activity.id} className="activity-item">
-                                    <div className="activity-icon">📄</div>
+                                    <div className="activity-icon"><MdDescription /></div>
                                     <div className="activity-content">
                                         <div className="activity-description">
                                             {activity.description} với giá trị{' '}
@@ -304,7 +305,7 @@ export default function DashboardOverview() {
                     </div>
                     {topProducts.length === 0 ? (
                         <div className="empty-chart">
-                            <div className="empty-chart-icon">📦</div>
+                            <div className="empty-chart-icon"><MdInventory size={48} /></div>
                             <p>Chưa có dữ liệu</p>
                         </div>
                     ) : (
@@ -348,7 +349,7 @@ export default function DashboardOverview() {
                     </div>
                     {topCustomers.length === 0 ? (
                         <div className="empty-chart">
-                            <div className="empty-chart-icon">👥</div>
+                            <div className="empty-chart-icon"><MdPeople size={48} /></div>
                             <p>Chưa có dữ liệu</p>
                         </div>
                     ) : (

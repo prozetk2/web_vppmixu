@@ -3,6 +3,7 @@ import { inventoryAPI, warehousesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import StockAdjustment from './StockAdjustment';
+import { MdSearch, MdInventory } from 'react-icons/md';
 import './InventoryOverview.css';
 
 interface StockItem {
@@ -173,7 +174,7 @@ export default function InventoryOverview() {
             <div className="inventory-toolbar">
                 <div className="toolbar-filters">
                     <div className="search-box">
-                        <span className="search-icon">🔍</span>
+                        <span className="search-icon"><MdSearch /></span>
                         <input
                             type="text"
                             placeholder="Tìm theo tên, SKU..."
@@ -199,7 +200,7 @@ export default function InventoryOverview() {
                     </select>
                 </div>
                 <button onClick={() => setIsAdjustOpen(true)} className="btn-adjust">
-                    <span>📦</span> Điều chỉnh kho
+                    <span><MdInventory /></span> Điều chỉnh kho
                 </button>
             </div>
 
@@ -212,7 +213,7 @@ export default function InventoryOverview() {
                     </div>
                 ) : filteredItems.length === 0 ? (
                     <div className="empty-state">
-                        <div className="empty-icon">📦</div>
+                        <div className="empty-icon"><MdInventory size={64} /></div>
                         <h3>Chưa có dữ liệu tồn kho</h3>
                         <p>Thêm sản phẩm vào kho bằng cách điều chỉnh tồn kho</p>
                     </div>

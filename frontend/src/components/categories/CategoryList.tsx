@@ -3,6 +3,7 @@ import { categoriesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import CategoryForm from './CategoryForm';
+import { MdSearch, MdFolder, MdEdit, MdDelete } from 'react-icons/md';
 import './CategoryList.css';
 
 interface Category {
@@ -127,7 +128,7 @@ export default function CategoryList() {
             {/* Toolbar */}
             <div className="category-toolbar">
                 <div className="search-box">
-                    <span className="search-icon">🔍</span>
+                    <span className="search-icon"><MdSearch /></span>
                     <input
                         type="text"
                         placeholder="Tìm kiếm danh mục..."
@@ -158,7 +159,7 @@ export default function CategoryList() {
                     </div>
                 ) : filteredCategories.length === 0 ? (
                     <div className="empty-state">
-                        <div className="empty-icon">📁</div>
+                        <div className="empty-icon"><MdFolder size={64} /></div>
                         <h3>Chưa có danh mục</h3>
                         <p>Bắt đầu thêm danh mục đầu tiên của bạn</p>
                         <button onClick={handleAdd} className="btn-add">
@@ -180,7 +181,7 @@ export default function CategoryList() {
                             {filteredCategories.map((category) => (
                                 <tr key={category.id}>
                                     <td className="category-name">
-                                        <span className="category-icon">📁</span>
+                                        <span className="category-icon"><MdFolder /></span>
                                         {category.name}
                                     </td>
                                     <td className="category-code">{category.code || '—'}</td>
@@ -194,14 +195,14 @@ export default function CategoryList() {
                                             onClick={() => handleEdit(category)}
                                             title="Sửa"
                                         >
-                                            ✏️
+                                            <MdEdit />
                                         </button>
                                         <button
                                             className="btn-icon btn-delete"
                                             onClick={() => handleDeleteClick(category)}
                                             title="Xóa"
                                         >
-                                            🗑️
+                                            <MdDelete />
                                         </button>
                                     </td>
                                 </tr>

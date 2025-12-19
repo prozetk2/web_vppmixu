@@ -137,6 +137,18 @@
     border-bottom-color: var(--color-primary);
 }
 
+.tab-icon {
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    margin-right: 6px;
+    font-size: 18px;
+}
+
+.tab-icon svg {
+    display: block;
+}
+
 /* Content Card */
 .content-card {
     background: white;

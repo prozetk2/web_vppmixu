@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { warehousesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
+import { MdWarehouse, MdAdd } from 'react-icons/md';
 import './WarehouseList.css';
 
 interface Warehouse {
@@ -154,7 +155,7 @@ export default function WarehouseList() {
                     </div>
                 ) : warehouses.length === 0 ? (
                     <div className="empty-state">
-                        <div className="empty-icon">🏭</div>
+                        <div className="empty-icon"><MdWarehouse size={64} /></div>
                         <h3>Chưa có kho hàng</h3>
                         <p>Bắt đầu bằng cách thêm kho đầu tiên</p>
                     </div>

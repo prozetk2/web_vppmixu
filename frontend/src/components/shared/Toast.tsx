@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { MdCheckCircle, MdError, MdInfo, MdWarning } from 'react-icons/md';
 import './Toast.css';
 
 export interface ToastMessage {
@@ -40,10 +41,10 @@ function ToastItem({ toast, onRemove }: { toast: ToastMessage; onRemove: (id: st
     };
 
     const icons = {
-        success: '✓',
-        error: '✕',
-        info: 'ℹ',
-        warning: '⚠',
+        success: <MdCheckCircle />,
+        error: <MdError />,
+        info: <MdInfo />,
+        warning: <MdWarning />,
     };
 
     return (

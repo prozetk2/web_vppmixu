@@ -12,6 +12,18 @@ import POSPage from './sales/POSPage';
 import SalesList from './sales/SalesList';
 import PurchaseList from './purchases/PurchaseList';
 import CustomerList from './customers/CustomerList';
+import {
+    MdHome,
+    MdShoppingCart,
+    MdLocalShipping,
+    MdDescription,
+    MdInventory,
+    MdFolder,
+    MdBarChart,
+    MdWarehouse,
+    MdPeople,
+    MdLocalShipping as MdTruck
+} from 'react-icons/md';
 import './Dashboard.css';
 
 interface DashboardProps {
@@ -67,16 +79,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     };
 
     const tabs = [
-        { id: 'overview' as TabType, label: 'Tổng quan', icon: '🏠' },
-        { id: 'pos' as TabType, label: 'Bán hàng', icon: '💰' },
-        { id: 'purchases' as TabType, label: 'Nhập hàng', icon: '📥' },
-        { id: 'sales' as TabType, label: 'Hóa đơn', icon: '📄' },
-        { id: 'products' as TabType, label: 'Sản phẩm', icon: '📦' },
-        { id: 'categories' as TabType, label: 'Danh mục', icon: '📁' },
-        { id: 'inventory' as TabType, label: 'Tồn kho', icon: '📊' },
-        { id: 'warehouses' as TabType, label: 'Kho hàng', icon: '🏭' },
-        { id: 'customers' as TabType, label: 'Khách hàng', icon: '👥' },
-        { id: 'suppliers' as TabType, label: 'Nhà cung cấp', icon: '🚚' },
+        { id: 'overview' as TabType, label: 'Tổng quan', icon: MdHome },
+        { id: 'pos' as TabType, label: 'Bán hàng', icon: MdShoppingCart },
+        { id: 'purchases' as TabType, label: 'Nhập hàng', icon: MdLocalShipping },
+        { id: 'sales' as TabType, label: 'Hóa đơn', icon: MdDescription },
+        { id: 'products' as TabType, label: 'Sản phẩm', icon: MdInventory },
+        { id: 'categories' as TabType, label: 'Danh mục', icon: MdFolder },
+        { id: 'inventory' as TabType, label: 'Tồn kho', icon: MdBarChart },
+        { id: 'warehouses' as TabType, label: 'Kho hàng', icon: MdWarehouse },
+        { id: 'customers' as TabType, label: 'Khách hàng', icon: MdPeople },
+        { id: 'suppliers' as TabType, label: 'Nhà cung cấp', icon: MdTruck },
     ];
 
     const getTableHeaders = () => {
@@ -233,7 +245,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
                                 >
-                                    <span className="tab-icon">{tab.icon}</span>
+                                    <span className="tab-icon">{<tab.icon />}</span>
                                     {tab.label}
                                 </button>
                             ))}

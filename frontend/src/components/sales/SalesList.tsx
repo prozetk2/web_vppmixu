@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { salesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
+import { MdDescription, MdSearch, MdInbox, MdUndo } from 'react-icons/md';
 import './SalesList.css';
 
 interface OrderItem {
@@ -119,7 +120,7 @@ export default function SalesList() {
             <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
 
             <div className="sales-header">
-                <h2>📄 Danh sách hóa đơn</h2>
+                <h2><MdDescription /> Danh sách hóa đơn</h2>
             </div>
 
             <div className="sales-filters">
@@ -146,7 +147,7 @@ export default function SalesList() {
                     <option value="RETURNED">Đã trả hàng</option>
                 </select>
                 <button onClick={handleSearch} className="filter-input" style={{ cursor: 'pointer' }}>
-                    🔍 Tìm
+                    <MdSearch /> Tìm
                 </button>
             </div>
 
@@ -155,7 +156,7 @@ export default function SalesList() {
                     <div className="sales-loading">Đang tải...</div>
                 ) : orders.length === 0 ? (
                     <div className="sales-empty">
-                        <div className="sales-empty-icon">📭</div>
+                        <div className="sales-empty-icon"><MdInbox size={64} /></div>
                         <p>Chưa có hóa đơn nào</p>
                     </div>
                 ) : (
@@ -303,7 +304,7 @@ export default function SalesList() {
                                     onClick={handleReturn}
                                     disabled={returning}
                                 >
-                                    {returning ? 'Đang xử lý...' : '↩️ Trả hàng'}
+                                    {returning ? 'Đang xử lý...' : <><MdUndo /> Trả hàng</>}
                                 </button>
                             )}
                             <button className="btn-close" onClick={closeDetail}>

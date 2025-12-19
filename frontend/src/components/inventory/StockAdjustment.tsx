@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { productsAPI } from '../../services/api';
+import { MdDownload, MdUpload, MdSync, MdFolder } from 'react-icons/md';
 import './StockAdjustment.css';
 
 interface Warehouse {
@@ -273,7 +274,7 @@ export default function StockAdjustment({
                         className={`type-btn ${formData.type === 'IMPORT' ? 'active import' : ''}`}
                         onClick={() => handleTypeChange('IMPORT')}
                     >
-                        <span className="type-icon">📥</span>
+                        <span className="type-icon"><MdDownload /></span>
                         <span className="type-label">Nhập kho</span>
                     </button>
                     <button
@@ -281,7 +282,7 @@ export default function StockAdjustment({
                         className={`type-btn ${formData.type === 'EXPORT' ? 'active export' : ''}`}
                         onClick={() => handleTypeChange('EXPORT')}
                     >
-                        <span className="type-icon">📤</span>
+                        <span className="type-icon"><MdUpload /></span>
                         <span className="type-label">Xuất kho</span>
                     </button>
                     <button
@@ -289,7 +290,7 @@ export default function StockAdjustment({
                         className={`type-btn ${formData.type === 'ADJUST' ? 'active adjust' : ''}`}
                         onClick={() => handleTypeChange('ADJUST')}
                     >
-                        <span className="type-icon">🔄</span>
+                        <span className="type-icon"><MdSync /></span>
                         <span className="type-label">Điều chỉnh</span>
                     </button>
                 </div>
@@ -379,7 +380,7 @@ export default function StockAdjustment({
                 <label className="form-label">Nhập nhanh từ file</label>
                 <div className="import-file-wrapper">
                     <label className="btn-import-file">
-                        <span>📁 Chọn tệp</span>
+                        <span><MdFolder /> Chọn tệp</span>
                         <input
                             type="file"
                             accept=".csv,.xlsx,.xls,.pdf"
