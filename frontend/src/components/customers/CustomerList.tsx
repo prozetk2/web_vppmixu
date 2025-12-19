@@ -175,6 +175,13 @@ export default function CustomerList() {
         fetchCustomers();
     }, []);
 
+    useEffect(() => {
+        if (debtData) {
+            console.log('🎯 DEBT DATA CHANGED:', debtData);
+            console.log('🎯 totalOrders:', debtData.totalOrders, 'formatted:', formatCurrency(debtData.totalOrders));
+        }
+    }, [debtData]);
+
     const fetchCustomers = async () => {
         setLoading(true);
         try {
@@ -246,7 +253,9 @@ export default function CustomerList() {
 
         try {
             const response = await customersAPI.getDebts(customer.id);
-            setDebtData(response.data);
+            console.log('🔥 DEBT DATA RECEIVED:', response.data);
+            // API returns {data: {totalOrders, ...}}, we need the inner data
+            setDebtData(response.data.data || response.data);
         } catch (error) {
             console.error('Failed to fetch debts:', error);
         }
@@ -298,7 +307,11 @@ export default function CustomerList() {
         }
     };
 
-    const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
+    const formatCurrency = (value: any): string => {
+        const num = typeof value === 'number' ? value : parseFloat(value);
+        if (isNaN(num)) return '0';
+        return new Intl.NumberFormat('vi-VN').format(num);
+    };
     const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('vi-VN');
 
     // === IMPORT FUNCTIONALITY ===
@@ -861,7 +874,7 @@ export default function CustomerList() {
                             )}
                         </div>
 
-                        {debtData && debtData.orders.length > 0 && (
+                        {debtData && debtData.orders && debtData.orders.length > 0 && (
                             <div className="orders-section">
                                 <h4><MdDescription /> Lịch sử đơn hàng ({debtData.orderCount})</h4>
                                 <table className="orders-table">

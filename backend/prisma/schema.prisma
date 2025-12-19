@@ -133,10 +133,10 @@ model Customer {
   lastTransaction DateTime? @map("last_transaction") @db.Date // Ngày giao dịch cuối
   
   // Thống kê tài chính (từ Excel hoặc tự tính)
-  debtDays              Int?     @default(0) @map("debt_days")                    // Số ngày nợ
-  currentDebt           Decimal? @default(0) @map("current_debt")                 // Nợ cần thu hiện tại
-  totalSales            Decimal? @default(0) @map("total_sales")                  // Tổng bán
-  totalSalesAfterReturn Decimal? @default(0) @map("total_sales_after_return")     // Tổng bán trừ trả hàng
+  debtDays              Int?     @map("debt_days")                    // Số ngày nợ
+  currentDebt           Decimal? @map("current_debt")                 // Nợ cần thu hiện tại
+  totalSales            Decimal? @map("total_sales")                  // Tổng bán
+  totalSalesAfterReturn Decimal? @map("total_sales_after_return")     // Tổng bán trừ trả hàng
   
   // Thông tin bổ sung (giữ lại cho tương lai)
   contactPerson String?  @map("contact_person")      

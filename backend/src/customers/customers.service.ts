@@ -232,9 +232,24 @@ export class CustomersService {
 
     // Get customer's debt summary
     async getDebts(id: string) {
-        await this.ensureExists(id);
+        const customer = await this.ensureExists(id);
 
-        // Get all orders for this customer
+        // Check if customer has imported data
+        const hasImportedData = customer.currentDebt !== null && customer.totalSales !== null;
+
+        if (hasImportedData) {
+            // Use imported data from Excel
+            return {
+                customerId: id,
+                totalOrders: Number(customer.totalSales || 0),
+                totalPaid: Number(customer.totalSales || 0) - Number(customer.currentDebt || 0),
+                totalDebt: Number(customer.currentDebt || 0),
+                orderCount: 0,
+                orders: [],
+            };
+        }
+
+        // Otherwise, calculate from orders
         const orders = await this.prisma.order.findMany({
             where: {
                 customerId: BigInt(id),
