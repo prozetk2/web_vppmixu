@@ -269,12 +269,50 @@ export default function CustomerList() {
                         const customer: Partial<FormData> = {};
                         headers.forEach((h, idx) => {
                             const val = String(row[idx] || '').trim();
-                            if (h.includes('mã') || h.includes('code')) customer.code = val;
-                            else if (h.includes('tên') || h.includes('name') || h.includes('khách')) customer.name = val;
-                            else if (h.includes('email')) customer.email = val;
-                            else if (h.includes('đt') || h.includes('phone') || h.includes('điện')) customer.phone = val;
-                            else if (h.includes('địa') || h.includes('address')) customer.address = val;
-                            else if (h.includes('mst') || h.includes('thuế') || h.includes('tax')) customer.taxNumber = val;
+                            if (!val) return; // Skip empty values
+
+                            // Mã khách hàng
+                            if (h.includes('mã') && (h.includes('kh') || h.includes('khách')) || h.includes('code')) {
+                                customer.code = val;
+                            }
+                            // Tên khách hàng - nhiều pattern
+                            else if (
+                                h.includes('tên kh') ||
+                                h.includes('tên khách') ||
+                                h.includes('họ tên') ||
+                                h.includes('name') ||
+                                (h.includes('tên') && !h.includes('công ty'))
+                            ) {
+                                customer.name = val;
+                            }
+                            // Email
+                            else if (h.includes('email') || h.includes('e-mail')) {
+                                customer.email = val;
+                            }
+                            // Điện thoại - nhiều pattern
+                            else if (
+                                h.includes('điện thoại') ||
+                                h.includes('đt') ||
+                                h.includes('phone') ||
+                                h.includes('sđt') ||
+                                h.includes('di động') ||
+                                h.includes('mobile')
+                            ) {
+                                customer.phone = val;
+                            }
+                            // Địa chỉ
+                            else if (h.includes('địa chỉ') || h.includes('address') || h.includes('dia chi')) {
+                                customer.address = val;
+                            }
+                            // Mã số thuế
+                            else if (
+                                h.includes('mã số thuế') ||
+                                h.includes('mst') ||
+                                h.includes('thuế') ||
+                                h.includes('tax')
+                            ) {
+                                customer.taxNumber = val;
+                            }
                         });
 
                         if (customer.name) customers.push(customer);
