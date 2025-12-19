@@ -79,7 +79,7 @@ export const customersAPI = {
 };
 
 export const suppliersAPI = {
-    getAll: () => api.get('/suppliers'),
+    getAll: (params?: Record<string, unknown>) => api.get('/suppliers', { params }),
     getOne: (id: string) => api.get(`/suppliers/${id}`),
     create: (data: any) => api.post('/suppliers', data),
     update: (id: string, data: any) => api.put(`/suppliers/${id}`, data),

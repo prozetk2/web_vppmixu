@@ -383,6 +383,22 @@ model Supplier {
   taxNumber String?  @map("tax_number")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
+  // Thông tin từ Excel
+  area                     String?   // Khu vực
+  ward                     String?   // Phường/Xã
+  notes                    String?   // Ghi chú
+  supplierGroup            String?   @map("supplier_group") // Nhóm nhà cung cấp
+  company                  String?   // Công ty
+  creator                  String?   // Người tạo
+  
+  // Thống kê tài chính (có thể import từ Excel hoặc tự tính)
+  totalPurchase            Decimal?  @map("total_purchase") // Tổng mua
+  currentDebt              Decimal?  @map("current_debt") // Nợ cần trả hiện tại
+  totalPurchaseAfterReturn Decimal?  @map("total_purchase_after_return") // Tổng mua trừ trả hàng
+  
+  // Trạng thái
+  active    Boolean  @default(true) // Trạng thái: true=Đang hoạt động, false=Ngừng hoạt động
+
   purchaseOrders PurchaseOrder[]
 
   @@map("supplier")
