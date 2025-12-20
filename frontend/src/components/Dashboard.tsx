@@ -13,6 +13,7 @@ import SalesList from './sales/SalesList';
 import PurchaseList from './purchases/PurchaseList';
 import CustomerList from './customers/CustomerList';
 import SupplierList from './suppliers/SupplierList';
+import InvoiceList from './invoices/InvoiceList';
 import {
     MdHome,
     MdShoppingCart,
@@ -31,7 +32,7 @@ interface DashboardProps {
     onLogout: () => void;
 }
 
-type TabType = 'overview' | 'pos' | 'purchases' | 'sales' | 'products' | 'categories' | 'inventory' | 'warehouses' | 'customers' | 'suppliers';
+type TabType = 'overview' | 'pos' | 'purchases' | 'sales' | 'invoices' | 'products' | 'categories' | 'inventory' | 'warehouses' | 'customers' | 'suppliers';
 
 export default function Dashboard({ onLogout }: DashboardProps) {
     const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -83,7 +84,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         { id: 'overview' as TabType, label: 'Tổng quan', icon: MdHome },
         { id: 'pos' as TabType, label: 'Bán hàng', icon: MdShoppingCart },
         { id: 'purchases' as TabType, label: 'Nhập hàng', icon: MdLocalShipping },
-        { id: 'sales' as TabType, label: 'Hóa đơn', icon: MdDescription },
+        { id: 'sales' as TabType, label: 'Đơn hàng', icon: MdDescription },
+        { id: 'invoices' as TabType, label: 'Hóa đơn', icon: MdDescription },
         { id: 'products' as TabType, label: 'Sản phẩm', icon: MdInventory },
         { id: 'categories' as TabType, label: 'Danh mục', icon: MdFolder },
         { id: 'inventory' as TabType, label: 'Tồn kho', icon: MdBarChart },
@@ -168,6 +170,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
         if (activeTab === 'suppliers') {
             return <SupplierList />;
+        }
+
+        if (activeTab === 'invoices') {
+            return <InvoiceList />;
         }
         const activeTabInfo = tabs.find(t => t.id === activeTab);
 

@@ -133,4 +133,14 @@ export const purchasesAPI = {
     cancel: (id: string) => api.post(`/purchases/${id}/cancel`),
 };
 
+export const invoicesAPI = {
+    getAll: (params?: Record<string, unknown>) => api.get('/invoices', { params }),
+    getOne: (id: string) => api.get(`/invoices/${id}`),
+    create: (data: any) => api.post('/invoices', data),
+    bulkCreate: (data: any[]) => api.post('/invoices/bulk', data),
+    update: (id: string, data: any) => api.put(`/invoices/${id}`, data),
+    delete: (id: string) => api.delete(`/invoices/${id}`),
+    getFilterOptions: () => api.get('/invoices/filter-options'),
+};
+
 export default api;

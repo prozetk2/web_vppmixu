@@ -195,23 +195,84 @@ model Inventory {
 }
 
 model Invoice {
-  id            BigInt    @id @default(autoincrement())
-  invoiceNumber String?   @unique @map("invoice_number")
-  orderId       BigInt?   @map("order_id")
-  storeId       BigInt?   @map("store_id")
-  customerId    BigInt?   @map("customer_id")
-  totalAmount   Decimal?  @map("total_amount")
-  taxAmount     Decimal?  @map("tax_amount")
-  status        String?   @default("DRAFT")
-  issuedAt      DateTime? @map("issued_at") @db.Timestamptz
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  id              BigInt    @id @default(autoincrement())
+  invoiceNumber   String?   @unique @map("invoice_number")
+  orderId         BigInt?   @map("order_id")
+  storeId         BigInt?   @map("store_id")
+  customerId      BigInt?   @map("customer_id")
+  
+  // Branch and order references
+  branch          String?   // Chi nhánh
+  orderCode       String?   @map("order_code") // Mã đặt hàng
+  returnOrderCode String?   @map("return_order_code") // Mã trả hàng
+  
+  // Customer snapshot (for export without JOIN)
+  customerCode    String?   @map("customer_code") // Mã khách hàng
+  customerName    String?   @map("customer_name") // Tên khách hàng
+  customerEmail   String?   @map("customer_email") // Email
+  customerPhone   String?   @map("customer_phone") // Điện thoại
+  customerAddress String?   @map("customer_address") // Địa chỉ
+  customerArea    String?   @map("customer_area") // Khu vực
+  customerWard    String?   @map("customer_ward") // Phường/Xã
+  customerDob     DateTime? @map("customer_dob") @db.Timestamptz // Ngày sinh
+  
+  // Sales info
+  priceList       String?   @map("price_list") // Bảng giá
+  seller          String?   // Người bán
+  salesChannel    String?   @map("sales_channel") // Kênh bán
+  creator         String?   // Người tạo
+  notes           String?   // Ghi chú
+  
+  // Financial fields
+  totalAmount     Decimal?  @map("total_amount") // Tổng tiền hàng
+  discountAmount  Decimal?  @default(0) @map("discount_amount") // Giảm giá hóa đơn
+  amountDue       Decimal?  @map("amount_due") // Khách cần trả
+  amountPaid      Decimal?  @default(0) @map("amount_paid") // Khách đã trả
+  cashAmount      Decimal?  @default(0) @map("cash_amount") // Tiền mặt
+  cardAmount      Decimal?  @default(0) @map("card_amount") // Thẻ
+  walletAmount    Decimal?  @default(0) @map("wallet_amount") // Ví
+  transferAmount  Decimal?  @default(0) @map("transfer_amount") // Chuyển khoản
+  taxAmount       Decimal?  @map("tax_amount")
+  
+  // Status fields
+  status          String?   @default("COMPLETED") // COMPLETED, CANCELLED
+  eInvoiceStatus  String?   @map("einvoice_status") // Trạng thái HĐĐT
+  paymentMethod   String?   @map("payment_method") // Phương thức thanh toán
+  
+  // Timestamps
+  issuedAt        DateTime? @map("issued_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime? @updatedAt @map("updated_at") @db.Timestamptz
 
   order     Order?            @relation(fields: [orderId], references: [id])
   store     Store?            @relation(fields: [storeId], references: [id])
   customer  Customer?         @relation(fields: [customerId], references: [id])
   eInvoices InvoiceEInvoice[]
+  items     InvoiceItem[]
 
   @@map("invoice")
+}
+
+model InvoiceItem {
+  id              BigInt    @id @default(autoincrement())
+  invoiceId       BigInt    @map("invoice_id")
+  productCode     String?   @map("product_code") // Mã hàng
+  barcode         String?   // Mã vạch
+  productName     String?   @map("product_name") // Tên hàng
+  brand           String?   // Thương hiệu
+  unit            String?   // ĐVT
+  notes           String?   // Ghi chú hàng hóa
+  quantity        Decimal   @default(0) // Số lượng
+  unitPrice       Decimal   @default(0) @map("unit_price") // Đơn giá
+  discountPercent Decimal?  @default(0) @map("discount_percent") // Giảm giá %
+  discountAmount  Decimal?  @default(0) @map("discount_amount") // Giảm giá
+  salePrice       Decimal?  @map("sale_price") // Giá bán
+  totalPrice      Decimal   @default(0) @map("total_price") // Thành tiền
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_item")
 }
 
 model InvoiceEInvoice {

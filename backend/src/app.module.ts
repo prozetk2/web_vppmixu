@@ -17,6 +17,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { SalesModule } from './sales/sales.module';
 import { PurchasesModule } from './purchases/purchases.module';
+import { InvoicesModule } from './invoices/invoices.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { PurchasesModule } from './purchases/purchases.module';
     DashboardModule,
     SalesModule,
     PurchasesModule,
+    InvoicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
