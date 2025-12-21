@@ -50,6 +50,9 @@ export const productsAPI = {
     create: (data: any) => api.post('/products', data),
     update: (id: string, data: any) => api.put(`/products/${id}`, data),
     delete: (id: string) => api.delete(`/products/${id}`),
+    bulkImport: (data: { items: any[]; warehouseId?: string }) => api.post('/products/bulk', data),
+    testBulk: (data: { items: any[] }) => api.post('/products/test-bulk', data),
+    export: (params?: Record<string, unknown>) => api.get('/products/export', { params }),
 };
 
 export const categoriesAPI = {
@@ -88,6 +91,14 @@ export const suppliersAPI = {
 
 export const inventoryAPI = {
     getStock: (params?: Record<string, unknown>) => api.get('/inventory/stock', { params }),
+    getReport: (params?: {
+        fromDate?: string;
+        toDate?: string;
+        warehouseId?: string;
+        search?: string;
+        page?: number;
+        limit?: number;
+    }) => api.get('/inventory/report', { params }),
     adjustStock: (data: {
         warehouseId: string;
         productId: string;
@@ -95,6 +106,16 @@ export const inventoryAPI = {
         type: 'IMPORT' | 'EXPORT' | 'ADJUST';
         note?: string;
     }) => api.post('/inventory/adjust', data),
+    bulkAdjust: (data: {
+        items: {
+            productCode: string;
+            productName?: string;
+            warehouseId: string;
+            quantity: number;
+            type: 'IMPORT' | 'EXPORT' | 'ADJUST';
+            note?: string;
+        }[];
+    }) => api.post('/inventory/bulk', data),
     getMovements: (params?: Record<string, unknown>) => api.get('/inventory/movements', { params }),
 };
 

@@ -26,6 +26,7 @@ interface StockAdjustmentProps {
     }) => Promise<void>;
     onCancel: () => void;
     isLoading?: boolean;
+    defaultType?: 'IMPORT' | 'EXPORT' | 'ADJUST';
 }
 
 type MovementType = 'IMPORT' | 'EXPORT' | 'ADJUST';
@@ -35,13 +36,14 @@ export default function StockAdjustment({
     onSubmit,
     onCancel,
     isLoading = false,
+    defaultType = 'IMPORT',
 }: StockAdjustmentProps) {
     const [products, setProducts] = useState<Product[]>([]);
     const [formData, setFormData] = useState({
         warehouseId: '',
         productId: '',
         quantity: '',
-        type: 'IMPORT' as MovementType,
+        type: defaultType as MovementType,
         note: '',
     });
     const [errors, setErrors] = useState<Record<string, string>>({});
