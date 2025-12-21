@@ -23,6 +23,11 @@ export class BigIntInterceptor implements NestInterceptor {
             return data.toNumber();
         }
 
+        // Handle Date objects - convert to ISO string
+        if (data instanceof Date) {
+            return data.toISOString();
+        }
+
         if (Array.isArray(data)) {
             return data.map((item) => this.transform(item));
         }

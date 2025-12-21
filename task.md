@@ -1,5 +1,77 @@
 # 📌 task.md — Project Task List (NestJS + Prisma + Supabase + React + Vite)
 
+---
+
+## 📊 TIẾN ĐỘ HIỆN TẠI
+
+### ✅ Hoàn thành (100%)
+- [x] **Sản phẩm (Product)** - CRUD, Import/Export Excel, Filter sidebar
+- [x] **Nhà cung cấp (Supplier)** - CRUD, Import/Export Excel
+- [x] **Khách hàng (Customer)** - CRUD, Import/Export Excel
+- [x] **Hóa đơn (Invoice)** - Danh sách, Chi tiết, Import/Export
+
+### 🔄 Đang làm: Kho hàng (40%)
+- [x] **Warehouse (Quản lý Kho)** - CRUD + manager, active, notes, totalValue
+- [ ] **Inventory (Tồn kho)** - Xem tồn, filter, export
+- [ ] **StockMovement (Nhập/Xuất/Điều chỉnh)** - Forms, logic, bulk import
+- [ ] **Inventory Report (Báo cáo)** - Đầu kỳ, nhập, xuất, cuối kỳ
+- [ ] **Multi-Company** - 1 kho, phân biệt giao dịch theo công ty
+
+### ⏳ Chờ làm
+- [ ] Purchase Order (Đơn nhập hàng)
+- [ ] Sales/POS (Bán hàng)
+- [ ] Reports (Báo cáo)
+- [ ] Settings
+
+---
+
+## 🏢 MULTI-COMPANY INVENTORY IMPLEMENTATION
+
+### Goal
+1 kho chung, tồn kho chung, nhưng **mỗi giao dịch nhập/xuất ghi nhận thuộc công ty nào**
+
+### 1. Database Schema (cần thêm)
+
+**Sửa `StockMovement`:**
+```prisma
+model StockMovement {
+  ...existing fields...
+  storeId  BigInt?  @map("store_id")  // Công ty thực hiện giao dịch
+  store    Store?   @relation(fields: [storeId], references: [id])
+}
+```
+
+**Sửa `Store`:**
+```prisma
+model Store {
+  ...existing fields...
+  stockMovements StockMovement[]
+}
+```
+
+### 2. Backend API Changes
+
+| Endpoint | Thay đổi |
+|----------|----------|
+| `POST /inventory/adjust` | Thêm param `storeId` |
+| `POST /inventory/bulk` | Thêm param `storeId` |
+| `GET /inventory/report` | Thêm filter `storeId` |
+
+### 3. Frontend Changes
+
+Thêm dropdown **"Chọn công ty"** trong:
+- [ ] Trang nhập/xuất kho
+- [ ] Báo cáo tồn kho
+- [ ] Filter sidebar
+
+### 4. Verification
+
+1. Tạo 2 công ty (Store) trong database
+2. Nhập hàng với công ty A → ghi nhận `storeId = A`
+3. Báo cáo filter công ty A → chỉ thấy giao dịch của A
+
+---
+
 ## PHASE 0 — PROJECT FOUNDATION
 ### EPIC 0.1 — Requirement & Flow
 - Chốt scope feature (bán hàng, mua hàng, tồn kho, kế toán cơ bản, báo cáo)

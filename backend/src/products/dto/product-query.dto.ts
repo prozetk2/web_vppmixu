@@ -20,8 +20,41 @@ export class ProductQueryDto {
   @IsString()
   categoryId?: string;
 
-  @Transform(({ value }) => value === true || value === 'true')
   @IsOptional()
+  @IsString()
+  productType?: string; // GOODS, SERVICE, COMBO
+
+  @IsOptional()
+  @IsString()
+  brand?: string;
+
+  @IsOptional()
+  @IsString()
+  supplierId?: string;
+
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
-  includeDeleted?: boolean;
+  active?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  directSale?: boolean;
+
+  @IsOptional()
+  @IsString()
+  stockFilter?: string; // 'low', 'out', 'all'
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string; // 'name', 'sku', 'price', 'createdAt'
+
+  @IsOptional()
+  @IsString()
+  sortOrder?: string; // 'asc', 'desc'
 }

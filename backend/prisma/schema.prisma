@@ -355,7 +355,32 @@ model Product {
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime? @map("updated_at") @db.Timestamptz
 
+  // New fields from Excel import format
+  productType         String?   @default("GOODS") @map("product_type") // GOODS, SERVICE, COMBO
+  barcode             String?   // Mã vạch
+  brand               String?   // Thương hiệu
+  unit                String?   // ĐVT
+  baseUnitCode        String?   @map("base_unit_code") // Mã ĐVT cơ bản
+  conversionRate      Decimal?  @default(1) @map("conversion_rate") // Quy đổi
+  minStock            Int?      @default(0) @map("min_stock") // Tồn nhỏ nhất
+  maxStock            Int?      @map("max_stock") // Tồn lớn nhất
+  weight              Decimal?  // Trọng lượng
+  location            String?   // Vị trí
+  images              String?   // Hình ảnh (url1,url2...)
+  attributes          Json?     // Thuộc tính
+  relatedProductCodes String?   @map("related_product_codes") // Mã HH liên quan
+  noteTemplate        String?   @map("note_template") // Mẫu ghi chú
+  componentProducts   Json?     @map("component_products") // Hàng thành phần (for COMBO)
+  
+  // Business flags
+  active              Boolean   @default(true) // Đang kinh doanh
+  directSale          Boolean   @default(true) @map("direct_sale") // Được bán trực tiếp
+  
+  // Supplier reference (optional)
+  supplierId          BigInt?   @map("supplier_id")
+
   category Category?        @relation(fields: [categoryId], references: [id])
+  supplier Supplier?        @relation(fields: [supplierId], references: [id])
   variants ProductVariant[]
 
   @@map("product")
@@ -461,6 +486,7 @@ model Supplier {
   active    Boolean  @default(true) // Trạng thái: true=Đang hoạt động, false=Ngừng hoạt động
 
   purchaseOrders PurchaseOrder[]
+  products       Product[]
 
   @@map("supplier")
 }
@@ -523,12 +549,19 @@ model UserRole {
 }
 
 model Warehouse {
-  id        BigInt   @id @default(autoincrement())
-  storeId   BigInt?  @map("store_id")
+  id        BigInt    @id @default(autoincrement())
+  storeId   BigInt?   @map("store_id")
   code      String?
   name      String
   address   String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  
+  // New fields
+  manager   String?   // Người quản lý
+  active    Boolean   @default(true) // Trạng thái hoạt động
+  notes     String?   // Ghi chú
+  
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime? @updatedAt @map("updated_at") @db.Timestamptz
 
   store Store? @relation(fields: [storeId], references: [id])
 
