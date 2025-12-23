@@ -1,18 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { inventoryAPI, warehousesAPI } from '../../services/api';
+import { inventoryAPI, warehousesAPI, storesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import StockAdjustment from './StockAdjustment';
-import {
-    MdSearch,
-    MdInventory,
-    MdFileUpload,
-    MdFileDownload,
-    MdAdd,
-    MdRemove,
-    MdTune,
-    MdExpandMore,
-} from 'react-icons/md';
+import { MdSearch, MdAdd, MdRemove, MdTune, MdFileUpload, MdFileDownload, MdExpandMore, MdInventory, MdFilterList, MdRefresh } from 'react-icons/md';
 import * as XLSX from 'xlsx';
 import './InventoryOverview.css';
 
@@ -59,6 +50,7 @@ export default function InventoryOverview() {
     const [reportData, setReportData] = useState<InventoryReportItem[]>([]);
     const [totals, setTotals] = useState<ReportTotals | null>(null);
     const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+    const [stores, setStores] = useState<Warehouse[]>([]); // Reuse Warehouse interface for Store
     const [loading, setLoading] = useState(false);
     const [pagination, setPagination] = useState<PaginationMeta>({
         page: 1,
@@ -69,6 +61,7 @@ export default function InventoryOverview() {
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
     const [warehouseFilter, setWarehouseFilter] = useState('');
+    const [storeFilter, setStoreFilter] = useState('');
 
     // Date range for period (default: current month)
     const now = new Date();
@@ -83,21 +76,23 @@ export default function InventoryOverview() {
     const [isExportOpen, setIsExportOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showExportDropdown, setShowExportDropdown] = useState(false);
+    const [showFilters, setShowFilters] = useState(true);
 
     // File import
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const toast = useToast();
 
-    // Fetch warehouses on mount
+    // Fetch warehouses and stores on mount
     useEffect(() => {
         fetchWarehouses();
+        fetchStores();
     }, []);
 
     // Fetch report when filters change
     useEffect(() => {
         fetchReport();
-    }, [warehouseFilter, fromDate, toDate, pagination.page]);
+    }, [warehouseFilter, storeFilter, fromDate, toDate, pagination.page]);
 
     const fetchWarehouses = async () => {
         try {
@@ -108,11 +103,23 @@ export default function InventoryOverview() {
         }
     };
 
+    const fetchStores = async () => {
+        try {
+            const response = await storesAPI.getAll();
+            setStores(response.data?.data || response.data || []);
+        } catch (error) {
+            console.error('Failed to fetch stores:', error);
+            // Set empty array if API fails (stores controller may not exist yet)
+            setStores([]);
+        }
+    };
+
     const fetchReport = useCallback(async () => {
         setLoading(true);
         try {
             const response = await inventoryAPI.getReport({
                 warehouseId: warehouseFilter || undefined,
+                storeId: storeFilter || undefined,
                 fromDate,
                 toDate,
                 search: searchTerm || undefined,
@@ -135,7 +142,7 @@ export default function InventoryOverview() {
         } finally {
             setLoading(false);
         }
-    }, [warehouseFilter, fromDate, toDate, searchTerm, pagination.page, pagination.limit]);
+    }, [warehouseFilter, storeFilter, fromDate, toDate, searchTerm, pagination.page, pagination.limit]);
 
     const handleAdjustSubmit = async (data: {
         warehouseId: string;
@@ -143,6 +150,7 @@ export default function InventoryOverview() {
         quantity: number;
         type: 'IMPORT' | 'EXPORT' | 'ADJUST';
         note?: string;
+        storeId?: string;
     }) => {
         setIsSubmitting(true);
         try {
@@ -266,6 +274,7 @@ export default function InventoryOverview() {
                         quantity: Math.max(1, qty), // minimum 1
                         type: 'IMPORT' as const,
                         note: 'Import từ Excel',
+                        storeId: storeFilter || undefined,
                     };
                 })
                 .filter(item => (item.productCode || item.productName) && item.quantity > 0);
@@ -355,177 +364,227 @@ export default function InventoryOverview() {
                 onChange={handleFileSelect}
             />
 
-            {/* Toolbar */}
-            <div className="inventory-toolbar">
-                <div className="toolbar-filters">
-                    <div className="search-box">
-                        <span className="search-icon"><MdSearch /></span>
-                        <input
-                            type="text"
-                            placeholder="Tìm theo mã, tên hàng..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                            className="search-input"
-                        />
-                    </div>
-                    <select
-                        value={warehouseFilter}
-                        onChange={(e) => {
-                            setWarehouseFilter(e.target.value);
-                            setPagination((prev) => ({ ...prev, page: 1 }));
-                        }}
-                        className="filter-select"
-                    >
-                        <option value="">Tất cả kho</option>
-                        {warehouses.map((wh) => (
-                            <option key={wh.id} value={wh.id}>
-                                {wh.name}
-                            </option>
-                        ))}
-                    </select>
-                    <div className="date-range">
-                        <input
-                            type="date"
-                            value={fromDate}
-                            onChange={(e) => setFromDate(e.target.value)}
-                            className="date-input"
-                        />
-                        <span className="date-separator">đến</span>
-                        <input
-                            type="date"
-                            value={toDate}
-                            onChange={(e) => setToDate(e.target.value)}
-                            className="date-input"
-                        />
-                    </div>
-                </div>
-                <div className="toolbar-actions">
-                    <button onClick={() => openAdjustModal('IMPORT')} className="btn-action btn-import">
-                        <MdAdd /> Nhập kho
-                    </button>
-                    <button onClick={() => openAdjustModal('EXPORT')} className="btn-action btn-export">
-                        <MdRemove /> Xuất kho
-                    </button>
-                    <button onClick={() => openAdjustModal('ADJUST')} className="btn-action btn-adjust">
-                        <MdTune /> Điều chỉnh
-                    </button>
-                    <button onClick={() => fileInputRef.current?.click()} className="btn-action btn-file">
-                        <MdFileUpload /> Import file
-                    </button>
-                    <div className="export-dropdown-wrapper">
-                        <button
-                            onClick={() => setShowExportDropdown(!showExportDropdown)}
-                            className="btn-action btn-file"
-                        >
-                            <MdFileDownload /> Xuất file <MdExpandMore />
+            {/* Filter Sidebar */}
+            {showFilters && (
+                <aside className="inventory-sidebar">
+                    <div className="filter-header">
+                        <h3>Báo cáo tồn kho</h3>
+                        <button className="btn-clear-filters" onClick={() => {
+                            setWarehouseFilter('');
+                            setStoreFilter('');
+                            setSearchTerm('');
+                        }}>
+                            Xóa bộ lọc
                         </button>
-                        {showExportDropdown && (
-                            <div className="export-dropdown">
-                                <button onClick={() => handleExport('excel')}>Xuất Excel (.xlsx)</button>
-                                <button onClick={() => handleExport('csv')}>Xuất CSV</button>
-                            </div>
-                        )}
                     </div>
-                </div>
-            </div>
 
-            {/* Table */}
-            <div className="inventory-table-wrapper">
-                {loading ? (
-                    <div className="loading-state">
-                        <div className="spinner-large"></div>
-                        <p>Đang tải dữ liệu...</p>
-                    </div>
-                ) : reportData.length === 0 ? (
-                    <div className="empty-state">
-                        <div className="empty-icon"><MdInventory size={64} /></div>
-                        <h3>Chưa có dữ liệu tồn kho</h3>
-                        <p>Thêm sản phẩm vào kho bằng cách nhập kho hoặc điều chỉnh</p>
-                    </div>
-                ) : (
-                    <table className="inventory-report-table">
-                        <thead>
-                            <tr className="header-row-1">
-                                <th rowSpan={2}>Mã hàng</th>
-                                <th rowSpan={2}>Tên hàng</th>
-                                <th rowSpan={2}>ĐVT</th>
-                                <th colSpan={2} className="header-group">Đầu kỳ</th>
-                                <th colSpan={2} className="header-group">Nhập kho</th>
-                                <th colSpan={2} className="header-group">Xuất kho</th>
-                                <th colSpan={2} className="header-group">Cuối kỳ</th>
-                            </tr>
-                            <tr className="header-row-2">
-                                <th className="num-col">Số lượng</th>
-                                <th className="num-col">Giá trị</th>
-                                <th className="num-col">Số lượng</th>
-                                <th className="num-col">Giá trị</th>
-                                <th className="num-col">Số lượng</th>
-                                <th className="num-col">Giá trị</th>
-                                <th className="num-col">Số lượng</th>
-                                <th className="num-col">Giá trị</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {reportData.map((item) => (
-                                <tr key={item.id}>
-                                    <td className="code-cell">{item.productCode}</td>
-                                    <td className="name-cell">{item.productName}</td>
-                                    <td className="unit-cell">{item.unit}</td>
-                                    <td className="num-cell">{formatCurrency(item.beginningQty)}</td>
-                                    <td className="num-cell">{formatCurrency(item.beginningValue)}</td>
-                                    <td className="num-cell import-cell">{formatCurrency(item.importQty)}</td>
-                                    <td className="num-cell import-cell">{formatCurrency(item.importValue)}</td>
-                                    <td className="num-cell export-cell">{formatCurrency(item.exportQty)}</td>
-                                    <td className="num-cell export-cell">{formatCurrency(item.exportValue)}</td>
-                                    <td className="num-cell ending-cell">{formatCurrency(item.endingQty)}</td>
-                                    <td className="num-cell ending-cell">{formatCurrency(item.endingValue)}</td>
-                                </tr>
+                    <div className="filter-section">
+                        <label>Kho hàng</label>
+                        <select
+                            value={warehouseFilter}
+                            onChange={(e) => {
+                                setWarehouseFilter(e.target.value);
+                                setPagination((prev) => ({ ...prev, page: 1 }));
+                            }}
+                        >
+                            <option value="">Tất cả kho</option>
+                            {warehouses.map((wh) => (
+                                <option key={wh.id} value={wh.id}>
+                                    {wh.name}
+                                </option>
                             ))}
-                        </tbody>
-                        {totals && (
-                            <tfoot>
-                                <tr className="totals-row">
-                                    <td colSpan={3}><strong>Tổng cộng</strong></td>
-                                    <td className="num-cell"><strong>{formatCurrency(totals.beginningQty)}</strong></td>
-                                    <td className="num-cell"><strong>{formatCurrency(totals.beginningValue)}</strong></td>
-                                    <td className="num-cell"><strong>{formatCurrency(totals.importQty)}</strong></td>
-                                    <td className="num-cell"><strong>{formatCurrency(totals.importValue)}</strong></td>
-                                    <td className="num-cell"><strong>{formatCurrency(totals.exportQty)}</strong></td>
-                                    <td className="num-cell"><strong>{formatCurrency(totals.exportValue)}</strong></td>
-                                    <td className="num-cell"><strong>{formatCurrency(totals.endingQty)}</strong></td>
-                                    <td className="num-cell"><strong>{formatCurrency(totals.endingValue)}</strong></td>
-                                </tr>
-                            </tfoot>
-                        )}
-                    </table>
-                )}
-            </div>
+                        </select>
+                    </div>
 
-            {/* Pagination */}
-            {pagination.total > pagination.limit && (
-                <div className="pagination">
-                    <button
-                        onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
-                        disabled={pagination.page === 1}
-                        className="pagination-btn"
-                    >
-                        Trước
-                    </button>
-                    <span className="pagination-info">
-                        Trang {pagination.page} / {Math.ceil(pagination.total / pagination.limit)}
-                    </span>
-                    <button
-                        onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
-                        disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
-                        className="pagination-btn"
-                    >
-                        Sau
-                    </button>
-                </div>
+                    <div className="filter-section">
+                        <label>Công ty</label>
+                        <select
+                            value={storeFilter}
+                            onChange={(e) => {
+                                setStoreFilter(e.target.value);
+                                setPagination((prev) => ({ ...prev, page: 1 }));
+                            }}
+                        >
+                            <option value="">Tất cả công ty</option>
+                            {stores.map((store) => (
+                                <option key={store.id} value={store.id}>
+                                    {store.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="filter-section">
+                        <label>Thời gian</label>
+                        <div className="date-range-wrapper">
+                            <input
+                                type="date"
+                                value={fromDate}
+                                onChange={(e) => setFromDate(e.target.value)}
+                            />
+                            <span>đến</span>
+                            <input
+                                type="date"
+                                value={toDate}
+                                onChange={(e) => setToDate(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                </aside>
             )}
 
-            {/* Import Modal */}
+            {/* Main Content */}
+            <main className="inventory-main">
+                {/* Toolbar */}
+                <div className="inventory-toolbar">
+                    <div className="toolbar-left">
+                        <button
+                            className="btn-filter-toggle"
+                            onClick={() => setShowFilters(!showFilters)}
+                            title={showFilters ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
+                        >
+                            <MdFilterList />
+                        </button>
+                        <div className="search-box">
+                            <MdSearch className="search-icon" />
+                            <input
+                                type="text"
+                                placeholder="Tìm theo mã, tên hàng..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="toolbar-right">
+                        <button onClick={() => openAdjustModal('IMPORT')} className="btn-primary btn-import">
+                            <MdAdd /> Nhập kho
+                        </button>
+                        <button onClick={() => openAdjustModal('EXPORT')} className="btn-secondary btn-export">
+                            <MdRemove /> Xuất kho
+                        </button>
+                        <button onClick={() => openAdjustModal('ADJUST')} className="btn-secondary">
+                            <MdTune /> Điều chỉnh
+                        </button>
+                        <button onClick={() => fileInputRef.current?.click()} className="btn-secondary">
+                            <MdFileUpload /> Import
+                        </button>
+                        <div className="export-dropdown-wrapper">
+                            <button
+                                onClick={() => setShowExportDropdown(!showExportDropdown)}
+                                className="btn-secondary"
+                            >
+                                <MdFileDownload /> Xuất file <MdExpandMore />
+                            </button>
+                            {showExportDropdown && (
+                                <div className="export-dropdown">
+                                    <button onClick={() => handleExport('excel')}>Xuất Excel (.xlsx)</button>
+                                    <button onClick={() => handleExport('csv')}>Xuất CSV</button>
+                                </div>
+                            )}
+                        </div>
+                        <button className="btn-icon" onClick={handleSearch} title="Làm mới">
+                            <MdRefresh />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Table */}
+                <div className="inventory-table-wrapper">
+                    {loading ? (
+                        <div className="loading-state">
+                            <div className="spinner-large"></div>
+                            <p>Đang tải dữ liệu...</p>
+                        </div>
+                    ) : reportData.length === 0 ? (
+                        <div className="empty-state">
+                            <div className="empty-icon"><MdInventory size={64} /></div>
+                            <h3>Chưa có dữ liệu tồn kho</h3>
+                            <p>Thêm sản phẩm vào kho bằng cách nhập kho hoặc điều chỉnh</p>
+                        </div>
+                    ) : (
+                        <table className="inventory-report-table">
+                            <thead>
+                                <tr className="header-row-1">
+                                    <th rowSpan={2}>Mã hàng</th>
+                                    <th rowSpan={2}>Tên hàng</th>
+                                    <th rowSpan={2}>ĐVT</th>
+                                    <th colSpan={2} className="header-group">Đầu kỳ</th>
+                                    <th colSpan={2} className="header-group">Nhập kho</th>
+                                    <th colSpan={2} className="header-group">Xuất kho</th>
+                                    <th colSpan={2} className="header-group">Cuối kỳ</th>
+                                </tr>
+                                <tr className="header-row-2">
+                                    <th className="num-col">Số lượng</th>
+                                    <th className="num-col">Giá trị</th>
+                                    <th className="num-col">Số lượng</th>
+                                    <th className="num-col">Giá trị</th>
+                                    <th className="num-col">Số lượng</th>
+                                    <th className="num-col">Giá trị</th>
+                                    <th className="num-col">Số lượng</th>
+                                    <th className="num-col">Giá trị</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {reportData.map((item) => (
+                                    <tr key={item.id}>
+                                        <td className="code-cell">{item.productCode}</td>
+                                        <td className="name-cell">{item.productName}</td>
+                                        <td className="unit-cell">{item.unit}</td>
+                                        <td className="num-col">{formatCurrency(item.beginningQty)}</td>
+                                        <td className="num-col">{formatCurrency(item.beginningValue)}</td>
+                                        <td className="num-col import-cell">{formatCurrency(item.importQty)}</td>
+                                        <td className="num-col import-cell">{formatCurrency(item.importValue)}</td>
+                                        <td className="num-col export-cell">{formatCurrency(item.exportQty)}</td>
+                                        <td className="num-col export-cell">{formatCurrency(item.exportValue)}</td>
+                                        <td className="num-col ending-cell">{formatCurrency(item.endingQty)}</td>
+                                        <td className="num-col ending-cell">{formatCurrency(item.endingValue)}</td>
+                                    </tr>
+                                ))}
+                                {totals && (
+                                    <tr className="totals-row">
+                                        <td colSpan={3}><strong>Tổng cộng</strong></td>
+                                        <td className="num-col"><strong>{formatCurrency(totals.beginningQty)}</strong></td>
+                                        <td className="num-col"><strong>{formatCurrency(totals.beginningValue)}</strong></td>
+                                        <td className="num-col"><strong>{formatCurrency(totals.importQty)}</strong></td>
+                                        <td className="num-col"><strong>{formatCurrency(totals.importValue)}</strong></td>
+                                        <td className="num-col"><strong>{formatCurrency(totals.exportQty)}</strong></td>
+                                        <td className="num-col"><strong>{formatCurrency(totals.exportValue)}</strong></td>
+                                        <td className="num-col"><strong>{formatCurrency(totals.endingQty)}</strong></td>
+                                        <td className="num-col"><strong>{formatCurrency(totals.endingValue)}</strong></td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                {/* Pagination */}
+                {pagination.total > pagination.limit && (
+                    <div className="pagination">
+                        <button
+                            onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
+                            disabled={pagination.page === 1}
+                            className="pagination-btn"
+                        >
+                            Trước
+                        </button>
+                        <span className="pagination-info">
+                            Trang {pagination.page} / {Math.ceil(pagination.total / pagination.limit)}
+                        </span>
+                        <button
+                            onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
+                            disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
+                            className="pagination-btn"
+                        >
+                            Sau
+                        </button>
+                    </div>
+                )}
+            </main>
+
+            {/* Modals */}
             <Modal
                 isOpen={isImportOpen}
                 onClose={() => setIsImportOpen(false)}

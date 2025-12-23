@@ -71,6 +71,14 @@ export const warehousesAPI = {
     delete: (id: string) => api.delete(`/warehouses/${id}`),
 };
 
+export const storesAPI = {
+    getAll: (params?: Record<string, unknown>) => api.get('/stores', { params }),
+    getOne: (id: string) => api.get(`/stores/${id}`),
+    create: (data: any) => api.post('/stores', data),
+    update: (id: string, data: any) => api.put(`/stores/${id}`, data),
+    delete: (id: string) => api.delete(`/stores/${id}`),
+};
+
 export const customersAPI = {
     getAll: () => api.get('/customers'),
     getOne: (id: string) => api.get(`/customers/${id}`),
@@ -95,6 +103,7 @@ export const inventoryAPI = {
         fromDate?: string;
         toDate?: string;
         warehouseId?: string;
+        storeId?: string;
         search?: string;
         page?: number;
         limit?: number;
@@ -105,6 +114,7 @@ export const inventoryAPI = {
         quantity: number;
         type: 'IMPORT' | 'EXPORT' | 'ADJUST';
         note?: string;
+        storeId?: string;
     }) => api.post('/inventory/adjust', data),
     bulkAdjust: (data: {
         items: {
@@ -114,6 +124,7 @@ export const inventoryAPI = {
             quantity: number;
             type: 'IMPORT' | 'EXPORT' | 'ADJUST';
             note?: string;
+            storeId?: string;
         }[];
     }) => api.post('/inventory/bulk', data),
     getMovements: (params?: Record<string, unknown>) => api.get('/inventory/movements', { params }),

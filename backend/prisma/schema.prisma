@@ -430,11 +430,13 @@ model StockMovement {
   performedBy     BigInt?  @map("performed_by")
   performedAt     DateTime @default(now()) @map("performed_at") @db.Timestamptz
   note            String?
+  storeId         BigInt?  @map("store_id")
 
   variant       ProductVariant @relation(fields: [variantId], references: [id])
   fromWarehouse Warehouse?     @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
   toWarehouse   Warehouse?     @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
   performer     User?          @relation(fields: [performedBy], references: [id])
+  store         Store?         @relation(fields: [storeId], references: [id])
 
   @@map("stock_movement")
 }
@@ -451,10 +453,11 @@ model Store {
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime? @map("updated_at") @db.Timestamptz
 
-  bankAccounts BankAccount[]
-  invoices     Invoice[]
-  orders       Order[]
-  warehouses   Warehouse[]
+  bankAccounts   BankAccount[]
+  invoices       Invoice[]
+  orders         Order[]
+  warehouses     Warehouse[]
+  stockMovements StockMovement[]
 
   @@map("store")
 }

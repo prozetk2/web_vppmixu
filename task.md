@@ -10,12 +10,13 @@
 - [x] **Khách hàng (Customer)** - CRUD, Import/Export Excel
 - [x] **Hóa đơn (Invoice)** - Danh sách, Chi tiết, Import/Export
 
-### 🔄 Đang làm: Kho hàng (40%)
+### 🔄 Đang làm: Kho hàng (90%)
 - [x] **Warehouse (Quản lý Kho)** - CRUD + manager, active, notes, totalValue
-- [ ] **Inventory (Tồn kho)** - Xem tồn, filter, export
-- [ ] **StockMovement (Nhập/Xuất/Điều chỉnh)** - Forms, logic, bulk import
-- [ ] **Inventory Report (Báo cáo)** - Đầu kỳ, nhập, xuất, cuối kỳ
-- [ ] **Multi-Company** - 1 kho, phân biệt giao dịch theo công ty
+- [x] **Inventory (Tồn kho)** - Xem tồn, filter, export
+- [x] **StockMovement (Nhập/Xuất/Điều chỉnh)** - Forms, logic, bulk import
+- [x] **Inventory Report (Báo cáo)** - Đầu kỳ, nhập, xuất, cuối kỳ
+- [x] **Multi-Company** - 1 kho, phân biệt giao dịch theo công ty (storeId tracking)
+- [ ] **Testing & Verification** - Kiểm tra xem dữ liệu có đúng không
 
 ### ⏳ Chờ làm
 - [ ] Purchase Order (Đơn nhập hàng)
