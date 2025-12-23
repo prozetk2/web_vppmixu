@@ -89,7 +89,7 @@ export class InventoryService {
      * Uses transaction to ensure data integrity
      */
     async adjustStock(dto: AdjustStockDto, performedBy?: bigint) {
-        const { warehouseId, productId, quantity, type, note } = dto;
+        const { warehouseId, productId, quantity, type, note, storeId } = dto;
 
         // Validate warehouse exists
         const warehouse = await this.prisma.warehouse.findUnique({
@@ -190,6 +190,7 @@ export class InventoryService {
                     quantity: movementQuantity > 0 ? movementQuantity : -movementQuantity,
                     performedBy: performedBy || null,
                     note: note || null,
+                    storeId: storeId ? BigInt(storeId) : null,
                 },
             });
 
@@ -211,7 +212,7 @@ export class InventoryService {
      * Get stock movement history
      */
     async getMovements(query: MovementQueryDto) {
-        const { warehouseId, productId, type, fromDate, toDate, page = 1, limit = 20 } = query;
+        const { warehouseId, productId, type, storeId, fromDate, toDate, page = 1, limit = 20 } = query;
 
         const where: Prisma.StockMovementWhereInput = {};
 
@@ -220,6 +221,10 @@ export class InventoryService {
                 { fromWarehouseId: BigInt(warehouseId) },
                 { toWarehouseId: BigInt(warehouseId) },
             ];
+        }
+
+        if (storeId) {
+            where.storeId = BigInt(storeId);
         }
 
         if (type) {
@@ -294,7 +299,7 @@ export class InventoryService {
      * Shows: Đầu kỳ, Nhập kho, Xuất kho, Cuối kỳ
      */
     async getInventoryReport(query: InventoryReportDto) {
-        const { fromDate, toDate, warehouseId, search, page = 1, limit = 50 } = query;
+        const { fromDate, toDate, warehouseId, storeId, search, page = 1, limit = 50 } = query;
 
         // Default date range: current month
         const now = new Date();
@@ -340,6 +345,10 @@ export class InventoryService {
             ];
         }
 
+        if (storeId) {
+            movementsWhere.storeId = BigInt(storeId);
+        }
+
         const movements = await this.prisma.stockMovement.findMany({
             where: movementsWhere,
             include: {
@@ -348,18 +357,23 @@ export class InventoryService {
         });
 
         // Get movements before period start for beginning balance
+        const priorMovementsWhere: Prisma.StockMovementWhereInput = {
+            performedAt: { lt: periodStart },
+        };
+
+        if (warehouseId) {
+            priorMovementsWhere.OR = [
+                { fromWarehouseId: BigInt(warehouseId) },
+                { toWarehouseId: BigInt(warehouseId) },
+            ];
+        }
+
+        if (storeId) {
+            priorMovementsWhere.storeId = BigInt(storeId);
+        }
+
         const priorMovements = await this.prisma.stockMovement.findMany({
-            where: {
-                performedAt: { lt: periodStart },
-                ...(warehouseId
-                    ? {
-                        OR: [
-                            { fromWarehouseId: BigInt(warehouseId) },
-                            { toWarehouseId: BigInt(warehouseId) },
-                        ],
-                    }
-                    : {}),
-            },
+            where: priorMovementsWhere,
             include: {
                 variant: true,
             },
@@ -532,6 +546,7 @@ export class InventoryService {
                         quantity: item.quantity,
                         type: item.type,
                         note: item.note || `Bulk ${item.type.toLowerCase()}`,
+                        storeId: item.storeId,
                     },
                     performedBy,
                 );

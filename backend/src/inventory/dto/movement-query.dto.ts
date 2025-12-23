@@ -15,6 +15,10 @@ export class MovementQueryDto {
     type?: string; // IMPORT, EXPORT, ADJUST
 
     @IsOptional()
+    @IsString()
+    storeId?: string;
+
+    @IsOptional()
     @IsDateString()
     fromDate?: string;
 

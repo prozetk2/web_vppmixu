@@ -23,4 +23,9 @@ export class AdjustStockDto {
     @IsOptional()
     @IsString()
     note?: string;
+
+    @IsOptional()
+    @IsString()
+    storeId?: string;
 }
+

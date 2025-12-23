@@ -16,6 +16,10 @@ export class InventoryReportDto {
 
     @IsOptional()
     @IsString()
+    storeId?: string;
+
+    @IsOptional()
+    @IsString()
     search?: string;
 
     @IsOptional()
