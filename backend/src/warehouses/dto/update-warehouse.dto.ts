@@ -1,4 +1,4 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class UpdateWarehouseDto {
     @IsOptional()
@@ -12,6 +12,18 @@ export class UpdateWarehouseDto {
     @IsOptional()
     @IsString()
     address?: string;
+
+    @IsOptional()
+    @IsString()
+    manager?: string;
+
+    @IsOptional()
+    @IsBoolean()
+    active?: boolean;
+
+    @IsOptional()
+    @IsString()
+    notes?: string;
 
     @IsOptional()
     @IsString()

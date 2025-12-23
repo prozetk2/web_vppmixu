@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { StockQueryDto, AdjustStockDto, MovementQueryDto, MovementType } from './dto';
+import { StockQueryDto, AdjustStockDto, MovementQueryDto, MovementType, InventoryReportDto, BulkAdjustStockDto } from './dto';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
@@ -286,6 +286,278 @@ export class InventoryService {
         return {
             data,
             meta: { page, limit, total },
+        };
+    }
+
+    /**
+     * Get inventory report with period-based calculations
+     * Shows: Đầu kỳ, Nhập kho, Xuất kho, Cuối kỳ
+     */
+    async getInventoryReport(query: InventoryReportDto) {
+        const { fromDate, toDate, warehouseId, search, page = 1, limit = 50 } = query;
+
+        // Default date range: current month
+        const now = new Date();
+        const periodStart = fromDate ? new Date(fromDate) : new Date(now.getFullYear(), now.getMonth(), 1);
+        const periodEnd = toDate ? new Date(toDate) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+        // Get all products with their variants
+        const productsQuery: any = {
+            include: {
+                variants: {
+                    include: {
+                        inventory: warehouseId
+                            ? { where: { warehouseId: BigInt(warehouseId) } }
+                            : true,
+                    },
+                },
+            },
+        };
+
+        if (search) {
+            productsQuery.where = {
+                OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { sku: { contains: search, mode: 'insensitive' } },
+                ],
+            };
+        }
+
+        const products: any[] = await this.prisma.product.findMany(productsQuery);
+
+        // Get all stock movements in period
+        const movementsWhere: Prisma.StockMovementWhereInput = {
+            performedAt: {
+                gte: periodStart,
+                lte: periodEnd,
+            },
+        };
+
+        if (warehouseId) {
+            movementsWhere.OR = [
+                { fromWarehouseId: BigInt(warehouseId) },
+                { toWarehouseId: BigInt(warehouseId) },
+            ];
+        }
+
+        const movements = await this.prisma.stockMovement.findMany({
+            where: movementsWhere,
+            include: {
+                variant: true,
+            },
+        });
+
+        // Get movements before period start for beginning balance
+        const priorMovements = await this.prisma.stockMovement.findMany({
+            where: {
+                performedAt: { lt: periodStart },
+                ...(warehouseId
+                    ? {
+                        OR: [
+                            { fromWarehouseId: BigInt(warehouseId) },
+                            { toWarehouseId: BigInt(warehouseId) },
+                        ],
+                    }
+                    : {}),
+            },
+            include: {
+                variant: true,
+            },
+        });
+
+        // Calculate report data for each product
+        const reportData = products.map((product) => {
+            const variantIds = product.variants.map((v) => v.id);
+
+            // Calculate beginning balance (movements before period)
+            let beginningQty = 0;
+            priorMovements
+                .filter((m) => variantIds.includes(m.variantId))
+                .forEach((m) => {
+                    if (m.movementType === 'IMPORT' || m.movementType === 'ADJUST') {
+                        beginningQty += Number(m.quantity);
+                    } else if (m.movementType === 'EXPORT') {
+                        beginningQty -= Number(m.quantity);
+                    }
+                });
+
+            // Calculate period imports
+            let importQty = 0;
+            movements
+                .filter((m) => variantIds.includes(m.variantId) && m.movementType === 'IMPORT')
+                .forEach((m) => {
+                    importQty += Number(m.quantity);
+                });
+
+            // Calculate period exports
+            let exportQty = 0;
+            movements
+                .filter((m) => variantIds.includes(m.variantId) && m.movementType === 'EXPORT')
+                .forEach((m) => {
+                    exportQty += Number(m.quantity);
+                });
+
+            // Calculate adjustments in period
+            movements
+                .filter((m) => variantIds.includes(m.variantId) && m.movementType === 'ADJUST')
+                .forEach((m) => {
+                    // Positive adjustment = import, negative = export
+                    if (Number(m.quantity) > 0) {
+                        importQty += Number(m.quantity);
+                    } else {
+                        exportQty += Math.abs(Number(m.quantity));
+                    }
+                });
+
+            // Calculate ending balance
+            const endingQty = beginningQty + importQty - exportQty;
+
+            // Get unit cost for value calculation
+            const unitCost = Number(product.defaultCost || product.defaultPrice || 0);
+
+            return {
+                id: product.id.toString(),
+                productCode: product.sku || '',
+                productName: product.name,
+                unit: 'Cái', // Default unit - could be extended with unit model
+                beginningQty,
+                beginningValue: beginningQty * unitCost,
+                importQty,
+                importValue: importQty * unitCost,
+                exportQty,
+                exportValue: exportQty * unitCost,
+                endingQty,
+                endingValue: endingQty * unitCost,
+                unitCost,
+            };
+        });
+
+        // Filter out products with no activity/stock
+        const activeProducts = reportData.filter(
+            (p) =>
+                p.beginningQty !== 0 ||
+                p.importQty !== 0 ||
+                p.exportQty !== 0 ||
+                p.endingQty !== 0,
+        );
+
+        // Pagination
+        const total = activeProducts.length;
+        const paginatedData = activeProducts.slice((page - 1) * limit, page * limit);
+
+        // Calculate totals
+        const totals = reportData.reduce(
+            (acc, p) => ({
+                beginningQty: acc.beginningQty + p.beginningQty,
+                beginningValue: acc.beginningValue + p.beginningValue,
+                importQty: acc.importQty + p.importQty,
+                importValue: acc.importValue + p.importValue,
+                exportQty: acc.exportQty + p.exportQty,
+                exportValue: acc.exportValue + p.exportValue,
+                endingQty: acc.endingQty + p.endingQty,
+                endingValue: acc.endingValue + p.endingValue,
+            }),
+            {
+                beginningQty: 0,
+                beginningValue: 0,
+                importQty: 0,
+                importValue: 0,
+                exportQty: 0,
+                exportValue: 0,
+                endingQty: 0,
+                endingValue: 0,
+            },
+        );
+
+        return {
+            data: paginatedData,
+            totals,
+            meta: { page, limit, total },
+            period: {
+                from: periodStart.toISOString(),
+                to: periodEnd.toISOString(),
+            },
+        };
+    }
+
+    /**
+     * Bulk adjust stock from Excel import
+     */
+    async bulkAdjustStock(dto: BulkAdjustStockDto, performedBy?: bigint) {
+        console.log('bulkAdjustStock called with', dto.items?.length, 'items');
+
+        if (!dto.items || dto.items.length === 0) {
+            return {
+                success: false,
+                processed: 0,
+                successCount: 0,
+                failCount: 0,
+                results: [],
+                error: 'No items provided',
+            };
+        }
+
+        // Log first few items for debugging
+        console.log('First 3 items:', dto.items.slice(0, 3));
+
+        const results: { success: boolean; productCode: string; message?: string }[] = [];
+
+        for (const item of dto.items) {
+            try {
+                // Find product by code/sku
+                const product = await this.prisma.product.findFirst({
+                    where: {
+                        OR: [
+                            { sku: item.productCode },
+                            { name: item.productName || '' },
+                        ],
+                    },
+                    include: { variants: true },
+                });
+
+                if (!product) {
+                    results.push({
+                        success: false,
+                        productCode: item.productCode,
+                        message: 'Không tìm thấy sản phẩm',
+                    });
+                    continue;
+                }
+
+                // Use existing adjustStock method
+                await this.adjustStock(
+                    {
+                        warehouseId: item.warehouseId,
+                        productId: product.id.toString(),
+                        quantity: item.quantity,
+                        type: item.type,
+                        note: item.note || `Bulk ${item.type.toLowerCase()}`,
+                    },
+                    performedBy,
+                );
+
+                results.push({
+                    success: true,
+                    productCode: item.productCode,
+                });
+            } catch (error: any) {
+                results.push({
+                    success: false,
+                    productCode: item.productCode,
+                    message: error.message || 'Có lỗi xảy ra',
+                });
+            }
+        }
+
+        const successCount = results.filter((r) => r.success).length;
+        const failCount = results.length - successCount;
+
+        return {
+            success: failCount === 0,
+            processed: results.length,
+            successCount,
+            failCount,
+            results,
         };
     }
 }

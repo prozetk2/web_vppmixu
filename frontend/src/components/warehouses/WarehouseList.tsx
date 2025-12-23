@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { warehousesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
-import { MdWarehouse, MdAdd } from 'react-icons/md';
+import { MdWarehouse } from 'react-icons/md';
 import './WarehouseList.css';
 
 interface Warehouse {
@@ -10,14 +10,22 @@ interface Warehouse {
     name: string;
     code?: string;
     address?: string;
+    manager?: string;
+    active?: boolean;
+    notes?: string;
     itemCount?: number;
+    totalValue?: number;
     createdAt?: string;
+    updatedAt?: string;
 }
 
 interface WarehouseFormData {
     name: string;
     code: string;
     address: string;
+    manager: string;
+    active: boolean;
+    notes: string;
 }
 
 export default function WarehouseList() {
@@ -30,6 +38,9 @@ export default function WarehouseList() {
         name: '',
         code: '',
         address: '',
+        manager: '',
+        active: true,
+        notes: '',
     });
     const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -54,7 +65,7 @@ export default function WarehouseList() {
 
     const openAddModal = () => {
         setEditingWarehouse(null);
-        setFormData({ name: '', code: '', address: '' });
+        setFormData({ name: '', code: '', address: '', manager: '', active: true, notes: '' });
         setErrors({});
         setIsModalOpen(true);
     };
@@ -65,6 +76,9 @@ export default function WarehouseList() {
             name: warehouse.name,
             code: warehouse.code || '',
             address: warehouse.address || '',
+            manager: warehouse.manager || '',
+            active: warehouse.active ?? true,
+            notes: warehouse.notes || '',
         });
         setErrors({});
         setIsModalOpen(true);
@@ -73,7 +87,7 @@ export default function WarehouseList() {
     const closeModal = () => {
         setIsModalOpen(false);
         setEditingWarehouse(null);
-        setFormData({ name: '', code: '', address: '' });
+        setFormData({ name: '', code: '', address: '', manager: '', active: true, notes: '' });
         setErrors({});
     };
 
@@ -126,12 +140,23 @@ export default function WarehouseList() {
         }
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setFormData((prev) => ({ ...prev, [name]: value }));
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value, type } = e.target;
+        const newValue = type === 'checkbox' ? (e.target as HTMLInputElement).checked : value;
+        setFormData((prev) => ({ ...prev, [name]: newValue }));
         if (errors[name]) {
             setErrors((prev) => ({ ...prev, [name]: '' }));
         }
+    };
+
+    const formatCurrency = (value?: number) => {
+        if (!value) return '0 ₫';
+        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+    };
+
+    const formatDate = (dateStr?: string) => {
+        if (!dateStr) return '—';
+        return new Date(dateStr).toLocaleDateString('vi-VN');
     };
 
     return (
@@ -166,21 +191,35 @@ export default function WarehouseList() {
                                 <th>Tên kho</th>
                                 <th>Mã kho</th>
                                 <th>Địa chỉ</th>
+                                <th>Người quản lý</th>
+                                <th style={{ textAlign: 'center' }}>Trạng thái</th>
                                 <th style={{ textAlign: 'center' }}>Số mặt hàng</th>
+                                <th style={{ textAlign: 'right' }}>Tổng giá trị</th>
+                                <th>Cập nhật</th>
                                 <th style={{ width: '120px' }}>Thao tác</th>
                             </tr>
                         </thead>
                         <tbody>
                             {warehouses.map((warehouse) => (
-                                <tr key={warehouse.id}>
+                                <tr key={warehouse.id} className={warehouse.active === false ? 'inactive-row' : ''}>
                                     <td className="warehouse-name">{warehouse.name}</td>
                                     <td className="warehouse-code">{warehouse.code || '—'}</td>
                                     <td>{warehouse.address || '—'}</td>
+                                    <td>{warehouse.manager || '—'}</td>
+                                    <td className="status-cell">
+                                        <span className={`status-badge ${warehouse.active !== false ? 'active' : 'inactive'}`}>
+                                            {warehouse.active !== false ? 'Hoạt động' : 'Ngừng'}
+                                        </span>
+                                    </td>
                                     <td className="item-count-cell">
                                         <span className="item-count-badge">
                                             {warehouse.itemCount ?? 0}
                                         </span>
                                     </td>
+                                    <td className="total-value-cell">
+                                        {formatCurrency(warehouse.totalValue)}
+                                    </td>
+                                    <td>{formatDate(warehouse.updatedAt)}</td>
                                     <td>
                                         <div className="actions-cell">
                                             <button
@@ -209,39 +248,41 @@ export default function WarehouseList() {
                 isOpen={isModalOpen}
                 onClose={closeModal}
                 title={editingWarehouse ? 'Sửa kho hàng' : 'Thêm kho mới'}
-                size="sm"
+                size="md"
             >
                 <form onSubmit={handleSubmit} className="warehouse-form">
-                    <div className="form-group">
-                        <label htmlFor="name" className="form-label">
-                            Tên kho <span className="required">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            id="name"
-                            name="name"
-                            value={formData.name}
-                            onChange={handleChange}
-                            className={`form-input ${errors.name ? 'error' : ''}`}
-                            placeholder="VD: Kho chính"
-                            autoFocus
-                        />
-                        {errors.name && <span className="error-text">{errors.name}</span>}
-                    </div>
+                    <div className="form-row">
+                        <div className="form-group">
+                            <label htmlFor="name" className="form-label">
+                                Tên kho <span className="required">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="name"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                className={`form-input ${errors.name ? 'error' : ''}`}
+                                placeholder="VD: Kho chính"
+                                autoFocus
+                            />
+                            {errors.name && <span className="error-text">{errors.name}</span>}
+                        </div>
 
-                    <div className="form-group">
-                        <label htmlFor="code" className="form-label">
-                            Mã kho
-                        </label>
-                        <input
-                            type="text"
-                            id="code"
-                            name="code"
-                            value={formData.code}
-                            onChange={handleChange}
-                            className="form-input"
-                            placeholder="VD: KHO01"
-                        />
+                        <div className="form-group">
+                            <label htmlFor="code" className="form-label">
+                                Mã kho
+                            </label>
+                            <input
+                                type="text"
+                                id="code"
+                                name="code"
+                                value={formData.code}
+                                onChange={handleChange}
+                                className="form-input"
+                                placeholder="VD: KHO01"
+                            />
+                        </div>
                     </div>
 
                     <div className="form-group">
@@ -256,6 +297,51 @@ export default function WarehouseList() {
                             onChange={handleChange}
                             className="form-input"
                             placeholder="VD: 123 Đường ABC, Quận 1"
+                        />
+                    </div>
+
+                    <div className="form-row">
+                        <div className="form-group">
+                            <label htmlFor="manager" className="form-label">
+                                Người quản lý
+                            </label>
+                            <input
+                                type="text"
+                                id="manager"
+                                name="manager"
+                                value={formData.manager}
+                                onChange={handleChange}
+                                className="form-input"
+                                placeholder="VD: Nguyễn Văn A"
+                            />
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Trạng thái</label>
+                            <label className="checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    name="active"
+                                    checked={formData.active}
+                                    onChange={handleChange}
+                                />
+                                <span>Đang hoạt động</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label htmlFor="notes" className="form-label">
+                            Ghi chú
+                        </label>
+                        <textarea
+                            id="notes"
+                            name="notes"
+                            value={formData.notes}
+                            onChange={handleChange}
+                            className="form-input form-textarea"
+                            placeholder="Nhập ghi chú..."
+                            rows={3}
                         />
                     </div>
 
