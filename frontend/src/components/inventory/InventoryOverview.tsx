@@ -229,8 +229,6 @@ export default function InventoryOverview() {
             // Find column indices based on main headers
             const codeIdx = mainHeaders.findIndex(h => h?.includes('mã hàng') || h?.includes('mã sp') || h === 'mã' || h?.includes('sku'));
             const nameIdx = mainHeaders.findIndex(h => h?.includes('tên hàng') || h?.includes('tên sp') || h === 'tên');
-            const unitIdx = mainHeaders.findIndex(h => h?.includes('đvt') || h?.includes('đơn vị'));
-
             // Find "Nhập kho" and "Xuất kho" column indices
             const importIdx = mainHeaders.findIndex(h => h?.includes('nhập kho') || h?.includes('nhập'));
             const exportIdx = mainHeaders.findIndex(h => h?.includes('xuất kho') || h?.includes('xuất'));

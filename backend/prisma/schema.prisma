@@ -382,6 +382,7 @@ model Product {
   category Category?        @relation(fields: [categoryId], references: [id])
   supplier Supplier?        @relation(fields: [supplierId], references: [id])
   variants ProductVariant[]
+  productPrices ProductPrice[] // Price list prices
 
   @@map("product")
 }
@@ -576,4 +577,38 @@ model Warehouse {
   purchaseOrders     PurchaseOrder[]
 
   @@map("warehouse")
+}
+
+// Price Lists - Multiple pricing tiers
+model PriceList {
+  id          BigInt   @id @default(autoincrement())
+  name        String   // "Giá bán lẻ", "Giá sỉ", "Giá VIP"
+  code        String   @unique // "RETAIL", "WHOLESALE", "VIP"
+  description String?
+  isDefault   Boolean  @default(false) @map("is_default") // Default price list for POS
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  productPrices ProductPrice[]
+
+  @@map("price_list")
+}
+
+// Product-specific prices for each price list
+model ProductPrice {
+  id          BigInt   @id @default(autoincrement())
+  productId   BigInt   @map("product_id")
+  priceListId BigInt   @map("price_list_id")
+  price       Decimal  @db.Decimal(15, 2)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, priceListId]) // One price per product per price list
+  @@map("product_price")
 }

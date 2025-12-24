@@ -79,6 +79,19 @@ export const storesAPI = {
     delete: (id: string) => api.delete(`/stores/${id}`),
 };
 
+export const priceListsAPI = {
+    getAll: () => api.get('/price-lists'),
+    getOne: (id: string) => api.get(`/price-lists/${id}`),
+    create: (data: any) => api.post('/price-lists', data),
+    update: (id: string, data: any) => api.put(`/price-lists/${id}`, data),
+    delete: (id: string) => api.delete(`/price-lists/${id}`),
+    getProducts: (id: string) => api.get(`/price-lists/${id}/products`),
+    setProductPrice: (data: { productId: string; priceListId: string; price: number }) =>
+        api.post('/price-lists/product-price', data),
+    bulkSetPrices: (id: string, prices: Array<{ productId: string; price: number }>) =>
+        api.post(`/price-lists/${id}/bulk-prices`, { prices }),
+};
+
 export const customersAPI = {
     getAll: () => api.get('/customers'),
     getOne: (id: string) => api.get(`/customers/${id}`),

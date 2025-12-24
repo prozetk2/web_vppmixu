@@ -8,12 +8,13 @@ import CategoryList from './categories/CategoryList';
 import InventoryOverview from './inventory/InventoryOverview';
 import DashboardOverview from './dashboard/DashboardOverview';
 import WarehouseList from './warehouses/WarehouseList';
-import POSPage from './sales/POSPage';
+import POSPage from './pos/POSPage';
 import SalesList from './sales/SalesList';
 import PurchaseList from './purchases/PurchaseList';
 import CustomerList from './customers/CustomerList';
 import SupplierList from './suppliers/SupplierList';
 import InvoiceList from './invoices/InvoiceList';
+import PriceListsPage from './price-lists/PriceListsPage';
 import {
     MdHome,
     MdShoppingCart,
@@ -24,7 +25,8 @@ import {
     MdBarChart,
     MdWarehouse,
     MdPeople,
-    MdLocalShipping as MdTruck
+    MdLocalShipping as MdTruck,
+    MdAttachMoney
 } from 'react-icons/md';
 import './Dashboard.css';
 
@@ -32,7 +34,7 @@ interface DashboardProps {
     onLogout: () => void;
 }
 
-type TabType = 'overview' | 'pos' | 'purchases' | 'sales' | 'invoices' | 'products' | 'categories' | 'inventory' | 'warehouses' | 'customers' | 'suppliers';
+type TabType = 'overview' | 'pos' | 'purchases' | 'sales' | 'invoices' | 'products' | 'categories' | 'inventory' | 'warehouses' | 'price-lists' | 'customers' | 'suppliers';
 
 export default function Dashboard({ onLogout }: DashboardProps) {
     const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -54,7 +56,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
     useEffect(() => {
         // Only fetch for non-specialized tabs
-        if (!['overview', 'products', 'categories', 'inventory', 'warehouses', 'pos', 'sales'].includes(activeTab)) {
+        if (!['overview', 'products', 'categories', 'inventory', 'warehouses', 'pos', 'sales', 'price-lists'].includes(activeTab)) {
             fetchData();
         }
     }, [activeTab]);
@@ -90,6 +92,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         { id: 'categories' as TabType, label: 'Danh mục', icon: MdFolder },
         { id: 'inventory' as TabType, label: 'Tồn kho', icon: MdBarChart },
         { id: 'warehouses' as TabType, label: 'Kho hàng', icon: MdWarehouse },
+        { id: 'price-lists' as TabType, label: 'Bảng giá', icon: MdAttachMoney },
         { id: 'customers' as TabType, label: 'Khách hàng', icon: MdPeople },
         { id: 'suppliers' as TabType, label: 'Nhà cung cấp', icon: MdTruck },
     ];
@@ -170,6 +173,10 @@ export default function Dashboard({ onLogout }: DashboardProps) {
 
         if (activeTab === 'suppliers') {
             return <SupplierList />;
+        }
+
+        if (activeTab === 'price-lists') {
+            return <PriceListsPage />;
         }
 
         if (activeTab === 'invoices') {
