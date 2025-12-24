@@ -226,29 +226,35 @@ export default function InventoryOverview() {
                 }
             }
 
-            // Find column indices based on main headers (with null safety)
+            // Find column indices based on main headers
             const codeIdx = mainHeaders.findIndex(h => h?.includes('mã hàng') || h?.includes('mã sp') || h === 'mã' || h?.includes('sku'));
             const nameIdx = mainHeaders.findIndex(h => h?.includes('tên hàng') || h?.includes('tên sp') || h === 'tên');
             const unitIdx = mainHeaders.findIndex(h => h?.includes('đvt') || h?.includes('đơn vị'));
 
-            // For inventory report format with merged cells, quantity is typically at:
-            // Position of "Cuối kỳ" or if not found, position of "Nhập kho"
-            let qtyIdx = mainHeaders.findIndex(h => h?.includes('cuối kỳ'));
-            if (qtyIdx === -1) {
-                qtyIdx = mainHeaders.findIndex(h => h?.includes('nhập kho'));
-            }
-            if (qtyIdx === -1) {
-                qtyIdx = mainHeaders.findIndex(h => h?.includes('số lượng'));
-            }
-            // If still not found, use a fixed offset (typically Cuối kỳ-SL is at index 9 in your format)
-            if (qtyIdx === -1 && mainHeaders.length >= 10) {
-                qtyIdx = 9; // Cuối kỳ - Số lượng
-            }
+            // Find "Nhập kho" and "Xuất kho" column indices
+            const importIdx = mainHeaders.findIndex(h => h?.includes('nhập kho') || h?.includes('nhập'));
+            const exportIdx = mainHeaders.findIndex(h => h?.includes('xuất kho') || h?.includes('xuất'));
 
-            console.log('Column indices - code:', codeIdx, 'name:', nameIdx, 'unit:', unitIdx, 'qty:', qtyIdx);
+            // Find value column indices (Giá trị / GT)
+            const importValueIdx = mainHeaders.findIndex(h =>
+                (h?.includes('nhập') && (h?.includes('giá') || h?.includes('gt')))
+            );
+            const exportValueIdx = mainHeaders.findIndex(h =>
+                (h?.includes('xuất') && (h?.includes('giá') || h?.includes('gt')))
+            );
+
+            console.log('Column indices - code:', codeIdx, 'name:', nameIdx, 'import:', importIdx, 'export:', exportIdx, 'importValue:', importValueIdx, 'exportValue:', exportValueIdx);
 
             if (codeIdx === -1 && nameIdx === -1) {
                 toast.error(`Không tìm thấy cột Mã hàng hoặc Tên hàng. Headers: ${mainHeaders.join(', ')}`);
+                return;
+            }
+
+            // Check if this is a report format (has Nhập kho and Xuất kho columns)
+            const isReportFormat = importIdx >= 0 && exportIdx >= 0;
+
+            if (!isReportFormat) {
+                toast.error('File không đúng format "TỔNG HỢP TỒN KHO". Cần có cột "Nhập kho" và "Xuất kho"');
                 return;
             }
 
@@ -256,34 +262,62 @@ export default function InventoryOverview() {
             const dataRows = rawData.slice(dataStartIndex);
             console.log('Data rows count:', dataRows.length);
 
-            // Parse data rows
-            const items = dataRows
+            // Parse data rows and create separate movements for import and export
+            const items: any[] = [];
+
+            dataRows
                 .filter((row: any[]) => row && row.length > 0)
-                .map((row: any[]) => {
+                .forEach((row: any[]) => {
                     const code = codeIdx >= 0 ? String(row[codeIdx] || '').trim() : '';
                     const name = nameIdx >= 0 ? String(row[nameIdx] || '').trim() : '';
-                    let qty = 1;
-                    if (qtyIdx >= 0 && row[qtyIdx] !== undefined && row[qtyIdx] !== null && row[qtyIdx] !== '') {
-                        qty = Math.max(0, parseInt(row[qtyIdx]) || 0);
+
+                    // Skip if no product identifier
+                    if (!code && !name) return;
+
+                    // Parse import quantity and value
+                    const importQty = importIdx >= 0 ? (parseInt(row[importIdx]) || 0) : 0;
+                    const importValue = importValueIdx >= 0 ? (parseFloat(row[importValueIdx]) || 0) : 0;
+                    const importUnitCost = importQty > 0 ? importValue / importQty : 0;
+
+                    // Parse export quantity and value
+                    const exportQty = exportIdx >= 0 ? (parseInt(row[exportIdx]) || 0) : 0;
+                    const exportValue = exportValueIdx >= 0 ? (parseFloat(row[exportValueIdx]) || 0) : 0;
+                    const exportUnitCost = exportQty > 0 ? exportValue / exportQty : 0;
+
+                    // Create IMPORT movement if quantity > 0
+                    if (importQty > 0) {
+                        items.push({
+                            productCode: code,
+                            productName: name,
+                            warehouseId: warehouseFilter || warehouses[0]?.id || '',
+                            quantity: importQty,
+                            type: 'IMPORT' as const,
+                            unitCost: importUnitCost,
+                            note: 'Nhập kho từ Excel',
+                            storeId: storeFilter || undefined,
+                        });
                     }
 
-                    return {
-                        productCode: code,
-                        productName: name,
-                        warehouseId: warehouseFilter || warehouses[0]?.id || '',
-                        quantity: Math.max(1, qty), // minimum 1
-                        type: 'IMPORT' as const,
-                        note: 'Import từ Excel',
-                        storeId: storeFilter || undefined,
-                    };
-                })
-                .filter(item => (item.productCode || item.productName) && item.quantity > 0);
+                    // Create EXPORT movement if quantity > 0
+                    if (exportQty > 0) {
+                        items.push({
+                            productCode: code,
+                            productName: name,
+                            warehouseId: warehouseFilter || warehouses[0]?.id || '',
+                            quantity: exportQty,
+                            type: 'EXPORT' as const,
+                            unitCost: exportUnitCost,
+                            note: 'Xuất kho từ Excel',
+                            storeId: storeFilter || undefined,
+                        });
+                    }
+                });
 
-            console.log('Parsed items (first 5):', items.slice(0, 5));
-            console.log('Total valid items:', items.length);
+            console.log('Parsed movements (first 10):', items.slice(0, 10));
+            console.log('Total movements:', items.length);
 
             if (items.length === 0) {
-                toast.error('File không có dữ liệu hợp lệ. Cần có cột "Mã hàng" hoặc "Tên hàng".');
+                toast.error('File không có dữ liệu hợp lệ. Số lượng Nhập/Xuất phải > 0');
                 return;
             }
 
@@ -299,7 +333,7 @@ export default function InventoryOverview() {
             console.log('Import result:', result);
 
             if (result.success) {
-                toast.success(`Import thành công ${result.successCount} sản phẩm`);
+                toast.success(`Import thành công ${result.successCount} movements (${items.length} tổng cộng)`);
             } else {
                 toast.error(`Import: ${result.successCount} thành công, ${result.failCount} thất bại`);
             }

@@ -427,10 +427,12 @@ model StockMovement {
   fromWarehouseId BigInt?  @map("from_warehouse_id")
   toWarehouseId   BigInt?  @map("to_warehouse_id")
   quantity        BigInt
+  unitCost        Decimal? @map("unit_cost")
   performedBy     BigInt?  @map("performed_by")
   performedAt     DateTime @default(now()) @map("performed_at") @db.Timestamptz
   note            String?
   storeId         BigInt?  @map("store_id")
+
 
   variant       ProductVariant @relation(fields: [variantId], references: [id])
   fromWarehouse Warehouse?     @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])

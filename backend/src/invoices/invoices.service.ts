@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { InvoiceQueryDto } from './dto/invoice-query.dto';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
@@ -7,7 +8,10 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class InvoicesService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private inventoryService: InventoryService,
+    ) { }
 
     async findAll(query: InvoiceQueryDto) {
         const where: Prisma.InvoiceWhereInput = {};
@@ -217,57 +221,88 @@ export class InvoicesService {
         const customerDob = dto.customerDob ? new Date(dto.customerDob) : null;
         const issuedAt = dto.issuedAt ? new Date(dto.issuedAt) : new Date();
 
-        return this.prisma.invoice.create({
-            data: {
-                invoiceNumber: invoiceData.invoiceNumber,
-                branch: invoiceData.branch,
-                orderCode: invoiceData.orderCode,
-                returnOrderCode: invoiceData.returnOrderCode,
-                customerCode: invoiceData.customerCode,
-                customerName: invoiceData.customerName,
-                customerEmail: invoiceData.customerEmail,
-                customerPhone: invoiceData.customerPhone,
-                customerAddress: invoiceData.customerAddress,
-                customerArea: invoiceData.customerArea,
-                customerWard: invoiceData.customerWard,
-                customerDob,
-                priceList: invoiceData.priceList,
-                seller: invoiceData.seller,
-                salesChannel: invoiceData.salesChannel,
-                creator: invoiceData.creator,
-                notes: invoiceData.notes,
-                totalAmount: invoiceData.totalAmount,
-                discountAmount: invoiceData.discountAmount || 0,
-                amountDue: invoiceData.amountDue,
-                amountPaid: invoiceData.amountPaid || 0,
-                cashAmount: invoiceData.cashAmount || 0,
-                cardAmount: invoiceData.cardAmount || 0,
-                walletAmount: invoiceData.walletAmount || 0,
-                transferAmount: invoiceData.transferAmount || 0,
-                status: invoiceData.status || 'COMPLETED',
-                eInvoiceStatus: invoiceData.eInvoiceStatus,
-                paymentMethod: invoiceData.paymentMethod,
-                issuedAt,
-                items: items?.length
-                    ? {
-                        create: items.map((item) => ({
-                            productCode: item.productCode,
-                            barcode: item.barcode,
-                            productName: item.productName,
-                            brand: item.brand,
-                            unit: item.unit,
-                            notes: item.notes,
-                            quantity: item.quantity || 0,
-                            unitPrice: item.unitPrice || 0,
-                            discountPercent: item.discountPercent || 0,
-                            discountAmount: item.discountAmount || 0,
-                            salePrice: item.salePrice,
-                            totalPrice: item.totalPrice || 0,
-                        })),
+        // Use transaction for atomic operation
+        return this.prisma.$transaction(async (tx) => {
+            // Create invoice
+            const invoice = await tx.invoice.create({
+                data: {
+                    invoiceNumber: invoiceData.invoiceNumber,
+                    branch: invoiceData.branch,
+                    orderCode: invoiceData.orderCode,
+                    returnOrderCode: invoiceData.returnOrderCode,
+                    customerCode: invoiceData.customerCode,
+                    customerName: invoiceData.customerName,
+                    customerEmail: invoiceData.customerEmail,
+                    customerPhone: invoiceData.customerPhone,
+                    customerAddress: invoiceData.customerAddress,
+                    customerArea: invoiceData.customerArea,
+                    customerWard: invoiceData.customerWard,
+                    customerDob,
+                    priceList: invoiceData.priceList,
+                    seller: invoiceData.seller,
+                    salesChannel: invoiceData.salesChannel,
+                    creator: invoiceData.creator,
+                    notes: invoiceData.notes,
+                    totalAmount: invoiceData.totalAmount,
+                    discountAmount: invoiceData.discountAmount || 0,
+                    amountDue: invoiceData.amountDue,
+                    amountPaid: invoiceData.amountPaid || 0,
+                    cashAmount: invoiceData.cashAmount || 0,
+                    cardAmount: invoiceData.cardAmount || 0,
+                    walletAmount: invoiceData.walletAmount || 0,
+                    transferAmount: invoiceData.transferAmount || 0,
+                    status: invoiceData.status || 'COMPLETED',
+                    eInvoiceStatus: invoiceData.eInvoiceStatus,
+                    paymentMethod: invoiceData.paymentMethod,
+                    issuedAt,
+                    items: items?.length
+                        ? {
+                            create: items.map((item) => ({
+                                productCode: item.productCode,
+                                barcode: item.barcode,
+                                productName: item.productName,
+                                brand: item.brand,
+                                unit: item.unit,
+                                notes: item.notes,
+                                quantity: item.quantity || 0,
+                                unitPrice: item.unitPrice || 0,
+                                discountPercent: item.discountPercent || 0,
+                                discountAmount: item.discountAmount || 0,
+                                salePrice: item.salePrice,
+                                totalPrice: item.totalPrice || 0,
+                            })),
+                        }
+                        : undefined,
+                },
+                include: { items: true },
+            });
+
+            // Auto-deduct inventory (if items exist)
+            if (items && items.length > 0) {
+                try {
+                    const validItems = items.filter(item => item.productCode);
+                    if (validItems.length > 0) {
+                        await this.inventoryService.deductInventoryFromSale(
+                            validItems.map(item => ({
+                                productCode: item.productCode!,
+                                quantity: Number(item.quantity) || 0,
+                                unitPrice: Number(item.unitPrice) || 0,
+                            })),
+                            invoice.invoiceNumber || 'UNKNOWN',
+                            undefined, // Use default warehouse
+                            undefined, // storeId - can add later
+                            undefined, // performedBy - can add later
+                        );
                     }
-                    : undefined,
-            },
-            include: { items: true },
+                } catch (error) {
+                    // Log error but don't fail invoice creation
+                    console.error('Inventory deduct failed:', error.message);
+                    // If you want strict inventory control, uncomment this:
+                    // throw error;
+                }
+            }
+
+            return invoice;
         });
     }
 

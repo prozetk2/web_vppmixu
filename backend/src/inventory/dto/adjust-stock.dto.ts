@@ -1,4 +1,5 @@
 import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export enum MovementType {
     IMPORT = 'IMPORT',
@@ -27,5 +28,9 @@ export class AdjustStockDto {
     @IsOptional()
     @IsString()
     storeId?: string;
+
+    @IsOptional()
+    @Type(() => Number)
+    unitCost?: number;
 }
 

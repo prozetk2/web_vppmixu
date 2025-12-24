@@ -180,6 +180,9 @@ export class InventoryService {
                 },
             });
 
+            // Calculate unit cost from DTO or product default
+            const unitCost = dto.unitCost ?? Number(product.defaultCost || product.defaultPrice || 0);
+
             // Create stock movement record
             const movement = await tx.stockMovement.create({
                 data: {
@@ -188,6 +191,7 @@ export class InventoryService {
                     fromWarehouseId: type === MovementType.EXPORT ? BigInt(warehouseId) : null,
                     toWarehouseId: type === MovementType.IMPORT ? BigInt(warehouseId) : null,
                     quantity: movementQuantity > 0 ? movementQuantity : -movementQuantity,
+                    unitCost: unitCost,
                     performedBy: performedBy || null,
                     note: note || null,
                     storeId: storeId ? BigInt(storeId) : null,
@@ -446,18 +450,12 @@ export class InventoryService {
             };
         });
 
-        // Filter out products with no activity/stock
-        const activeProducts = reportData.filter(
-            (p) =>
-                p.beginningQty !== 0 ||
-                p.importQty !== 0 ||
-                p.exportQty !== 0 ||
-                p.endingQty !== 0,
-        );
+        // NO FILTER - Show ALL products including zero stock
+        // const activeProducts = reportData.filter(...);  // REMOVED
 
         // Pagination
-        const total = activeProducts.length;
-        const paginatedData = activeProducts.slice((page - 1) * limit, page * limit);
+        const total = reportData.length;
+        const paginatedData = reportData.slice((page - 1) * limit, page * limit);
 
         // Calculate totals
         const totals = reportData.reduce(
@@ -574,5 +572,87 @@ export class InventoryService {
             failCount,
             results,
         };
+    }
+
+    /**
+     * Deduct inventory when selling products (e.g., from Invoice)
+     * Validates stock availability before deducting
+     */
+    async deductInventoryFromSale(
+        items: Array<{
+            productCode: string;
+            quantity: number;
+            unitPrice?: number;
+        }>,
+        reference: string,  // e.g., "INV-001"
+        warehouseId?: string,
+        storeId?: string,
+        performedBy?: bigint,
+    ): Promise<{ success: boolean; deductedItems: number }> {
+        let deductedItems = 0;
+
+        for (const item of items) {
+            // Find product by SKU
+            const product = await this.prisma.product.findFirst({
+                where: { sku: item.productCode },
+                include: { variants: { include: { inventory: true } } },
+            });
+
+            if (!product) {
+                console.warn(`Product not found: ${item.productCode}, skipping inventory deduct`);
+                continue;
+            }
+
+            // Get variant
+            const variant = product.variants[0];
+            if (!variant) {
+                console.warn(`No variant found for product: ${item.productCode}`);
+                continue;
+            }
+
+            // Get default warehouse if not specified
+            let targetWarehouseId = warehouseId;
+            if (!targetWarehouseId) {
+                const defaultWarehouse = await this.prisma.warehouse.findFirst({
+                    orderBy: { id: 'asc' },
+                });
+                if (!defaultWarehouse) {
+                    throw new Error('No warehouse available');
+                }
+                targetWarehouseId = defaultWarehouse.id.toString();
+            }
+
+            // Check stock availability
+            const inventory = await this.prisma.inventory.findFirst({
+                where: {
+                    variantId: variant.id,
+                    warehouseId: BigInt(targetWarehouseId),
+                },
+            });
+
+            if (!inventory || inventory.quantity < BigInt(item.quantity)) {
+                throw new Error(
+                    `Insufficient stock for ${item.productCode}. Available: ${inventory?.quantity || 0}, Required: ${item.quantity}`
+                );
+            }
+
+            // Deduct stock
+            await this.adjustStock(
+                {
+                    warehouseId: targetWarehouseId,
+                    productId: product.id.toString(),
+                    quantity: item.quantity,
+                    type: MovementType.EXPORT,
+                    note: `Xuất kho cho ${reference}`,
+                    storeId: storeId,
+                    unitCost: item.unitPrice, // Use sale price as cost reference
+                },
+                performedBy,
+            );
+
+            deductedItems++;
+        }
+
+        return { success: true, deductedItems };
     }
 }

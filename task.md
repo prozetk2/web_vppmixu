@@ -243,3 +243,142 @@ Thêm dropdown **"Chọn công ty"** trong:
 - Deploy FE (Cloudflare Pages/Vercel)
 - Setup domain + SSL
 - Production env config
+
+---
+
+## 📋 DETAILED TASK BREAKDOWN FOR REMAINING MODULES
+
+### 📦 Module 1: Purchase Orders
+
+#### Backend
+- [ ] Review `PurchaseOrder` and `PurchaseItem` models
+- [ ] Add missing fields (status, notes, supplierId, warehouseId)
+- [ ] **Service Methods:**
+  - [ ] `create()` - Create PO with items
+  - [ ] `findAll()` - List with filters (supplier, status, date)
+  - [ ] `findOne()` - Get PO details
+  - [ ] `update()` - Update (DRAFT only)
+  - [ ] `confirm()` - Confirm → create IMPORT movements
+  - [ ] `cancel()` - Cancel PO
+- [ ] **Controller Endpoints:**
+  - [ ] `POST /purchases`
+  - [ ] `GET /purchases`
+  - [ ] `GET /purchases/:id`
+  - [ ] `PUT /purchases/:id`
+  - [ ] `POST /purchases/:id/confirm`
+- [ ] Link PO confirm → auto-deduct inventory
+
+#### Frontend
+- [ ] **PO List Page:** Table, filters, search, pagination
+- [ ] **PO Form:** Supplier, warehouse, items table, total calc
+- [ ] **PO Detail:** Info, items, status, actions, print
+- [ ] Create `purchasesAPI` service
+- [ ] Integrate confirmation flow
+
+**Estimate:** 2-3 days
+
+---
+
+### 💰 Module 2: Sales/POS (PRIORITY #1)
+
+#### Backend
+- [ ] Review Invoice/SaleInvoice models
+- [ ] **Service Enhancements:**
+  - [ ] ✅ `create()` with auto-deduct (done)
+  - [ ] `return()` - Return invoice + restock
+  - [ ] `updatePayment()` - Payment status
+- [ ] **POS Features:**
+  - [ ] Quick barcode search
+  - [ ] Discount calc (%, amount)
+  - [ ] Multiple payment methods
+
+#### Frontend
+- [ ] **POS Page:** ⭐ Main feature
+  - [ ] Barcode scanner input
+  - [ ] Product autocomplete
+  - [ ] Shopping cart
+  - [ ] Quantity adjust
+  - [ ] Discount input
+  - [ ] Payment panel (Cash/Card/Transfer/Wallet)
+  - [ ] Customer selection
+  - [ ] Print receipt
+- [ ] **Sales List:** Table, filters, export Excel
+- [ ] **Sales Detail:** Header, items, payment, actions
+- [ ] **Return Flow:**
+  - [ ] Select invoice
+  - [ ] Select return items
+  - [ ] Calculate refund
+  - [ ] Auto restock
+- [ ] Update `salesAPI`/`invoicesAPI`
+
+**Estimate:** 3-4 days
+
+---
+
+### 📊 Module 3: Reports
+
+#### Backend
+- [ ] **Revenue Report Service:**
+  - [ ] Daily/monthly/yearly revenue
+  - [ ] Group by period, store, channel
+  - [ ] Export Excel
+- [ ] **Inventory Report (enhance):**
+  - [ ] ✅ Basic report exists
+  - [ ] Value-based reporting (unitCost)
+  - [ ] Movement history by product
+  - [ ] Low stock alerts
+- [ ] **Top Products Report:**
+  - [ ] Most sold
+  - [ ] Most revenue
+- [ ] **Debt Reports:**
+  - [ ] Customer debts with aging
+  - [ ] Supplier debts with aging
+- [ ] **Controller:**
+  - [ ] `GET /reports/revenue`
+  - [ ] `GET /reports/inventory-value`
+  - [ ] `GET /reports/top-products`
+  - [ ] `GET /reports/customer-debts`
+  - [ ] `GET /reports/supplier-debts`
+
+#### Frontend
+- [ ] **Dashboard:** Charts, stats cards
+- [ ] **Revenue Report:** Date range, charts, export
+- [ ] **Inventory Value:** Total value, by category/warehouse
+- [ ] **Top Products:** Charts + tables
+- [ ] **Debt Reports:** Lists, aging analysis, export
+
+**Estimate:** 2-3 days
+
+---
+
+### ⚙️ Module 4: Settings
+
+#### Backend
+- [ ] Create `Settings` model (singleton)
+- [ ] **Service:**
+  - [ ] `getSettings()`
+  - [ ] `updateSettings()`
+- [ ] **Controller:**
+  - [ ] `GET /settings`
+  - [ ] `PUT /settings`
+- [ ] User management (if not done)
+
+#### Frontend
+- [ ] **Company Settings:** Name, address, tax, logo
+- [ ] **Tax Settings:** Default VAT %
+- [ ] **Inventory Settings:** Default warehouse, low stock threshold
+- [ ] **Sales Settings:** Invoice format, auto print
+- [ ] **User Management:** List, add, edit, roles
+
+**Estimate:** 1-2 days
+
+---
+
+## 🎯 IMPLEMENTATION PRIORITY
+
+1. **Sales/POS** ⭐⭐⭐ (Critical - core business)
+2. **Purchase Orders** ⭐⭐ (Important - inventory control)
+3. **Reports** ⭐⭐ (Insights)
+4. **Settings** ⭐ (Can use defaults)
+
+**Total MVP Time:** 10-12 days
