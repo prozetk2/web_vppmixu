@@ -2,26 +2,25 @@
 
 ---
 
-## 📊 TIẾN ĐỘ HIỆN TẠI
+## 📊 TIẾ́N ĐỘ HIÊN TẠI
 
 ### ✅ Hoàn thành (100%)
 - [x] **Sản phẩm (Product)** - CRUD, Import/Export Excel, Filter sidebar
 - [x] **Nhà cung cấp (Supplier)** - CRUD, Import/Export Excel
 - [x] **Khách hàng (Customer)** - CRUD, Import/Export Excel
 - [x] **Hóa đơn (Invoice)** - Danh sách, Chi tiết, Import/Export
-
-### 🔄 Đang làm: Kho hàng (90%)
-- [x] **Warehouse (Quản lý Kho)** - CRUD + manager, active, notes, totalValue
-- [x] **Inventory (Tồn kho)** - Xem tồn, filter, export
-- [x] **StockMovement (Nhập/Xuất/Điều chỉnh)** - Forms, logic, bulk import
-- [x] **Inventory Report (Báo cáo)** - Đầu kỳ, nhập, xuất, cuối kỳ
-- [x] **Multi-Company** - 1 kho, phân biệt giao dịch theo công ty (storeId tracking)
-- [ ] **Testing & Verification** - Kiểm tra xem dữ liệu có đúng không
+- [x] **Kho hàng (Warehouse)** - CRUD + manager, active, notes, totalValue
+- [x] **Tồn kho (Inventory)** - Xem tồn, filter, export
+- [x] **Nhập/Xuất (StockMovement)** - Forms, logic, bulk import
+- [x] **Báo cáo tồn kho** - Đầu kỳ, nhập, xuất, cuối kỳ
+- [x] **Multi-Company** - 1 kho, phân biệt giao dịch theo công ty
+- [x] **Purchase Orders** - CRUD, confirm, cancel, export Excel ✨ NEW
+- [x] **Sales/POS** - Grid/List toggle, payment methods ✨ NEW
+- [x] **Price Lists** - CRUD, product prices ✨ NEW
+- [x] **UI Icons** - Thống nhất React Icons ✨ NEW
 
 ### ⏳ Chờ làm
-- [ ] Purchase Order (Đơn nhập hàng)
-- [ ] Sales/POS (Bán hàng)
-- [ ] Reports (Báo cáo)
+- [ ] Reports (Báo cáo chi tiết)
 - [ ] Settings
 
 ---
@@ -248,70 +247,71 @@ Thêm dropdown **"Chọn công ty"** trong:
 
 ## 📋 DETAILED TASK BREAKDOWN FOR REMAINING MODULES
 
-### 📦 Module 1: Purchase Orders
+### 📦 Module 1: Purchase Orders ✅ DONE
 
 #### Backend
-- [ ] Review `PurchaseOrder` and `PurchaseItem` models
-- [ ] Add missing fields (status, notes, supplierId, warehouseId)
-- [ ] **Service Methods:**
-  - [ ] `create()` - Create PO with items
-  - [ ] `findAll()` - List with filters (supplier, status, date)
-  - [ ] `findOne()` - Get PO details
-  - [ ] `update()` - Update (DRAFT only)
-  - [ ] `confirm()` - Confirm → create IMPORT movements
-  - [ ] `cancel()` - Cancel PO
-- [ ] **Controller Endpoints:**
-  - [ ] `POST /purchases`
-  - [ ] `GET /purchases`
-  - [ ] `GET /purchases/:id`
-  - [ ] `PUT /purchases/:id`
-  - [ ] `POST /purchases/:id/confirm`
-- [ ] Link PO confirm → auto-deduct inventory
+- [x] Review `PurchaseOrder` and `PurchaseItem` models
+- [x] Add missing fields (status, notes, supplierId, warehouseId)
+- [x] **Service Methods:**
+  - [x] `create()` - Create PO with items
+  - [x] `findAll()` - List with filters (supplier, status, date)
+  - [x] `findOne()` - Get PO details
+  - [x] `update()` - Update (PENDING only)
+  - [x] `confirm()` - Confirm → create IMPORT movements with unitCost
+  - [x] `cancel()` - Cancel PO
+  - [x] `delete()` - Delete PO (cả PENDING và CONFIRMED)
+  - [x] `exportToExcel()` - Xuất Excel với date range
+- [x] **Controller Endpoints:**
+  - [x] `POST /purchases`
+  - [x] `GET /purchases`
+  - [x] `GET /purchases/:id`
+  - [x] `PUT /purchases/:id`
+  - [x] `DELETE /purchases/:id`
+  - [x] `POST /purchases/:id/confirm`
+  - [x] `GET /purchases/export`
+- [x] Link PO confirm → auto-deduct inventory
 
 #### Frontend
-- [ ] **PO List Page:** Table, filters, search, pagination
-- [ ] **PO Form:** Supplier, warehouse, items table, total calc
-- [ ] **PO Detail:** Info, items, status, actions, print
-- [ ] Create `purchasesAPI` service
-- [ ] Integrate confirmation flow
+- [x] **PO List Page:** Table, filters, search, pagination
+- [x] **PO Form:** Supplier, warehouse, items table, total calc
+- [x] **PO Detail:** Info, items, status, actions (improved v2 layout)
+- [x] Create `purchasesAPI` service
+- [x] Integrate confirmation flow
+- [x] Export Excel với modal chọn thời gian
+- [x] Delete functionality
 
-**Estimate:** 2-3 days
+**Completed:** 25/12/2024
 
 ---
 
-### 💰 Module 2: Sales/POS (PRIORITY #1)
+### 💰 Module 2: Sales/POS 🔄 70%
 
 #### Backend
-- [ ] Review Invoice/SaleInvoice models
-- [ ] **Service Enhancements:**
-  - [ ] ✅ `create()` with auto-deduct (done)
-  - [ ] `return()` - Return invoice + restock
-  - [ ] `updatePayment()` - Payment status
-- [ ] **POS Features:**
-  - [ ] Quick barcode search
-  - [ ] Discount calc (%, amount)
-  - [ ] Multiple payment methods
+- [x] Review Invoice/SaleInvoice models
+- [x] **Service Enhancements:**
+  - [x] `create()` with auto-deduct (done)
+  - [x] Multiple payment methods
+- [ ] `return()` - Return invoice + restock
+- [ ] `updatePayment()` - Payment status
 
 #### Frontend
-- [ ] **POS Page:** ⭐ Main feature
+- [x] **POS Page:**
+  - [x] Product search input
+  - [x] Product list/grid toggle ✨ NEW
+  - [x] Shopping cart
+  - [x] Quantity adjust
+  - [x] Payment panel (Cash/Card/Transfer)
+  - [x] Customer selection
+  - [x] Thumbnail 48x48px ✨ NEW
   - [ ] Barcode scanner input
-  - [ ] Product autocomplete
-  - [ ] Shopping cart
-  - [ ] Quantity adjust
-  - [ ] Discount input
-  - [ ] Payment panel (Cash/Card/Transfer/Wallet)
-  - [ ] Customer selection
+  - [ ] Discount calc (%, amount)
   - [ ] Print receipt
-- [ ] **Sales List:** Table, filters, export Excel
-- [ ] **Sales Detail:** Header, items, payment, actions
+- [x] **Sales List:** Table, filters
+- [x] React Icons thống nhất ✨ NEW
 - [ ] **Return Flow:**
-  - [ ] Select invoice
-  - [ ] Select return items
-  - [ ] Calculate refund
-  - [ ] Auto restock
-- [ ] Update `salesAPI`/`invoicesAPI`
+  - [ ] Select invoice → select items → refund → restock
 
-**Estimate:** 3-4 days
+**Updated:** 25/12/2024
 
 ---
 
