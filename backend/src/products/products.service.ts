@@ -55,6 +55,12 @@ export class ProductsService {
               inventory: true,
             },
           },
+          productPrices: {
+            select: {
+              priceListId: true,
+              price: true,
+            },
+          },
         },
       }),
       this.prisma.product.count({ where }),
