@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { warehousesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
-import { MdWarehouse } from 'react-icons/md';
+import { MdWarehouse, MdAdd } from 'react-icons/md';
 import './WarehouseList.css';
 
 interface Warehouse {
@@ -167,7 +167,7 @@ export default function WarehouseList() {
             <div className="warehouse-header">
                 <h2>Quản lý Kho hàng</h2>
                 <button onClick={openAddModal} className="btn-add">
-                    <span>➕</span> Thêm kho mới
+                    <MdAdd /> Thêm kho mới
                 </button>
             </div>
 

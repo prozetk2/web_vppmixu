@@ -613,7 +613,7 @@ export default function ProductList() {
                             <h3>Chưa có sản phẩm</h3>
                             <p>Bắt đầu thêm sản phẩm hoặc import từ file Excel</p>
                             <div className="empty-actions">
-                                <button onClick={handleAdd} className="btn-primary">+ Thêm sản phẩm</button>
+                                <button onClick={handleAdd} className="btn-primary"><MdAdd /> Thêm sản phẩm</button>
                                 <button onClick={() => fileInputRef.current?.click()} className="btn-secondary">
                                     <MdFileUpload /> Import file
                                 </button>

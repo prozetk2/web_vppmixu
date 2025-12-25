@@ -4,7 +4,7 @@ import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import * as XLSX from 'xlsx';
 import * as pdfjsLib from 'pdfjs-dist';
-import { MdPeople, MdHourglassEmpty, MdDownload, MdAttachMoney, MdDescription, MdSearch } from 'react-icons/md';
+import { MdPeople, MdHourglassEmpty, MdDownload, MdAttachMoney, MdDescription, MdSearch, MdAdd, MdBarChart } from 'react-icons/md';
 import './CustomerList.css';
 
 // Configure PDF.js worker
@@ -727,7 +727,7 @@ export default function CustomerList() {
                         {importing ? <><MdHourglassEmpty /> Đang import...</> : <><MdDownload /> Import</>}
                     </button>
                     <button onClick={openAddModal} className="btn-add">
-                        ➕ Thêm KH
+                        <MdAdd /> Thêm KH
                     </button>
                 </div>
             </div>
@@ -1022,7 +1022,7 @@ export default function CustomerList() {
 
                     {/* Thống kê tài chính (tùy chọn) */}
                     <div className="form-section">
-                        <h4 className="form-section-title">📊 Thống kê tài chính (tùy chọn)</h4>
+                        <h4 className="form-section-title"><MdBarChart /> Thống kê tài chính (tùy chọn)</h4>
                         <p className="form-section-note">Các trường này sẽ tự động tính từ đơn hàng. Chỉ nhập nếu muốn thiết lập giá trị ban đầu.</p>
 
                         <div className="form-row">

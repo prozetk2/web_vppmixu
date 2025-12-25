@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { PurchaseQueryDto } from './dto/purchase-query.dto';
+import { UpdatePurchaseDto } from './dto/update-purchase.dto';
 
 @Injectable()
 export class PurchasesService {
@@ -192,6 +193,86 @@ export class PurchasesService {
         return order;
     }
 
+    async update(id: string, dto: UpdatePurchaseDto) {
+        const order = await this.findOne(id);
+
+        if (order.status !== 'PENDING') {
+            throw new BadRequestException('CAN_ONLY_UPDATE_PENDING_ORDER');
+        }
+
+        // Build update data
+        const updateData: any = {};
+        if (dto.supplierId) updateData.supplierId = BigInt(dto.supplierId);
+        if (dto.warehouseId !== undefined) {
+            updateData.warehouseId = dto.warehouseId ? BigInt(dto.warehouseId) : null;
+        }
+        if (dto.note !== undefined) updateData.note = dto.note;
+
+        // If items are provided, recalculate
+        if (dto.items && dto.items.length > 0) {
+            const productIds = dto.items.map((item) => BigInt(item.productId));
+            const products = await this.prisma.product.findMany({
+                where: { id: { in: productIds } },
+                include: {
+                    variants: { where: { active: true }, take: 1 },
+                },
+            });
+
+            const productMap = new Map<string, any>();
+            for (const p of products) {
+                const variant = p.variants[0];
+                if (variant) {
+                    productMap.set(p.id.toString(), { product: p, variant });
+                }
+            }
+
+            let totalAmount = 0;
+            const purchaseItems: any[] = [];
+
+            for (const item of dto.items) {
+                const info = productMap.get(item.productId);
+                if (!info) {
+                    throw new BadRequestException(`PRODUCT_NOT_FOUND: ${item.productId}`);
+                }
+                const totalCost = item.unitCost * item.quantity;
+                totalAmount += totalCost;
+                purchaseItems.push({
+                    variantId: info.variant.id,
+                    quantity: BigInt(item.quantity),
+                    unitCost: item.unitCost,
+                    totalCost,
+                });
+            }
+
+            updateData.totalAmount = totalAmount;
+
+            // Transaction: delete old items, create new
+            return this.prisma.$transaction(async (tx) => {
+                await tx.purchaseItem.deleteMany({
+                    where: { purchaseOrderId: BigInt(id) },
+                });
+
+                await tx.purchaseOrder.update({
+                    where: { id: BigInt(id) },
+                    data: {
+                        ...updateData,
+                        purchaseItems: { create: purchaseItems },
+                    },
+                });
+
+                return this.findOne(id);
+            });
+        }
+
+        // Just update order info without items
+        await this.prisma.purchaseOrder.update({
+            where: { id: BigInt(id) },
+            data: updateData,
+        });
+
+        return this.findOne(id);
+    }
+
     async confirm(id: string) {
         const order = await this.findOne(id);
 
@@ -249,13 +330,14 @@ export class PurchasesService {
                     data: { quantity: { increment: Number(item.quantity) } },
                 });
 
-                // Record movement
+                // Record movement with unitCost
                 await tx.stockMovement.create({
                     data: {
                         movementType: 'PURCHASE',
                         variantId: item.variantId,
                         toWarehouseId: warehouseId,
                         quantity: Number(item.quantity),
+                        unitCost: item.unitCost,
                         note: `Nhập hàng: ${order.orderNumber}`,
                     },
                 });
@@ -284,5 +366,89 @@ export class PurchasesService {
                 purchaseItems: true,
             },
         });
+    }
+
+    async delete(id: string) {
+        const order = await this.findOne(id);
+
+        // Delete items first, then order
+        await this.prisma.$transaction(async (tx) => {
+            // If confirmed, also delete related stock movements
+            if (order.status === 'CONFIRMED') {
+                await tx.stockMovement.deleteMany({
+                    where: {
+                        note: { contains: order.orderNumber || '' },
+                        movementType: 'PURCHASE',
+                    },
+                });
+            }
+
+            await tx.purchaseItem.deleteMany({
+                where: { purchaseOrderId: BigInt(id) },
+            });
+            await tx.purchaseOrder.delete({
+                where: { id: BigInt(id) },
+            });
+        });
+
+        return { success: true, message: 'Đã xóa đơn nhập hàng' };
+    }
+
+    async exportToExcel(query: PurchaseQueryDto) {
+        const { search, supplierId, status, fromDate, toDate } = query;
+        const where: any = {};
+
+        if (search) {
+            where.orderNumber = { contains: search, mode: 'insensitive' };
+        }
+        if (supplierId) {
+            where.supplierId = BigInt(supplierId);
+        }
+        if (status) {
+            where.status = status;
+        }
+        if (fromDate || toDate) {
+            where.createdAt = {};
+            if (fromDate) where.createdAt.gte = new Date(fromDate);
+            if (toDate) where.createdAt.lte = new Date(toDate + 'T23:59:59');
+        }
+
+        const orders = await this.prisma.purchaseOrder.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            include: {
+                supplier: true,
+                warehouse: true,
+                purchaseItems: {
+                    include: {
+                        variant: {
+                            include: { product: true },
+                        },
+                    },
+                },
+            },
+        });
+
+        // Transform to flat structure for Excel
+        const rows: any[] = [];
+        for (const order of orders) {
+            for (const item of order.purchaseItems) {
+                rows.push({
+                    'Mã đơn': order.orderNumber,
+                    'Nhà cung cấp': order.supplier?.name || '',
+                    'Kho nhập': order.warehouse?.name || 'Tự động',
+                    'Mã SP': item.variant?.product?.sku || '',
+                    'Tên SP': item.variant?.product?.name || '',
+                    'SL': Number(item.quantity),
+                    'Đơn giá': Number(item.unitCost),
+                    'Thành tiền': Number(item.totalCost),
+                    'Trạng thái': order.status === 'CONFIRMED' ? 'Đã nhập kho' : order.status === 'CANCELLED' ? 'Đã hủy' : 'Chờ xác nhận',
+                    'Ngày tạo': order.createdAt?.toISOString().slice(0, 10) || '',
+                    'Ghi chú': order.note || '',
+                });
+            }
+        }
+
+        return rows;
     }
 }

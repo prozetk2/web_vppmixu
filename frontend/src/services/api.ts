@@ -161,8 +161,16 @@ export const purchasesAPI = {
     }) => api.post('/purchases', data),
     getAll: (params?: Record<string, unknown>) => api.get('/purchases', { params }),
     getOne: (id: string) => api.get(`/purchases/${id}`),
+    update: (id: string, data: {
+        supplierId?: string;
+        warehouseId?: string;
+        items?: { productId: string; quantity: number; unitCost: number }[];
+        note?: string;
+    }) => api.put(`/purchases/${id}`, data),
+    delete: (id: string) => api.delete(`/purchases/${id}`),
     confirm: (id: string) => api.post(`/purchases/${id}/confirm`),
     cancel: (id: string) => api.post(`/purchases/${id}/cancel`),
+    export: (params?: Record<string, unknown>) => api.get('/purchases/export', { params }),
 };
 
 export const invoicesAPI = {

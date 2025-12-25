@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { productsAPI, customersAPI, warehousesAPI, salesAPI, inventoryAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
-import { MdSearch, MdShoppingCart, MdClose, MdCheckCircle } from 'react-icons/md';
+import { MdShoppingCart, MdClose, MdCheckCircle, MdGridView, MdViewList, MdInventory2, MdAttachMoney, MdAccountBalance, MdCreditCard } from 'react-icons/md';
 import './POSPage.css';
 
 interface Product {
@@ -10,6 +10,7 @@ interface Product {
     sku?: string;
     defaultPrice: number;
     stock?: number;
+    imageUrl?: string;
 }
 
 interface CartItem {
@@ -30,6 +31,7 @@ interface Warehouse {
 }
 
 type PaymentMethod = 'CASH' | 'TRANSFER' | 'CARD';
+type ViewMode = 'grid' | 'list';
 
 export default function POSPage() {
     const [products, setProducts] = useState<Product[]>([]);
@@ -44,6 +46,7 @@ export default function POSPage() {
     const [processing, setProcessing] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [lastOrderNumber, setLastOrderNumber] = useState('');
+    const [viewMode, setViewMode] = useState<ViewMode>('list');
 
     const toast = useToast();
 
@@ -203,7 +206,7 @@ export default function POSPage() {
 
             {/* Left: Products */}
             <div className="pos-products">
-                <div className="pos-search">
+                <div className="pos-toolbar">
                     <input
                         type="text"
                         placeholder="Tìm sản phẩm theo tên hoặc mã SKU..."
@@ -212,23 +215,81 @@ export default function POSPage() {
                         className="search-input"
                         autoFocus
                     />
-                </div>
-                <div className="product-grid">
-                    {filteredProducts.map((product) => (
-                        <div
-                            key={product.id}
-                            className="product-card"
-                            onClick={() => addToCart(product)}
+                    <div className="view-toggle">
+                        <button
+                            className={`toggle-btn ${viewMode === 'list' ? 'active' : ''}`}
+                            onClick={() => setViewMode('list')}
+                            title="Dạng danh sách"
                         >
-                            <div className="product-card-name">{product.name}</div>
-                            {product.sku && <div className="product-card-sku">{product.sku}</div>}
-                            <div className="product-card-price">{formatCurrency(Number(product.defaultPrice))}đ</div>
-                            <div className={`product-card-stock ${(product.stock || 0) === 0 ? 'out' : (product.stock || 0) < 10 ? 'low' : ''}`}>
-                                Tồn: {product.stock || 0}
-                            </div>
-                        </div>
-                    ))}
+                            <MdViewList />
+                        </button>
+                        <button
+                            className={`toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                            onClick={() => setViewMode('grid')}
+                            title="Dạng lưới"
+                        >
+                            <MdGridView />
+                        </button>
+                    </div>
                 </div>
+
+                {/* List View */}
+                {viewMode === 'list' && (
+                    <div className="product-list">
+                        {filteredProducts.map((product) => (
+                            <div
+                                key={product.id}
+                                className="product-list-item"
+                                onClick={() => addToCart(product)}
+                            >
+                                <div className="product-thumb">
+                                    {product.imageUrl ? (
+                                        <img src={product.imageUrl} alt={product.name} />
+                                    ) : (
+                                        <div className="product-thumb-placeholder"><MdInventory2 /></div>
+                                    )}
+                                </div>
+                                <div className="product-info">
+                                    <div className="product-name">{product.name}</div>
+                                    {product.sku && <div className="product-sku">{product.sku}</div>}
+                                </div>
+                                <div className="product-right">
+                                    <div className="product-price">{formatCurrency(Number(product.defaultPrice))}đ</div>
+                                    <div className={`product-stock ${(product.stock || 0) === 0 ? 'out' : (product.stock || 0) < 10 ? 'low' : ''}`}>
+                                        Tồn: {product.stock || 0}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Grid View */}
+                {viewMode === 'grid' && (
+                    <div className="product-grid">
+                        {filteredProducts.map((product) => (
+                            <div
+                                key={product.id}
+                                className="product-card"
+                                onClick={() => addToCart(product)}
+                            >
+                                <div className="product-card-thumb">
+                                    {product.imageUrl ? (
+                                        <img src={product.imageUrl} alt={product.name} />
+                                    ) : (
+                                        <div className="product-card-thumb-placeholder"><MdInventory2 /></div>
+                                    )}
+                                </div>
+                                <div className="product-card-name">{product.name}</div>
+                                {product.sku && <div className="product-card-sku">{product.sku}</div>}
+                                <div className="product-card-price">{formatCurrency(Number(product.defaultPrice))}đ</div>
+                                <div className={`product-card-stock ${(product.stock || 0) === 0 ? 'out' : (product.stock || 0) < 10 ? 'low' : ''}`}>
+                                    Tồn: {product.stock || 0}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Right: Cart */}
@@ -311,19 +372,19 @@ export default function POSPage() {
                             className={`payment-btn ${paymentMethod === 'CASH' ? 'active' : ''}`}
                             onClick={() => setPaymentMethod('CASH')}
                         >
-                            💵 Tiền mặt
+                            <MdAttachMoney /> Tiền mặt
                         </button>
                         <button
                             className={`payment-btn ${paymentMethod === 'TRANSFER' ? 'active' : ''}`}
                             onClick={() => setPaymentMethod('TRANSFER')}
                         >
-                            🏦 Chuyển khoản
+                            <MdAccountBalance /> Chuyển khoản
                         </button>
                         <button
                             className={`payment-btn ${paymentMethod === 'CARD' ? 'active' : ''}`}
                             onClick={() => setPaymentMethod('CARD')}
                         >
-                            💳 Thẻ
+                            <MdCreditCard /> Thẻ
                         </button>
                     </div>
 

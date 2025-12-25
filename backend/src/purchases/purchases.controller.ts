@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { PurchasesService } from './purchases.service';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
+import { UpdatePurchaseDto } from './dto/update-purchase.dto';
 import { PurchaseQueryDto } from './dto/purchase-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -19,9 +20,24 @@ export class PurchasesController {
         return this.purchasesService.findAll(query);
     }
 
+    @Get('export')
+    exportToExcel(@Query() query: PurchaseQueryDto) {
+        return this.purchasesService.exportToExcel(query);
+    }
+
     @Get(':id')
     findOne(@Param('id') id: string) {
         return this.purchasesService.findOne(id);
+    }
+
+    @Put(':id')
+    update(@Param('id') id: string, @Body() dto: UpdatePurchaseDto) {
+        return this.purchasesService.update(id, dto);
+    }
+
+    @Delete(':id')
+    delete(@Param('id') id: string) {
+        return this.purchasesService.delete(id);
     }
 
     @Post(':id/confirm')
