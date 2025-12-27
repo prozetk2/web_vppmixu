@@ -2,7 +2,7 @@
 
 ---
 
-## 📊 TIẾ́N ĐỘ HIÊN TẠI
+## 📊 TIẾN ĐỘ HIỆN TẠI (Cập nhật: 27/12/2024)
 
 ### ✅ Hoàn thành (100%)
 - [x] **Sản phẩm (Product)** - CRUD, Import/Export Excel, Filter sidebar
@@ -14,10 +14,10 @@
 - [x] **Nhập/Xuất (StockMovement)** - Forms, logic, bulk import
 - [x] **Báo cáo tồn kho** - Đầu kỳ, nhập, xuất, cuối kỳ
 - [x] **Multi-Company** - 1 kho, phân biệt giao dịch theo công ty
-- [x] **Purchase Orders** - CRUD, confirm, cancel, export Excel ✨ NEW
-- [x] **Sales/POS** - Grid/List toggle, payment methods ✨ NEW
-- [x] **Price Lists** - CRUD, product prices ✨ NEW
-- [x] **UI Icons** - Thống nhất React Icons ✨ NEW
+- [x] **Purchase Orders** - CRUD, confirm, cancel, export Excel
+- [x] **Price Lists** - CRUD, product prices
+- [x] **UI Icons** - Thống nhất React Icons
+- [x] **Sales/POS** - Discount, Barcode, Print, Return flow ✨ DONE 27/12
 
 ### ⏳ Chờ làm
 - [ ] Reports (Báo cáo chi tiết)
@@ -284,34 +284,35 @@ Thêm dropdown **"Chọn công ty"** trong:
 
 ---
 
-### 💰 Module 2: Sales/POS 🔄 70%
+### 💰 Module 2: Sales/POS ✅ DONE
 
 #### Backend
 - [x] Review Invoice/SaleInvoice models
 - [x] **Service Enhancements:**
-  - [x] `create()` with auto-deduct (done)
+  - [x] `create()` with auto-deduct
   - [x] Multiple payment methods
-- [ ] `return()` - Return invoice + restock
-- [ ] `updatePayment()` - Payment status
+- [x] `returnOrder()` - Return invoice + restock
 
 #### Frontend
 - [x] **POS Page:**
   - [x] Product search input
-  - [x] Product list/grid toggle ✨ NEW
+  - [x] Product list/grid toggle
   - [x] Shopping cart
   - [x] Quantity adjust
   - [x] Payment panel (Cash/Card/Transfer)
   - [x] Customer selection
-  - [x] Thumbnail 48x48px ✨ NEW
-  - [ ] Barcode scanner input
-  - [ ] Discount calc (%, amount)
-  - [ ] Print receipt
+  - [x] Thumbnail 48x48px
+  - [x] Barcode scanner (Enter to add) ✨ NEW
+  - [x] Discount calc (%, amount) ✨ NEW
+  - [x] Print receipt ✨ NEW
 - [x] **Sales List:** Table, filters
-- [x] React Icons thống nhất ✨ NEW
-- [ ] **Return Flow:**
-  - [ ] Select invoice → select items → refund → restock
+- [x] React Icons thống nhất
+- [x] **Return Flow:** ✨ NEW
+  - [x] Search order by orderNumber
+  - [x] View order items
+  - [x] Confirm return → refund + restock
 
-**Updated:** 25/12/2024
+**Completed:** 27/12/2024
 
 ---
 

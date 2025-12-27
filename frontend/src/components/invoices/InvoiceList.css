@@ -373,6 +373,24 @@
     background: #ffcdd2;
 }
 
+.btn-icon.print {
+    background: #e8f5e9;
+    color: #4caf50;
+}
+
+.btn-icon.print:hover {
+    background: #c8e6c9;
+}
+
+.btn-icon.return {
+    background: #fff3e0;
+    color: #ff9800;
+}
+
+.btn-icon.return:hover {
+    background: #ffe0b2;
+}
+
 /* Pagination */
 .invoice-pagination {
     display: flex;

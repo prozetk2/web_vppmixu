@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { invoicesAPI } from '../../services/api';
+import { invoicesAPI, salesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import {
@@ -610,6 +610,99 @@ export default function InvoiceList() {
         return count;
     };
 
+    // Print invoice
+    const handlePrintInvoice = async (invoice: Invoice) => {
+        try {
+            const response = await invoicesAPI.getOne(invoice.id);
+            const detail = response.data.data || response.data;
+
+            // Create print window
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                toast.error('Không thể mở cửa sổ in. Vui lòng cho phép popup.');
+                return;
+            }
+
+            const items = detail.items || [];
+            const itemRows = items.map((item: InvoiceItem) => `
+                <tr>
+                    <td>${item.productCode || '-'}</td>
+                    <td>${item.productName || '-'}</td>
+                    <td style="text-align:right">${item.quantity}</td>
+                    <td style="text-align:right">${formatCurrency(Number(item.unitPrice))}</td>
+                    <td style="text-align:right">${formatCurrency(Number(item.totalPrice))}</td>
+                </tr>
+            `).join('');
+
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Hóa đơn ${invoice.invoiceNumber}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        h1 { text-align: center; }
+                        .info { margin-bottom: 20px; }
+                        .info p { margin: 5px 0; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th, td { border: 1px solid #ddd; padding: 8px; }
+                        th { background: #f5f5f5; }
+                        .total { text-align: right; font-size: 18px; margin-top: 20px; }
+                    </style>
+                </head>
+                <body>
+                    <h1>HÓA ĐƠN BÁN HÀNG</h1>
+                    <div class="info">
+                        <p><strong>Mã HĐ:</strong> ${invoice.invoiceNumber}</p>
+                        <p><strong>Khách hàng:</strong> ${invoice.customerName || 'Khách lẻ'}</p>
+                        <p><strong>Ngày:</strong> ${formatDate(invoice.createdAt)}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mã hàng</th>
+                                <th>Tên hàng</th>
+                                <th>SL</th>
+                                <th>Đơn giá</th>
+                                <th>Thành tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>${itemRows}</tbody>
+                    </table>
+                    <div class="total">
+                        <p>Tổng tiền: <strong>${formatCurrency(Number(detail.totalAmount))}đ</strong></p>
+                        <p>Giảm giá: ${formatCurrency(Number(detail.discountAmount))}đ</p>
+                        <p>Khách trả: <strong>${formatCurrency(Number(detail.amountPaid))}đ</strong></p>
+                    </div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.print();
+        } catch (error) {
+            toast.error('Không thể in hóa đơn');
+        }
+    };
+
+    // Return invoice
+    const handleReturnInvoice = async (invoice: Invoice) => {
+        if (invoice.status === 'RETURNED') {
+            toast.error('Hóa đơn này đã được trả hàng rồi');
+            return;
+        }
+
+        if (!confirm(`Xác nhận trả hàng cho hóa đơn ${invoice.invoiceNumber}?`)) {
+            return;
+        }
+
+        try {
+            await salesAPI.returnOrder(invoice.id, `Trả hàng từ danh sách hóa đơn`);
+            toast.success(`Trả hàng thành công: ${invoice.invoiceNumber}`);
+            fetchInvoices();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Không thể trả hàng');
+        }
+    };
+
     return (
         <div className="invoice-list">
             <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
@@ -887,6 +980,22 @@ export default function InvoiceList() {
                                                     {formatCurrency(Number(invoice.amountPaid))}
                                                 </td>
                                                 <td className="actions" onClick={(e) => e.stopPropagation()}>
+                                                    <button
+                                                        className="btn-icon print"
+                                                        title="In hóa đơn"
+                                                        onClick={() => handlePrintInvoice(invoice)}
+                                                    >
+                                                        <MdPrint />
+                                                    </button>
+                                                    {invoice.status === 'COMPLETED' && (
+                                                        <button
+                                                            className="btn-icon return"
+                                                            title="Trả hàng"
+                                                            onClick={() => handleReturnInvoice(invoice)}
+                                                        >
+                                                            <MdUndo />
+                                                        </button>
+                                                    )}
                                                     <button
                                                         className="btn-icon edit"
                                                         title="Sửa"
