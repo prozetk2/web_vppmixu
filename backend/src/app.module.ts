@@ -6,9 +6,6 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
 import { CategoriesModule } from './categories/categories.module';
-
-
-
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { CustomersModule } from './customers/customers.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
@@ -20,6 +17,8 @@ import { PurchasesModule } from './purchases/purchases.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { StoresModule } from './stores/stores.module';
 import { PriceListsModule } from './price-lists/price-lists.module';
+import { ReportsModule } from './reports/reports.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -42,8 +41,11 @@ import { PriceListsModule } from './price-lists/price-lists.module';
     InvoicesModule,
     StoresModule,
     PriceListsModule,
+    ReportsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule { }
+

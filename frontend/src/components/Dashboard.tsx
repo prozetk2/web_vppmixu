@@ -15,6 +15,8 @@ import CustomerList from './customers/CustomerList';
 import SupplierList from './suppliers/SupplierList';
 import InvoiceList from './invoices/InvoiceList';
 import PriceListsPage from './price-lists/PriceListsPage';
+import ReportsPage from './reports/ReportsPage';
+import SettingsPage from './settings/SettingsPage';
 import {
     MdHome,
     MdShoppingCart,
@@ -26,7 +28,8 @@ import {
     MdWarehouse,
     MdPeople,
     MdLocalShipping as MdTruck,
-    MdAttachMoney
+    MdAttachMoney,
+    MdSettings
 } from 'react-icons/md';
 import './Dashboard.css';
 
@@ -34,7 +37,7 @@ interface DashboardProps {
     onLogout: () => void;
 }
 
-type TabType = 'overview' | 'pos' | 'purchases' | 'sales' | 'invoices' | 'products' | 'categories' | 'inventory' | 'warehouses' | 'price-lists' | 'customers' | 'suppliers';
+type TabType = 'overview' | 'pos' | 'purchases' | 'sales' | 'invoices' | 'products' | 'categories' | 'inventory' | 'warehouses' | 'price-lists' | 'customers' | 'suppliers' | 'reports' | 'settings';
 
 export default function Dashboard({ onLogout }: DashboardProps) {
     const [activeTab, setActiveTab] = useState<TabType>('overview');
@@ -182,6 +185,14 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         if (activeTab === 'invoices') {
             return <InvoiceList />;
         }
+
+        if (activeTab === 'reports') {
+            return <ReportsPage />;
+        }
+
+        if (activeTab === 'settings') {
+            return <SettingsPage />;
+        }
         const activeTabInfo = tabs.find(t => t.id === activeTab);
 
         return (
@@ -238,6 +249,13 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                         <h1 className="header-title">Hệ thống quản lý kho hàng</h1>
                     </div>
                     <div className="header-right">
+                        <button
+                            onClick={() => setActiveTab('settings')}
+                            className="btn-icon-header"
+                            title="Cài đặt"
+                        >
+                            <MdSettings />
+                        </button>
                         <div className="user-info">
                             <div className="user-avatar">
                                 {user?.username?.charAt(0).toUpperCase()}

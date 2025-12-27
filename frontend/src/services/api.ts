@@ -196,4 +196,20 @@ export const invoicesAPI = {
     getFilterOptions: () => api.get('/invoices/filter-options'),
 };
 
+export const reportsAPI = {
+    getRevenue: (params?: Record<string, unknown>) => api.get('/reports/revenue', { params }),
+    getInventoryValue: (params?: Record<string, unknown>) => api.get('/reports/inventory-value', { params }),
+    getCustomerDebts: (params?: Record<string, unknown>) => api.get('/reports/customer-debts', { params }),
+    getSupplierDebts: (params?: Record<string, unknown>) => api.get('/reports/supplier-debts', { params }),
+    getProductSales: (params?: Record<string, unknown>) => api.get('/reports/product-sales', { params }),
+    exportRevenue: (params?: Record<string, unknown>) => api.get('/reports/revenue/export', { params }),
+    exportInventoryValue: (params?: Record<string, unknown>) => api.get('/reports/inventory-value/export', { params }),
+};
+
+export const settingsAPI = {
+    get: () => api.get('/settings'),
+    update: (data: any) => api.put('/settings', data),
+};
+
 export default api;
+

@@ -94,6 +94,25 @@
     color: var(--color-error);
 }
 
+.btn-icon-header {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 6px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon-header:hover {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+}
+
 /* Main */
 .dashboard-main {
     padding: 0;

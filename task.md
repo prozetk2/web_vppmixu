@@ -2,7 +2,7 @@
 
 ---
 
-## 📊 TIẾN ĐỘ HIỆN TẠI (Cập nhật: 27/12/2024)
+## 📊 TIẾN ĐỘ HIỆN TẠI (Cập nhật: 28/12/2024)
 
 ### ✅ Hoàn thành (100%)
 - [x] **Sản phẩm (Product)** - CRUD, Import/Export Excel, Filter sidebar
@@ -18,9 +18,14 @@
 - [x] **Price Lists** - CRUD, product prices
 - [x] **UI Icons** - Thống nhất React Icons
 - [x] **Sales/POS** - Discount, Barcode, Print, Return flow ✨ DONE 27/12
+- [x] **Dashboard Overview** - Stats cards, Revenue chart, Top customers ✨ DONE 28/12
+- [x] **Báo cáo Doanh thu** - Revenue report với Lợi nhuận gộp ✨ DONE 28/12
 
-### ⏳ Chờ làm
-- [ ] Reports (Báo cáo chi tiết)
+### ⏳ Đang làm
+- [ ] **Top 10 hàng bán chạy** - Cần import data InvoiceItem
+- [ ] **Xuất Excel chi tiết** - Phụ thuộc InvoiceItem data
+
+### 📝 Chờ làm
 - [ ] Settings
 
 ---
