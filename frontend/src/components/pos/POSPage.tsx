@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { productsAPI, invoicesAPI, priceListsAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
-import { MdAdd, MdRemove, MdDelete, MdClose, MdShoppingCart, MdPrint, MdRefresh } from 'react-icons/md';
+import { MdAdd, MdRemove, MdDelete, MdClose, MdShoppingCart, MdPrint, MdRefresh, MdViewModule, MdViewList } from 'react-icons/md';
 import './POSPage.css';
 
 interface Product {
@@ -38,6 +38,9 @@ export default function POSPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [cartItems, setCartItems] = useState<CartItem[]>([]);
     const [showProductList, setShowProductList] = useState(false);
+
+    // View mode
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
     // Price Lists
     const [priceLists, setPriceLists] = useState<PriceList[]>([]);
@@ -346,24 +349,63 @@ export default function POSPage() {
                         </div>
                     </div>
 
-                    {/* Product Grid - Browse */}
+                    {/* Product Grid/List - Browse */}
                     <div className="product-grid-section">
-                        <h4>Sản phẩm ({products.length})</h4>
-                        <div className="product-grid">
-                            {products.slice(0, 50).map(product => (
-                                <div
-                                    key={product.id}
-                                    className="product-card"
-                                    onClick={() => addToCart(product)}
+                        <div className="product-section-header">
+                            <h4>Sản phẩm ({products.length})</h4>
+                            <div className="view-toggle">
+                                <button
+                                    className={viewMode === 'grid' ? 'active' : ''}
+                                    onClick={() => setViewMode('grid')}
+                                    title="Dạng lưới"
                                 >
-                                    <div className="product-card-name">{product.name}</div>
-                                    <div className="product-card-sku">{product.sku}</div>
-                                    <div className="product-card-price">
-                                        {formatCurrency(product.defaultPrice)}đ
-                                    </div>
-                                </div>
-                            ))}
+                                    <MdViewModule />
+                                </button>
+                                <button
+                                    className={viewMode === 'list' ? 'active' : ''}
+                                    onClick={() => setViewMode('list')}
+                                    title="Dạng danh sách"
+                                >
+                                    <MdViewList />
+                                </button>
+                            </div>
                         </div>
+
+                        {viewMode === 'grid' ? (
+                            <div className="product-grid">
+                                {products.slice(0, 50).map(product => (
+                                    <div
+                                        key={product.id}
+                                        className="product-card"
+                                        onClick={() => addToCart(product)}
+                                    >
+                                        <div className="product-card-name">{product.name}</div>
+                                        <div className="product-card-sku">{product.sku}</div>
+                                        <div className="product-card-price">
+                                            {formatCurrency(product.defaultPrice)}đ
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="product-list">
+                                {products.slice(0, 50).map(product => (
+                                    <div
+                                        key={product.id}
+                                        className="product-list-item"
+                                        onClick={() => addToCart(product)}
+                                    >
+                                        <div className="product-list-info">
+                                            <div className="product-list-name">{product.name}</div>
+                                            <div className="product-list-sku">{product.sku}</div>
+                                        </div>
+                                        <div className="product-list-price">
+                                            {formatCurrency(product.defaultPrice)}đ
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Shopping Cart */}
