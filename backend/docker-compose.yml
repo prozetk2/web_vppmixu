@@ -1,47 +1,31 @@
-version: "3.9"
-
 services:
-  db:
-    image: postgres:15-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
-      POSTGRES_DB: appdb
-    ports:
-      - "5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+  # Local PostgreSQL (optional - comment out if using Supabase only)
+  # db:
+  #   image: postgres:15-alpine
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: app
+  #     POSTGRES_PASSWORD: app
+  #     POSTGRES_DB: appdb
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - db_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 5
 
   api:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    depends_on:
-      db:
-        condition: service_healthy
+    # Load all environment variables from .env file (including Supabase DATABASE_URL)
+    env_file:
+      - .env
     environment:
-      # Database URLs
-      DATABASE_URL: postgresql://app:app@db:5432/appdb?schema=public
-      DIRECT_URL: postgresql://app:app@db:5432/appdb?schema=public
-      
-      # Server configuration
-      PORT: ${PORT:-3000}
-      
-      # JWT Configuration
-      JWT_SECRET: ${JWT_SECRET:-45a3ffb283c047be6709c6f003d2ee2cca3797684af8e69cc0fdad34fa7d532f}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      
-      # Supabase Configuration (optional)
-      SUPABASE_URL: ${SUPABASE_URL:-https://your-project-ref.supabase.co}
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-your-service-role-key-here}
-      
-      # Environment
+      # Override NODE_ENV for development
       NODE_ENV: development
     ports:
       - "3000:3000"
@@ -50,15 +34,17 @@ services:
       - ./src:/app/src
       - ./prisma:/app/prisma
       - ./.env:/app/.env
+      # Mount config files needed for build
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.build.json:/app/tsconfig.build.json
+      - ./nest-cli.json:/app/nest-cli.json
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json
       # Use named volumes for node_modules to avoid conflicts with host
       - node_modules:/app/node_modules
     restart: unless-stopped
     command: >
       sh -c "
-        if [ ! -f .env ]; then
-          echo 'Creating .env from .env.example...'
-          cp .env.example .env
-        fi &&
         echo 'Running npm install...' &&
         npm install &&
         echo 'Generating Prisma client...' &&
@@ -68,5 +54,5 @@ services:
       "
 
 volumes:
-  db_data:
+  # db_data:
   node_modules:
