@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// Use environment variable for production, fallback to localhost for development
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Sử dụng proxy /api để không cần 2 tunnel riêng biệt
+// Trong production, có thể đặt VITE_API_URL nếu backend ở domain khác
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
     baseURL: API_URL,
