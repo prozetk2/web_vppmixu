@@ -98,9 +98,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
                     </button>
                 </form>
 
-                <div className="demo-hint">
-                    Tài khoản demo: <span className="highlight">admin</span> / <span className="highlight">admin123</span>
-                </div>
+
             </div>
         </div>
     );
