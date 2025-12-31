@@ -36,7 +36,7 @@ type ViewMode = 'grid' | 'list';
 export default function POSPage() {
     const [products, setProducts] = useState<Product[]>([]);
     const [customers, setCustomers] = useState<Customer[]>([]);
-    const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+    const [_warehouses, setWarehouses] = useState<Warehouse[]>([]);
     const [cart, setCart] = useState<CartItem[]>([]);
     const [search, setSearch] = useState('');
     const [selectedCustomer, setSelectedCustomer] = useState('');

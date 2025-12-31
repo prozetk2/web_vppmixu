@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { productsAPI, invoicesAPI, priceListsAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
-import { MdAdd, MdRemove, MdDelete, MdClose, MdShoppingCart, MdPrint, MdRefresh, MdViewModule, MdViewList } from 'react-icons/md';
+import { MdAdd, MdRemove, MdDelete, MdShoppingCart, MdRefresh, MdViewModule, MdViewList } from 'react-icons/md';
 import './POSPage.css';
 
 interface Product {
@@ -183,19 +183,6 @@ export default function POSPage() {
         setCartItems(cartItems.map(item =>
             item.id === itemId
                 ? { ...item, quantity: newQty, total: calculateItemTotal(item.unitPrice, newQty, item.discount, item.discountType) }
-                : item
-        ));
-    };
-
-    const updateDiscount = (itemId: string, discount: number, discountType: 'percent' | 'amount') => {
-        setCartItems(cartItems.map(item =>
-            item.id === itemId
-                ? {
-                    ...item,
-                    discount,
-                    discountType,
-                    total: calculateItemTotal(item.unitPrice, item.quantity, discount, discountType)
-                }
                 : item
         ));
     };

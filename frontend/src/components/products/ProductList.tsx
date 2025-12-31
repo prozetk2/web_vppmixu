@@ -4,7 +4,7 @@ import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import Pagination from '../shared/Pagination';
 import ProductForm from './ProductForm';
-import { MdSearch, MdInventory, MdEdit, MdDelete, MdStar, MdStarBorder, MdFilterList, MdFileUpload, MdFileDownload, MdAdd, MdSettings, MdViewColumn, MdRefresh } from 'react-icons/md';
+import { MdSearch, MdInventory, MdEdit, MdDelete, MdStarBorder, MdFilterList, MdFileUpload, MdFileDownload, MdAdd, MdSettings, MdViewColumn, MdRefresh } from 'react-icons/md';
 import * as XLSX from 'xlsx';
 import './ProductList.css';
 

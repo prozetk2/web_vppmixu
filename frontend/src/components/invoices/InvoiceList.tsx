@@ -549,19 +549,6 @@ export default function InvoiceList() {
         }
     };
 
-    const openDetail = async (invoice: Invoice) => {
-        try {
-            const response = await invoicesAPI.getOne(invoice.id);
-            setSelectedInvoice({
-                ...response.data,
-                id: response.data.id.toString(),
-            });
-            setShowDetailModal(true);
-        } catch (error) {
-            toast.error('Không thể tải chi tiết hóa đơn');
-        }
-    };
-
     // Toggle expandable row
     const toggleExpand = async (invoiceId: string) => {
         if (expandedId === invoiceId) {

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { priceListsAPI, productsAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
-import { MdAdd, MdEdit, MdDelete, MdSave, MdClose } from 'react-icons/md';
+import { MdAdd, MdDelete, MdSave, MdClose } from 'react-icons/md';
 import './PriceListsPage.css';
 
 interface PriceList {
@@ -18,11 +18,6 @@ interface Product {
     sku: string;
     name: string;
     defaultPrice: number;
-}
-
-interface ProductPrice {
-    productId: string;
-    price: number;
 }
 
 export default function PriceListsPage() {
