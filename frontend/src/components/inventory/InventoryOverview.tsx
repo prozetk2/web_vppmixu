@@ -127,13 +127,15 @@ export default function InventoryOverview() {
                 limit: pagination.limit,
             });
 
-            const data = response.data?.data || response.data;
-            setReportData(data.data || []);
-            setTotals(data.totals || null);
-            if (data.meta) {
+            const responseData = response.data?.data || response.data;
+            // responseData is { data: [...], totals: {...}, meta: {...} } OR just the raw data
+            const reportItems = responseData.data || responseData;
+            setReportData(Array.isArray(reportItems) ? reportItems : []);
+            setTotals(responseData.totals || null);
+            if (responseData.meta) {
                 setPagination((prev) => ({
                     ...prev,
-                    total: data.meta.total,
+                    total: responseData.meta.total,
                 }));
             }
         } catch (error) {
@@ -251,8 +253,16 @@ export default function InventoryOverview() {
             // Check if this is a report format (has Nhập kho and Xuất kho columns)
             const isReportFormat = importIdx >= 0 && exportIdx >= 0;
 
-            if (!isReportFormat) {
-                toast.error('File không đúng format "TỔNG HỢP TỒN KHO". Cần có cột "Nhập kho" và "Xuất kho"');
+            // Check if this is a simple format (has Số lượng column without Nhập/Xuất kho)
+            const qtyIdx = mainHeaders.findIndex(h =>
+                h?.includes('số lượng') || h?.includes('sl') || h?.includes('tồn') || h?.includes('quantity')
+            );
+            const isSimpleFormat = qtyIdx >= 0 && !isReportFormat;
+
+            console.log('Format detection - isReportFormat:', isReportFormat, 'isSimpleFormat:', isSimpleFormat, 'qtyIdx:', qtyIdx);
+
+            if (!isReportFormat && !isSimpleFormat) {
+                toast.error('File không đúng format. Cần có cột "Nhập kho" + "Xuất kho" hoặc cột "Số lượng"');
                 return;
             }
 
@@ -260,7 +270,7 @@ export default function InventoryOverview() {
             const dataRows = rawData.slice(dataStartIndex);
             console.log('Data rows count:', dataRows.length);
 
-            // Parse data rows and create separate movements for import and export
+            // Parse data rows and create movements
             const items: any[] = [];
 
             dataRows
@@ -272,40 +282,64 @@ export default function InventoryOverview() {
                     // Skip if no product identifier
                     if (!code && !name) return;
 
-                    // Parse import quantity and value
-                    const importQty = importIdx >= 0 ? (parseInt(row[importIdx]) || 0) : 0;
-                    const importValue = importValueIdx >= 0 ? (parseFloat(row[importValueIdx]) || 0) : 0;
-                    const importUnitCost = importQty > 0 ? importValue / importQty : 0;
+                    if (isReportFormat) {
+                        // Parse import quantity and value
+                        const importQty = importIdx >= 0 ? (parseInt(row[importIdx]) || 0) : 0;
+                        const importValue = importValueIdx >= 0 ? (parseFloat(row[importValueIdx]) || 0) : 0;
+                        const importUnitCost = importQty > 0 ? importValue / importQty : 0;
 
-                    // Parse export quantity and value
-                    const exportQty = exportIdx >= 0 ? (parseInt(row[exportIdx]) || 0) : 0;
-                    const exportValue = exportValueIdx >= 0 ? (parseFloat(row[exportValueIdx]) || 0) : 0;
-                    const exportUnitCost = exportQty > 0 ? exportValue / exportQty : 0;
+                        // Parse export quantity and value
+                        const exportQty = exportIdx >= 0 ? (parseInt(row[exportIdx]) || 0) : 0;
+                        const exportValue = exportValueIdx >= 0 ? (parseFloat(row[exportValueIdx]) || 0) : 0;
+                        const exportUnitCost = exportQty > 0 ? exportValue / exportQty : 0;
 
-                    // Create IMPORT movement if quantity > 0
-                    if (importQty > 0) {
+                        // Create IMPORT movement if quantity > 0
+                        if (importQty > 0) {
+                            items.push({
+                                productCode: code,
+                                productName: name,
+                                warehouseId: warehouseFilter || warehouses[0]?.id || '',
+                                quantity: importQty,
+                                type: 'IMPORT' as const,
+                                unitCost: importUnitCost,
+                                note: 'Nhập kho từ Excel',
+                                storeId: storeFilter || undefined,
+                            });
+                        }
+
+                        // Create EXPORT movement if quantity > 0
+                        if (exportQty > 0) {
+                            items.push({
+                                productCode: code,
+                                productName: name,
+                                warehouseId: warehouseFilter || warehouses[0]?.id || '',
+                                quantity: exportQty,
+                                type: 'EXPORT' as const,
+                                unitCost: exportUnitCost,
+                                note: 'Xuất kho từ Excel',
+                                storeId: storeFilter || undefined,
+                            });
+                        }
+                    } else if (isSimpleFormat) {
+                        // Simple format - use quantity as ADJUST (set absolute inventory level)
+                        const qty = qtyIdx >= 0 ? (parseFloat(String(row[qtyIdx]).replace(/,/g, '')) || 0) : 0;
+
+                        // Find value column for unit cost calculation
+                        const valueIdx = mainHeaders.findIndex(h =>
+                            h?.includes('giá trị') || h?.includes('gt') || h?.includes('value') || h?.includes('thành tiền')
+                        );
+                        const value = valueIdx >= 0 ? (parseFloat(String(row[valueIdx]).replace(/,/g, '')) || 0) : 0;
+                        const unitCost = qty > 0 && value > 0 ? value / qty : 0;
+
+                        // Create ADJUST movement to set inventory level
                         items.push({
                             productCode: code,
                             productName: name,
                             warehouseId: warehouseFilter || warehouses[0]?.id || '',
-                            quantity: importQty,
-                            type: 'IMPORT' as const,
-                            unitCost: importUnitCost,
-                            note: 'Nhập kho từ Excel',
-                            storeId: storeFilter || undefined,
-                        });
-                    }
-
-                    // Create EXPORT movement if quantity > 0
-                    if (exportQty > 0) {
-                        items.push({
-                            productCode: code,
-                            productName: name,
-                            warehouseId: warehouseFilter || warehouses[0]?.id || '',
-                            quantity: exportQty,
-                            type: 'EXPORT' as const,
-                            unitCost: exportUnitCost,
-                            note: 'Xuất kho từ Excel',
+                            quantity: qty,
+                            type: 'ADJUST' as const,
+                            unitCost: unitCost,
+                            note: 'Điều chỉnh tồn kho từ Excel',
                             storeId: storeFilter || undefined,
                         });
                     }
@@ -315,7 +349,7 @@ export default function InventoryOverview() {
             console.log('Total movements:', items.length);
 
             if (items.length === 0) {
-                toast.error('File không có dữ liệu hợp lệ. Số lượng Nhập/Xuất phải > 0');
+                toast.error('File không có dữ liệu hợp lệ hoặc số lượng = 0');
                 return;
             }
 
@@ -428,23 +462,29 @@ export default function InventoryOverview() {
                         </select>
                     </div>
 
-                    <div className="filter-section">
-                        <label>Công ty</label>
-                        <select
-                            value={storeFilter}
-                            onChange={(e) => {
-                                setStoreFilter(e.target.value);
-                                setPagination((prev) => ({ ...prev, page: 1 }));
-                            }}
-                        >
-                            <option value="">Tất cả công ty</option>
-                            {stores.map((store) => (
-                                <option key={store.id} value={store.id}>
-                                    {store.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                    {/* Công ty filter - hidden by default, show only when stores exist and user wants advanced filter */}
+                    {stores.length > 0 && (
+                        <div className="filter-section filter-collapsible">
+                            <details>
+                                <summary className="filter-advanced-toggle">Lọc theo công ty</summary>
+                                <select
+                                    value={storeFilter}
+                                    onChange={(e) => {
+                                        setStoreFilter(e.target.value);
+                                        setPagination((prev) => ({ ...prev, page: 1 }));
+                                    }}
+                                    style={{ marginTop: '8px' }}
+                                >
+                                    <option value="">Tất cả công ty</option>
+                                    {stores.map((store) => (
+                                        <option key={store.id} value={store.id}>
+                                            {store.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </details>
+                        </div>
+                    )}
 
                     <div className="filter-section">
                         <label>Thời gian</label>
@@ -592,26 +632,66 @@ export default function InventoryOverview() {
                     )}
                 </div>
 
-                {/* Pagination */}
-                {pagination.total > pagination.limit && (
-                    <div className="pagination">
-                        <button
-                            onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
-                            disabled={pagination.page === 1}
-                            className="pagination-btn"
-                        >
-                            Trước
-                        </button>
-                        <span className="pagination-info">
-                            Trang {pagination.page} / {Math.ceil(pagination.total / pagination.limit)}
-                        </span>
-                        <button
-                            onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
-                            disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
-                            className="pagination-btn"
-                        >
-                            Sau
-                        </button>
+                {/* Pagination - Always show when there are items */}
+                {reportData.length > 0 && (
+                    <div className="pagination-container">
+                        <div className="pagination-info-left">
+                            <span>
+                                Hiển thị {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, pagination.total || reportData.length)}
+                                {' '}trên <strong>{pagination.total || reportData.length}</strong> sản phẩm
+                            </span>
+                        </div>
+
+                        <div className="pagination-controls">
+                            <button
+                                onClick={() => setPagination((prev) => ({ ...prev, page: 1 }))}
+                                disabled={pagination.page === 1}
+                                className="pagination-btn"
+                                title="Trang đầu"
+                            >
+                                «
+                            </button>
+                            <button
+                                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
+                                disabled={pagination.page === 1}
+                                className="pagination-btn"
+                            >
+                                Trước
+                            </button>
+                            <span className="pagination-page">
+                                Trang <strong>{pagination.page}</strong> / {Math.max(1, Math.ceil((pagination.total || reportData.length) / pagination.limit))}
+                            </span>
+                            <button
+                                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
+                                disabled={pagination.page >= Math.ceil((pagination.total || reportData.length) / pagination.limit)}
+                                className="pagination-btn"
+                            >
+                                Sau
+                            </button>
+                            <button
+                                onClick={() => setPagination((prev) => ({ ...prev, page: Math.ceil((pagination.total || reportData.length) / pagination.limit) }))}
+                                disabled={pagination.page >= Math.ceil((pagination.total || reportData.length) / pagination.limit)}
+                                className="pagination-btn"
+                                title="Trang cuối"
+                            >
+                                »
+                            </button>
+                        </div>
+
+                        <div className="pagination-size">
+                            <label>Hiển thị:</label>
+                            <select
+                                value={pagination.limit}
+                                onChange={(e) => setPagination(prev => ({ ...prev, limit: Number(e.target.value), page: 1 }))}
+                                className="page-size-select"
+                            >
+                                <option value={20}>20</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                                <option value={200}>200</option>
+                            </select>
+                            <span>/ trang</span>
+                        </div>
                     </div>
                 )}
             </main>
@@ -625,6 +705,7 @@ export default function InventoryOverview() {
             >
                 <StockAdjustment
                     warehouses={warehouses}
+                    stores={stores}
                     onSubmit={(data) => handleAdjustSubmit({ ...data, type: 'IMPORT' })}
                     onCancel={() => setIsImportOpen(false)}
                     isLoading={isSubmitting}
@@ -641,6 +722,7 @@ export default function InventoryOverview() {
             >
                 <StockAdjustment
                     warehouses={warehouses}
+                    stores={stores}
                     onSubmit={(data) => handleAdjustSubmit({ ...data, type: 'EXPORT' })}
                     onCancel={() => setIsExportOpen(false)}
                     isLoading={isSubmitting}
@@ -657,6 +739,7 @@ export default function InventoryOverview() {
             >
                 <StockAdjustment
                     warehouses={warehouses}
+                    stores={stores}
                     onSubmit={handleAdjustSubmit}
                     onCancel={() => setIsAdjustOpen(false)}
                     isLoading={isSubmitting}

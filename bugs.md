@@ -1,0 +1,2 @@
+- kho hàng lộn xộn 
+- chức năng hóa đơn bị lỗi 

@@ -76,17 +76,53 @@
 
 .date-range-wrapper {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 8px;
 }
 
 .date-range-wrapper span {
     color: #666;
-    font-size: 13px;
+    font-size: 12px;
+    text-align: center;
 }
 
 .date-range-wrapper input[type="date"] {
-    flex: 1;
+    width: 100%;
+}
+
+/* Collapsible filter section */
+.filter-collapsible details {
+    margin-top: 8px;
+}
+
+.filter-collapsible summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: #666;
+    padding: 6px 0;
+    user-select: none;
+}
+
+.filter-collapsible summary:hover {
+    color: #2196f3;
+}
+
+.filter-advanced-toggle {
+    list-style: none;
+}
+
+.filter-advanced-toggle::-webkit-details-marker {
+    display: none;
+}
+
+.filter-advanced-toggle::before {
+    content: '▶ ';
+    font-size: 10px;
+    margin-right: 4px;
+}
+
+details[open] .filter-advanced-toggle::before {
+    content: '▼ ';
 }
 
 /* Main Content */
@@ -375,19 +411,37 @@
     border-bottom: 2px solid #d1d5db;
 }
 
-/* Pagination */
-.pagination {
+/* Pagination Container */
+.pagination-container {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    padding: 1rem;
+    justify-content: space-between;
+    padding: 12px 20px;
     background: #fff;
     border-top: 1px solid #e0e0e0;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.pagination-info-left {
+    font-size: 13px;
+    color: #666;
+}
+
+.pagination-info-left strong {
+    color: #333;
+    font-weight: 600;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .pagination-btn {
-    padding: 8px 16px;
+    padding: 6px 12px;
+    min-width: 36px;
     border: 1px solid #ddd;
     border-radius: 6px;
     background: white;
@@ -398,7 +452,7 @@
 }
 
 .pagination-btn:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
 }
 
@@ -406,6 +460,49 @@
     border-color: #2196f3;
     color: #2196f3;
     background: #e3f2fd;
+}
+
+.pagination-page {
+    padding: 0 12px;
+    font-size: 14px;
+    color: #666;
+}
+
+.pagination-page strong {
+    color: #2196f3;
+}
+
+.pagination-size {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #666;
+}
+
+.page-size-select {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 13px;
+    background: white;
+    cursor: pointer;
+}
+
+.page-size-select:focus {
+    outline: none;
+    border-color: #2196f3;
+}
+
+/* Legacy pagination support */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: #fff;
+    border-top: 1px solid #e0e0e0;
 }
 
 .pagination-info {

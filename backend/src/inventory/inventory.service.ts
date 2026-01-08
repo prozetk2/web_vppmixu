@@ -184,13 +184,18 @@ export class InventoryService {
             const unitCost = dto.unitCost ?? Number(product.defaultCost || product.defaultPrice || 0);
 
             // Create stock movement record
+            // ADJUST type should also set toWarehouseId so it appears in warehouse-filtered reports
             const movement = await tx.stockMovement.create({
                 data: {
                     movementType: type,
                     variantId: variant.id,
                     fromWarehouseId: type === MovementType.EXPORT ? BigInt(warehouseId) : null,
-                    toWarehouseId: type === MovementType.IMPORT ? BigInt(warehouseId) : null,
-                    quantity: movementQuantity > 0 ? movementQuantity : -movementQuantity,
+                    toWarehouseId: (type === MovementType.IMPORT || type === MovementType.ADJUST) ? BigInt(warehouseId) : null,
+                    // For ADJUST, keep the sign (positive=increase, negative=decrease)
+                    // For IMPORT/EXPORT, always use positive quantity
+                    quantity: type === MovementType.ADJUST
+                        ? movementQuantity  // Keep sign for ADJUST
+                        : (movementQuantity > 0 ? movementQuantity : -movementQuantity),
                     unitCost: unitCost,
                     performedBy: performedBy || null,
                     note: note || null,
@@ -335,23 +340,24 @@ export class InventoryService {
         const products: any[] = await this.prisma.product.findMany(productsQuery);
 
         // Get all stock movements in period
+        // Need to use AND to properly combine date filter with warehouse OR
         const movementsWhere: Prisma.StockMovementWhereInput = {
-            performedAt: {
-                gte: periodStart,
-                lte: periodEnd,
-            },
+            AND: [
+                {
+                    performedAt: {
+                        gte: periodStart,
+                        lte: periodEnd,
+                    },
+                },
+                ...(warehouseId ? [{
+                    OR: [
+                        { fromWarehouseId: BigInt(warehouseId) },
+                        { toWarehouseId: BigInt(warehouseId) },
+                    ],
+                }] : []),
+                ...(storeId ? [{ storeId: BigInt(storeId) }] : []),
+            ],
         };
-
-        if (warehouseId) {
-            movementsWhere.OR = [
-                { fromWarehouseId: BigInt(warehouseId) },
-                { toWarehouseId: BigInt(warehouseId) },
-            ];
-        }
-
-        if (storeId) {
-            movementsWhere.storeId = BigInt(storeId);
-        }
 
         const movements = await this.prisma.stockMovement.findMany({
             where: movementsWhere,
@@ -361,20 +367,19 @@ export class InventoryService {
         });
 
         // Get movements before period start for beginning balance
+        // Use same AND + OR pattern for consistent filtering
         const priorMovementsWhere: Prisma.StockMovementWhereInput = {
-            performedAt: { lt: periodStart },
+            AND: [
+                { performedAt: { lt: periodStart } },
+                ...(warehouseId ? [{
+                    OR: [
+                        { fromWarehouseId: BigInt(warehouseId) },
+                        { toWarehouseId: BigInt(warehouseId) },
+                    ],
+                }] : []),
+                ...(storeId ? [{ storeId: BigInt(storeId) }] : []),
+            ],
         };
-
-        if (warehouseId) {
-            priorMovementsWhere.OR = [
-                { fromWarehouseId: BigInt(warehouseId) },
-                { toWarehouseId: BigInt(warehouseId) },
-            ];
-        }
-
-        if (storeId) {
-            priorMovementsWhere.storeId = BigInt(storeId);
-        }
 
         const priorMovements = await this.prisma.stockMovement.findMany({
             where: priorMovementsWhere,

@@ -1,9 +1,17 @@
-import { useState, useEffect } from 'react';
-import { productsAPI } from '../../services/api';
-import { MdDownload, MdUpload, MdSync, MdFolder } from 'react-icons/md';
+import { useState, useEffect, useRef } from 'react';
+import { productsAPI, categoriesAPI } from '../../services/api';
+import Modal from '../shared/Modal';
+import ProductForm from '../products/ProductForm';
+import { MdDownload, MdUpload, MdSync, MdFolder, MdAdd, MdSearch, MdClose } from 'react-icons/md';
 import './StockAdjustment.css';
 
 interface Warehouse {
+    id: string;
+    name: string;
+    code?: string;
+}
+
+interface Store {
     id: string;
     name: string;
     code?: string;
@@ -15,14 +23,21 @@ interface Product {
     sku?: string;
 }
 
+interface Category {
+    id: string;
+    name: string;
+}
+
 interface StockAdjustmentProps {
     warehouses: Warehouse[];
+    stores?: Store[];
     onSubmit: (data: {
         warehouseId: string;
         productId: string;
         quantity: number;
         type: 'IMPORT' | 'EXPORT' | 'ADJUST';
         note?: string;
+        storeId?: string;
     }) => Promise<void>;
     onCancel: () => void;
     isLoading?: boolean;
@@ -33,6 +48,7 @@ type MovementType = 'IMPORT' | 'EXPORT' | 'ADJUST';
 
 export default function StockAdjustment({
     warehouses,
+    stores = [],
     onSubmit,
     onCancel,
     isLoading = false,
@@ -45,21 +61,81 @@ export default function StockAdjustment({
         quantity: '',
         type: defaultType as MovementType,
         note: '',
+        storeId: '',
     });
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [importNote, setImportNote] = useState('');
 
-    // Fetch products on mount
+    // States cho tìm kiếm sản phẩm
+    const [productSearch, setProductSearch] = useState('');
+    const [showProductDropdown, setShowProductDropdown] = useState(false);
+    const [selectedProductName, setSelectedProductName] = useState('');
+    const productInputRef = useRef<HTMLInputElement>(null);
+    const productDropdownRef = useRef<HTMLDivElement>(null);
+
+    // States cho Modal thêm sản phẩm mới
+    const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+    const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+    const [categories, setCategories] = useState<Category[]>([]);
+
+    // Fetch products and categories on mount
     useEffect(() => {
         fetchProducts();
+        fetchCategories();
+    }, []);
+
+    // Close product dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (productDropdownRef.current && !productDropdownRef.current.contains(event.target as Node)) {
+                setShowProductDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
     const fetchProducts = async () => {
         try {
-            const response = await productsAPI.getAll({ limit: 1000 });
+            // Fetch all products - increased limit to handle larger product catalogs
+            const response = await productsAPI.getAll({ limit: 10000 });
             setProducts(response.data?.data || []);
         } catch (error) {
             console.error('Failed to fetch products:', error);
+        }
+    };
+
+    const fetchCategories = async () => {
+        try {
+            const response = await categoriesAPI.getAll();
+            setCategories(response.data?.data || response.data || []);
+        } catch (error) {
+            console.error('Failed to fetch categories:', error);
+        }
+    };
+
+    // Xử lý tạo sản phẩm mới
+    const handleCreateProduct = async (productData: any) => {
+        setIsCreatingProduct(true);
+        try {
+            const response = await productsAPI.create(productData);
+            const newProduct = response.data?.data || response.data;
+
+            // Refresh danh sách sản phẩm
+            await fetchProducts();
+
+            // Tự động chọn sản phẩm vừa tạo
+            if (newProduct?.id) {
+                setFormData(prev => ({ ...prev, productId: String(newProduct.id) }));
+            }
+
+            // Đóng modal
+            setIsProductModalOpen(false);
+        } catch (error) {
+            console.error('Failed to create product:', error);
+            throw error;
+        } finally {
+            setIsCreatingProduct(false);
         }
     };
 
@@ -101,12 +177,26 @@ export default function StockAdjustment({
             }
             return undefined;
         };
+
+        // For quantity, try to find 'cuối kỳ' column with 'số lượng', or fallback to general quantity
+        const getQuantity = (): string | undefined => {
+            // First try to find 'Cuối kỳ' section with 'Số lượng'
+            for (let i = 0; i < headers.length; i++) {
+                const h = headers[i].toLowerCase();
+                if (h.includes('cuối') && h.includes('số lượng')) {
+                    if (row[i]) return row[i];
+                }
+            }
+            // Try to find standalone quantity column
+            return get(['quantity', 'số lượng', 'sl', 'tồn kho', 'tồn']);
+        };
+
         return {
-            product: get(['product', 'tên sản phẩm', 'sản phẩm', 'name']),
-            sku: get(['sku', 'mã', 'barcode', 'mã vạch']),
+            product: get(['tên hàng', 'tên sản phẩm', 'sản phẩm', 'product', 'name']),
+            sku: get(['mã hàng', 'mã sp', 'sku', 'mã', 'barcode', 'mã vạch']),
             warehouse: get(['warehouse', 'kho', 'tên kho']),
             warehouseCode: get(['mã kho', 'warehouse code']),
-            quantity: get(['quantity', 'số lượng', 'sl']),
+            quantity: getQuantity(),
             note: get(['note', 'ghi chú', 'notes']),
         };
     };
@@ -161,13 +251,38 @@ export default function StockAdjustment({
                 const workbook = XLSX.read(buffer, { type: 'array' });
                 const sheetName = workbook.SheetNames[0];
                 const sheet = workbook.Sheets[sheetName];
-                const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-                const headers = (rows[0] || []).map((h) => String(h || '').trim());
-                const row = (rows[1] || []).map((c) => String(c ?? '').trim());
+                const allRows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                // Find the actual header row by looking for common column names
+                let headerRowIndex = -1;
+                const headerKeywords = ['mã hàng', 'tên hàng', 'sản phẩm', 'sku', 'số lượng', 'đvt', 'mã', 'tên'];
+
+                for (let i = 0; i < Math.min(allRows.length, 10); i++) {
+                    const rowText = (allRows[i] || []).map(c => String(c || '').toLowerCase()).join(' ');
+                    const matchCount = headerKeywords.filter(k => rowText.includes(k)).length;
+                    if (matchCount >= 2) {
+                        headerRowIndex = i;
+                        break;
+                    }
+                }
+
+                if (headerRowIndex === -1) {
+                    // Fallback to first row as header
+                    headerRowIndex = 0;
+                }
+
+                const headers = (allRows[headerRowIndex] || []).map((h) => String(h || '').trim());
+                const dataRowIndex = headerRowIndex + 1;
+                const row = (allRows[dataRowIndex] || []).map((c) => String(c ?? '').trim());
+
                 if (!headers.length || !row.length) {
                     setImportNote('File Excel cần header và ít nhất 1 dòng dữ liệu.');
                     return;
                 }
+
+                console.log('Header row index:', headerRowIndex, 'Headers:', headers);
+                console.log('Data row:', row);
+
                 applyImportedData(getValue(headers, row));
                 return;
             }
@@ -233,6 +348,7 @@ export default function StockAdjustment({
             quantity: parseInt(formData.quantity),
             type: formData.type,
             note: formData.note || undefined,
+            storeId: formData.storeId || undefined,
         });
     };
 
@@ -264,160 +380,273 @@ export default function StockAdjustment({
     };
 
     return (
-        <form onSubmit={handleSubmit} className="stock-adjustment-form">
-            {/* Movement Type */}
-            <div className="form-group">
-                <label className="form-label">
-                    Loại điều chỉnh <span className="required">*</span>
-                </label>
-                <div className="movement-type-buttons">
-                    <button
-                        type="button"
-                        className={`type-btn ${formData.type === 'IMPORT' ? 'active import' : ''}`}
-                        onClick={() => handleTypeChange('IMPORT')}
-                    >
-                        <span className="type-icon"><MdDownload /></span>
-                        <span className="type-label">Nhập kho</span>
-                    </button>
-                    <button
-                        type="button"
-                        className={`type-btn ${formData.type === 'EXPORT' ? 'active export' : ''}`}
-                        onClick={() => handleTypeChange('EXPORT')}
-                    >
-                        <span className="type-icon"><MdUpload /></span>
-                        <span className="type-label">Xuất kho</span>
-                    </button>
-                    <button
-                        type="button"
-                        className={`type-btn ${formData.type === 'ADJUST' ? 'active adjust' : ''}`}
-                        onClick={() => handleTypeChange('ADJUST')}
-                    >
-                        <span className="type-icon"><MdSync /></span>
-                        <span className="type-label">Điều chỉnh</span>
-                    </button>
-                </div>
-                <p className="type-hint">{getTypeHint()}</p>
-            </div>
-
-            {/* Warehouse */}
-            <div className="form-group">
-                <label htmlFor="warehouseId" className="form-label">
-                    Kho hàng <span className="required">*</span>
-                </label>
-                <select
-                    id="warehouseId"
-                    name="warehouseId"
-                    value={formData.warehouseId}
-                    onChange={handleChange}
-                    className={`form-select ${errors.warehouseId ? 'error' : ''}`}
-                >
-                    <option value="">-- Chọn kho --</option>
-                    {warehouses.map((wh) => (
-                        <option key={wh.id} value={wh.id}>
-                            {wh.name} {wh.code ? `(${wh.code})` : ''}
-                        </option>
-                    ))}
-                </select>
-                {errors.warehouseId && <span className="error-text">{errors.warehouseId}</span>}
-            </div>
-
-            {/* Product */}
-            <div className="form-group">
-                <label htmlFor="productId" className="form-label">
-                    Sản phẩm <span className="required">*</span>
-                </label>
-                <select
-                    id="productId"
-                    name="productId"
-                    value={formData.productId}
-                    onChange={handleChange}
-                    className={`form-select ${errors.productId ? 'error' : ''}`}
-                >
-                    <option value="">-- Chọn sản phẩm --</option>
-                    {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                            {p.name} {p.sku ? `[${p.sku}]` : ''}
-                        </option>
-                    ))}
-                </select>
-                {errors.productId && <span className="error-text">{errors.productId}</span>}
-            </div>
-
-            {/* Quantity */}
-            <div className="form-group">
-                <label htmlFor="quantity" className="form-label">
-                    Số lượng <span className="required">*</span>
-                </label>
-                <input
-                    type="number"
-                    id="quantity"
-                    name="quantity"
-                    value={formData.quantity}
-                    onChange={handleChange}
-                    className={`form-input ${errors.quantity ? 'error' : ''}`}
-                    placeholder="Nhập số lượng"
-                    min="1"
-                />
-                {errors.quantity && <span className="error-text">{errors.quantity}</span>}
-            </div>
-
-            {/* Note */}
-            <div className="form-group">
-                <label htmlFor="note" className="form-label">
-                    Ghi chú
-                </label>
-                <textarea
-                    id="note"
-                    name="note"
-                    value={formData.note}
-                    onChange={handleChange}
-                    className="form-textarea"
-                    placeholder="Nhập ghi chú (tùy chọn)"
-                    rows={3}
-                />
-            </div>
-
-            {/* Import from file */}
-            <div className="form-group import-section">
-                <label className="form-label">Nhập nhanh từ file</label>
-                <div className="import-file-wrapper">
-                    <label className="btn-import-file">
-                        <span><MdFolder /> Chọn tệp</span>
-                        <input
-                            type="file"
-                            accept=".csv,.xlsx,.xls,.pdf"
-                            onChange={handleImport}
-                            style={{ display: 'none' }}
-                        />
+        <>
+            <form onSubmit={handleSubmit} className="stock-adjustment-form">
+                {/* Movement Type */}
+                <div className="form-group">
+                    <label className="form-label">
+                        Loại điều chỉnh <span className="required">*</span>
                     </label>
-                    <span className="import-hint">Hỗ trợ CSV, Excel (xlsx/xls) hoặc PDF</span>
-                </div>
-                <p className="import-help">
-                    File cần có cột: sản phẩm/sku, kho/mã kho, số lượng
-                </p>
-                {importNote && (
-                    <div className={`import-note ${importNote.includes('Không') || importNote.includes('Lỗi') ? 'error' : 'success'}`}>
-                        {importNote}
+                    <div className="movement-type-buttons">
+                        <button
+                            type="button"
+                            className={`type-btn ${formData.type === 'IMPORT' ? 'active import' : ''}`}
+                            onClick={() => handleTypeChange('IMPORT')}
+                        >
+                            <span className="type-icon"><MdDownload /></span>
+                            <span className="type-label">Nhập kho</span>
+                        </button>
+                        <button
+                            type="button"
+                            className={`type-btn ${formData.type === 'EXPORT' ? 'active export' : ''}`}
+                            onClick={() => handleTypeChange('EXPORT')}
+                        >
+                            <span className="type-icon"><MdUpload /></span>
+                            <span className="type-label">Xuất kho</span>
+                        </button>
+                        <button
+                            type="button"
+                            className={`type-btn ${formData.type === 'ADJUST' ? 'active adjust' : ''}`}
+                            onClick={() => handleTypeChange('ADJUST')}
+                        >
+                            <span className="type-icon"><MdSync /></span>
+                            <span className="type-label">Điều chỉnh</span>
+                        </button>
                     </div>
-                )}
-            </div>
+                    <p className="type-hint">{getTypeHint()}</p>
+                </div>
 
-            {/* Actions */}
-            <div className="form-actions">
-                <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={isLoading}>
-                    Hủy
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={isLoading}>
-                    {isLoading ? (
-                        <>
-                            <span className="spinner-small"></span>
-                            Đang xử lý...
-                        </>
-                    ) : (
-                        'Xác nhận'
+                {/* Warehouse */}
+                <div className="form-group">
+                    <label htmlFor="warehouseId" className="form-label">
+                        Kho hàng <span className="required">*</span>
+                    </label>
+                    <select
+                        id="warehouseId"
+                        name="warehouseId"
+                        value={formData.warehouseId}
+                        onChange={handleChange}
+                        className={`form-select ${errors.warehouseId ? 'error' : ''}`}
+                    >
+                        <option value="">-- Chọn kho --</option>
+                        {warehouses.map((wh) => (
+                            <option key={wh.id} value={wh.id}>
+                                {wh.name} {wh.code ? `(${wh.code})` : ''}
+                            </option>
+                        ))}
+                    </select>
+                    {errors.warehouseId && <span className="error-text">{errors.warehouseId}</span>}
+                </div>
+
+                {/* Company (optional) */}
+                {
+                    stores.length > 0 && (
+                        <div className="form-group">
+                            <label htmlFor="storeId" className="form-label">
+                                Công ty <span className="optional-hint">(tùy chọn)</span>
+                            </label>
+                            <select
+                                id="storeId"
+                                name="storeId"
+                                value={formData.storeId}
+                                onChange={handleChange}
+                                className="form-select"
+                            >
+                                <option value="">-- Không chọn --</option>
+                                {stores.map((store) => (
+                                    <option key={store.id} value={store.id}>
+                                        {store.name} {store.code ? `(${store.code})` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="field-hint">Chọn công ty để ghi nhận giao dịch (dùng cho báo cáo)</p>
+                        </div>
+                    )
+                }
+
+                {/* Product - Searchable Input */}
+                <div className="form-group">
+                    <label htmlFor="productSearch" className="form-label">
+                        Sản phẩm <span className="required">*</span>
+                    </label>
+                    <div className="product-select-row">
+                        <div className="product-search-wrapper" ref={productDropdownRef}>
+                            <div className="product-search-input-container">
+                                <MdSearch className="search-icon" />
+                                <input
+                                    ref={productInputRef}
+                                    type="text"
+                                    id="productSearch"
+                                    className={`form-input product-search-input ${errors.productId ? 'error' : ''}`}
+                                    placeholder="Gõ tên hoặc mã sản phẩm..."
+                                    value={selectedProductName || productSearch}
+                                    onChange={(e) => {
+                                        setProductSearch(e.target.value);
+                                        setSelectedProductName('');
+                                        setFormData(prev => ({ ...prev, productId: '' }));
+                                        setShowProductDropdown(true);
+                                        if (errors.productId) setErrors(prev => ({ ...prev, productId: '' }));
+                                    }}
+                                    onFocus={() => setShowProductDropdown(true)}
+                                    autoComplete="off"
+                                />
+                                {(selectedProductName || productSearch) && (
+                                    <button
+                                        type="button"
+                                        className="clear-search-btn"
+                                        onClick={() => {
+                                            setProductSearch('');
+                                            setSelectedProductName('');
+                                            setFormData(prev => ({ ...prev, productId: '' }));
+                                            productInputRef.current?.focus();
+                                        }}
+                                    >
+                                        <MdClose />
+                                    </button>
+                                )}
+                            </div>
+                            {showProductDropdown && (
+                                <div className="product-dropdown">
+                                    {products
+                                        .filter(p => {
+                                            const search = productSearch.toLowerCase();
+                                            return !search ||
+                                                p.name.toLowerCase().includes(search) ||
+                                                p.sku?.toLowerCase().includes(search);
+                                        })
+                                        .slice(0, 10)
+                                        .map((p) => (
+                                            <div
+                                                key={p.id}
+                                                className={`product-option ${formData.productId === p.id ? 'selected' : ''}`}
+                                                onClick={() => {
+                                                    setFormData(prev => ({ ...prev, productId: p.id }));
+                                                    setSelectedProductName(`${p.name}${p.sku ? ` [${p.sku}]` : ''}`);
+                                                    setProductSearch('');
+                                                    setShowProductDropdown(false);
+                                                    if (errors.productId) setErrors(prev => ({ ...prev, productId: '' }));
+                                                }}
+                                            >
+                                                <span className="product-name">{p.name}</span>
+                                                {p.sku && <span className="product-sku">[{p.sku}]</span>}
+                                            </div>
+                                        ))}
+                                    {products.filter(p => {
+                                        const search = productSearch.toLowerCase();
+                                        return !search ||
+                                            p.name.toLowerCase().includes(search) ||
+                                            p.sku?.toLowerCase().includes(search);
+                                    }).length === 0 && (
+                                            <div className="product-option no-result">
+                                                Không tìm thấy sản phẩm
+                                            </div>
+                                        )}
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            className="btn-add-product"
+                            onClick={() => setIsProductModalOpen(true)}
+                            title="Thêm sản phẩm mới"
+                        >
+                            <MdAdd /> Thêm SP mới
+                        </button>
+                    </div>
+                    {errors.productId && <span className="error-text">{errors.productId}</span>}
+                </div>
+
+                {/* Quantity */}
+                <div className="form-group">
+                    <label htmlFor="quantity" className="form-label">
+                        Số lượng <span className="required">*</span>
+                    </label>
+                    <input
+                        type="number"
+                        id="quantity"
+                        name="quantity"
+                        value={formData.quantity}
+                        onChange={handleChange}
+                        className={`form-input ${errors.quantity ? 'error' : ''}`}
+                        placeholder="Nhập số lượng"
+                        min="1"
+                    />
+                    {errors.quantity && <span className="error-text">{errors.quantity}</span>}
+                </div>
+
+                {/* Note */}
+                <div className="form-group">
+                    <label htmlFor="note" className="form-label">
+                        Ghi chú
+                    </label>
+                    <textarea
+                        id="note"
+                        name="note"
+                        value={formData.note}
+                        onChange={handleChange}
+                        className="form-textarea"
+                        placeholder="Nhập ghi chú (tùy chọn)"
+                        rows={3}
+                    />
+                </div>
+
+                {/* Import from file */}
+                <div className="form-group import-section">
+                    <label className="form-label">Nhập nhanh từ file</label>
+                    <div className="import-file-wrapper">
+                        <label className="btn-import-file">
+                            <span><MdFolder /> Chọn tệp</span>
+                            <input
+                                type="file"
+                                accept=".csv,.xlsx,.xls,.pdf"
+                                onChange={handleImport}
+                                style={{ display: 'none' }}
+                            />
+                        </label>
+                        <span className="import-hint">Hỗ trợ CSV, Excel (xlsx/xls) hoặc PDF</span>
+                    </div>
+                    <p className="import-help">
+                        File cần có cột: sản phẩm/sku, kho/mã kho, số lượng
+                    </p>
+                    {importNote && (
+                        <div className={`import-note ${importNote.includes('Không') || importNote.includes('Lỗi') ? 'error' : 'success'}`}>
+                            {importNote}
+                        </div>
                     )}
-                </button>
-            </div>
-        </form>
+                </div>
+
+                {/* Actions */}
+                <div className="form-actions">
+                    <button type="button" onClick={onCancel} className="btn btn-secondary" disabled={isLoading}>
+                        Hủy
+                    </button>
+                    <button type="submit" className="btn btn-primary" disabled={isLoading}>
+                        {isLoading ? (
+                            <>
+                                <span className="spinner-small"></span>
+                                Đang xử lý...
+                            </>
+                        ) : (
+                            'Xác nhận'
+                        )}
+                    </button>
+                </div>
+            </form>
+
+            {/* Modal thêm sản phẩm mới */}
+            <Modal
+                isOpen={isProductModalOpen}
+                onClose={() => setIsProductModalOpen(false)}
+                title="Thêm sản phẩm mới"
+                size="lg"
+            >
+                <ProductForm
+                    categories={categories}
+                    onSubmit={handleCreateProduct}
+                    onCancel={() => setIsProductModalOpen(false)}
+                    isLoading={isCreatingProduct}
+                />
+            </Modal>
+        </>
     );
 }

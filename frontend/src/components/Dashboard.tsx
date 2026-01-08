@@ -8,7 +8,7 @@ import CategoryList from './categories/CategoryList';
 import InventoryOverview from './inventory/InventoryOverview';
 import DashboardOverview from './dashboard/DashboardOverview';
 import WarehouseList from './warehouses/WarehouseList';
-import POSPage from './pos/POSPage';
+import POSPage from './sales/POSPage';
 import SalesList from './sales/SalesList';
 import PurchaseList from './purchases/PurchaseList';
 import CustomerList from './customers/CustomerList';

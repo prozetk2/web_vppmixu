@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { priceListsAPI, productsAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
-import { MdAdd, MdDelete, MdSave, MdClose } from 'react-icons/md';
+import { MdAdd, MdDelete, MdSave, MdClose, MdSearch } from 'react-icons/md';
 import './PriceListsPage.css';
 
 interface PriceList {
@@ -29,6 +29,16 @@ export default function PriceListsPage() {
     const [editingPriceList, setEditingPriceList] = useState<Partial<PriceList> | null>(null);
 
     const toast = useToast();
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Filter products by search term
+    const filteredProducts = useMemo(() => {
+        if (!searchTerm.trim()) return products;
+        const term = searchTerm.toLowerCase();
+        return products.filter(
+            p => p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term)
+        );
+    }, [products, searchTerm]);
 
     useEffect(() => {
         fetchPriceLists();
@@ -200,6 +210,22 @@ export default function PriceListsPage() {
                                 </button>
                             </div>
 
+                            {/* Search Bar */}
+                            <div className="product-search-bar">
+                                <MdSearch className="search-icon" />
+                                <input
+                                    type="text"
+                                    placeholder="Tìm kiếm theo tên hoặc SKU..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                                {searchTerm && (
+                                    <span className="search-result-count">
+                                        {filteredProducts.length} / {products.length} sản phẩm
+                                    </span>
+                                )}
+                            </div>
+
                             <div className="products-table">
                                 <table>
                                     <thead>
@@ -211,7 +237,7 @@ export default function PriceListsPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {products.map(product => (
+                                        {filteredProducts.map(product => (
                                             <tr key={product.id}>
                                                 <td>{product.sku}</td>
                                                 <td>{product.name}</td>
