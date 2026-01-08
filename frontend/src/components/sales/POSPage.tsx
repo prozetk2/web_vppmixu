@@ -1034,333 +1034,335 @@ export default function POSPage() {
 
                 {/* RIGHT PANEL - Payment Info */}
                 <div className="pos-right">
-                    {/* Seller & Channel */}
-                    <div className="seller-channel-row">
-                        {/* Seller Dropdown */}
-                        <div className="dropdown-wrapper">
-                            <button
-                                className="dropdown-btn seller-btn"
-                                onClick={() => {
-                                    setShowSellerDropdown(!showSellerDropdown);
-                                    setShowChannelDropdown(false);
-                                }}
-                            >
-                                {sellers.find(s => s.id === selectedSeller)?.name || 'Chọn NV'} ▼
-                            </button>
-                            {showSellerDropdown && (
-                                <div className="dropdown-menu">
-                                    <input
-                                        type="text"
-                                        placeholder="Tìm người bán"
-                                        value={sellerSearch}
-                                        onChange={(e) => setSellerSearch(e.target.value)}
-                                        className="dropdown-search"
-                                        autoFocus
-                                    />
-                                    {sellers
-                                        .filter(s => s.name.toLowerCase().includes(sellerSearch.toLowerCase()))
-                                        .map(s => (
-                                            <div
-                                                key={s.id}
-                                                className={`dropdown-item ${s.id === selectedSeller ? 'active' : ''}`}
-                                                onClick={() => {
-                                                    setSelectedSeller(s.id);
-                                                    setShowSellerDropdown(false);
-                                                    setSellerSearch('');
-                                                }}
-                                            >
-                                                {s.name}
-                                                {s.id === selectedSeller && <MdCheckCircle className="check" />}
-                                            </div>
-                                        ))}
-                                    <div
-                                        className="dropdown-item add-new-item"
-                                        onClick={() => {
-                                            setShowSellerDropdown(false);
-                                            setShowAddSellerModal(true);
-                                            setNewSellerName('');
-                                        }}
-                                    >
-                                        <MdAdd /> Thêm người bán
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Sales Channel Dropdown */}
-                        <div className="dropdown-wrapper">
-                            <button
-                                className="dropdown-btn channel-btn"
-                                onClick={() => {
-                                    setShowChannelDropdown(!showChannelDropdown);
-                                    setShowSellerDropdown(false);
-                                }}
-                            >
-                                {salesChannel === 'direct' && <MdStorefront />}
-                                {salesChannel === 'facebook' && <FaFacebook />}
-                                {salesChannel === 'instagram' && <FaInstagram />}
-                                {salesChannel === 'other' && <MdMoreHoriz />}
-                                <MdExpandMore />
-                            </button>
-                            {showChannelDropdown && (
-                                <div className="dropdown-menu channel-menu">
-                                    {salesChannels.map(c => (
+                    <div className="pos-right-scrollable">
+                        {/* Seller & Channel */}
+                        <div className="seller-channel-row">
+                            {/* Seller Dropdown */}
+                            <div className="dropdown-wrapper">
+                                <button
+                                    className="dropdown-btn seller-btn"
+                                    onClick={() => {
+                                        setShowSellerDropdown(!showSellerDropdown);
+                                        setShowChannelDropdown(false);
+                                    }}
+                                >
+                                    {sellers.find(s => s.id === selectedSeller)?.name || 'Chọn NV'} ▼
+                                </button>
+                                {showSellerDropdown && (
+                                    <div className="dropdown-menu">
+                                        <input
+                                            type="text"
+                                            placeholder="Tìm người bán"
+                                            value={sellerSearch}
+                                            onChange={(e) => setSellerSearch(e.target.value)}
+                                            className="dropdown-search"
+                                            autoFocus
+                                        />
+                                        {sellers
+                                            .filter(s => s.name.toLowerCase().includes(sellerSearch.toLowerCase()))
+                                            .map(s => (
+                                                <div
+                                                    key={s.id}
+                                                    className={`dropdown-item ${s.id === selectedSeller ? 'active' : ''}`}
+                                                    onClick={() => {
+                                                        setSelectedSeller(s.id);
+                                                        setShowSellerDropdown(false);
+                                                        setSellerSearch('');
+                                                    }}
+                                                >
+                                                    {s.name}
+                                                    {s.id === selectedSeller && <MdCheckCircle className="check" />}
+                                                </div>
+                                            ))}
                                         <div
-                                            key={c.id}
-                                            className={`dropdown-item ${c.id === salesChannel ? 'active' : ''}`}
+                                            className="dropdown-item add-new-item"
                                             onClick={() => {
-                                                setSalesChannel(c.id as SalesChannel);
-                                                setShowChannelDropdown(false);
+                                                setShowSellerDropdown(false);
+                                                setShowAddSellerModal(true);
+                                                setNewSellerName('');
                                             }}
                                         >
-                                            <span className="channel-icon">
-                                                {c.icon === 'storefront' && <MdStorefront />}
-                                                {c.icon === 'facebook' && <FaFacebook />}
-                                                {c.icon === 'instagram' && <FaInstagram />}
-                                                {c.icon === 'other' && <MdMoreHoriz />}
-                                            </span>
-                                            {c.name}
-                                            {c.id === salesChannel && <MdCheckCircle className="check" />}
+                                            <MdAdd /> Thêm người bán
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        <span className="time">{new Date().toLocaleDateString('vi-VN')} {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-
-                    {/* Customer & Price List Row */}
-                    <div className="customer-row">
-                        <div className="customer-search-wrapper">
-                            <div className="customer-search-box">
-                                <MdSearch className="search-icon" />
-                                <input
-                                    type="text"
-                                    placeholder="Tìm khách hàng (F4)"
-                                    value={customerSearch}
-                                    onChange={(e) => setCustomerSearch(e.target.value)}
-                                    onFocus={() => setShowCustomerDropdown(true)}
-                                    className="customer-search-input"
-                                />
-                                {selectedCustomer && (
-                                    <button
-                                        className="clear-customer-btn"
-                                        onClick={() => {
-                                            updateActiveInvoice({ customerId: '' });
-                                            setCustomerSearch('');
-                                        }}
-                                        title="Xóa khách hàng"
-                                    >
-                                        ×
-                                    </button>
+                                    </div>
                                 )}
                             </div>
-                            {showCustomerDropdown && (
-                                <div className="customer-dropdown">
-                                    {filteredCustomers.length === 0 ? (
-                                        <div className="dropdown-empty">Không tìm thấy khách hàng</div>
-                                    ) : (
-                                        filteredCustomers.slice(0, 8).map((c) => (
+
+                            {/* Sales Channel Dropdown */}
+                            <div className="dropdown-wrapper">
+                                <button
+                                    className="dropdown-btn channel-btn"
+                                    onClick={() => {
+                                        setShowChannelDropdown(!showChannelDropdown);
+                                        setShowSellerDropdown(false);
+                                    }}
+                                >
+                                    {salesChannel === 'direct' && <MdStorefront />}
+                                    {salesChannel === 'facebook' && <FaFacebook />}
+                                    {salesChannel === 'instagram' && <FaInstagram />}
+                                    {salesChannel === 'other' && <MdMoreHoriz />}
+                                    <MdExpandMore />
+                                </button>
+                                {showChannelDropdown && (
+                                    <div className="dropdown-menu channel-menu">
+                                        {salesChannels.map(c => (
                                             <div
                                                 key={c.id}
-                                                className={`dropdown-item ${c.id === selectedCustomer ? 'active' : ''}`}
+                                                className={`dropdown-item ${c.id === salesChannel ? 'active' : ''}`}
                                                 onClick={() => {
-                                                    updateActiveInvoice({ customerId: c.id });
-                                                    setCustomerSearch(c.name);
-                                                    setShowCustomerDropdown(false);
+                                                    setSalesChannel(c.id as SalesChannel);
+                                                    setShowChannelDropdown(false);
                                                 }}
                                             >
-                                                <span className="customer-name">{c.name}</span>
-                                                {c.phone && <span className="customer-phone">{c.phone}</span>}
+                                                <span className="channel-icon">
+                                                    {c.icon === 'storefront' && <MdStorefront />}
+                                                    {c.icon === 'facebook' && <FaFacebook />}
+                                                    {c.icon === 'instagram' && <FaInstagram />}
+                                                    {c.icon === 'other' && <MdMoreHoriz />}
+                                                </span>
+                                                {c.name}
+                                                {c.id === salesChannel && <MdCheckCircle className="check" />}
                                             </div>
-                                        ))
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                        <button
-                            className="add-customer-btn"
-                            title="Thêm khách hàng"
-                            onClick={() => {
-                                setShowAddCustomerModal(true);
-                                setShowCustomerDropdown(false);
-                            }}
-                        >
-                            +
-                        </button>
-                        <select
-                            className="pricelist-select"
-                            value={selectedPriceList}
-                            onChange={(e) => setSelectedPriceList(e.target.value)}
-                        >
-                            {priceLists.map((pl) => (
-                                <option key={pl.id} value={pl.id}>
-                                    {pl.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Summary */}
-                    <div className="payment-summary">
-                        <div className="summary-line">
-                            <span>Tổng tiền hàng</span>
-                            <span className="count">{cart.reduce((sum, i) => sum + i.quantity, 0)}</span>
-                            <span className="amount">{formatCurrency(subtotal)}</span>
-                        </div>
-                        <div className="summary-line">
-                            <span>Giảm giá</span>
-                            <input
-                                type="number"
-                                min="0"
-                                value={discountAmount || ''}
-                                onChange={(e) => updateActiveInvoice({ discountAmount: Number(e.target.value) || 0, discountPercent: 0 })}
-                                placeholder="0"
-                                className="discount-input"
-                            />
-                        </div>
-                        <div className="summary-line highlight">
-                            <span>Khách cần trả</span>
-                            <span className="amount total">{formatCurrency(total)}</span>
-                        </div>
-                        <div className="summary-line">
-                            <span>Khách thanh toán</span>
-                            <input
-                                type="text"
-                                value={customerPayment > 0 ? formatCurrency(customerPayment) : ''}
-                                onChange={(e) => {
-                                    const value = e.target.value.replace(/\./g, '');
-                                    const num = parseInt(value) || 0;
-                                    updateActiveInvoice({ customerPayment: num });
-                                }}
-                                placeholder="0"
-                                className="payment-input"
-                            />
-                        </div>
-                    </div>
-
-                    {/* Payment Methods */}
-                    <div className="payment-methods">
-                        <label className={paymentMethod === 'CASH' ? 'active' : ''}>
-                            <input type="radio" name="payment" checked={paymentMethod === 'CASH'} onChange={() => updateActiveInvoice({ paymentMethod: 'CASH' })} />
-                            <MdAttachMoney /> Tiền mặt
-                        </label>
-                        <label className={paymentMethod === 'TRANSFER' ? 'active' : ''}>
-                            <input type="radio" name="payment" checked={paymentMethod === 'TRANSFER'} onChange={() => updateActiveInvoice({ paymentMethod: 'TRANSFER' })} />
-                            <MdAccountBalance /> Chuyển khoản
-                        </label>
-                        <label className={paymentMethod === 'CARD' ? 'active' : ''}>
-                            <input type="radio" name="payment" checked={paymentMethod === 'CARD'} onChange={() => updateActiveInvoice({ paymentMethod: 'CARD' })} />
-                            <MdCreditCard /> Thẻ
-                        </label>
-                    </div>
-
-                    {/* Bank Info Panel - Show for Transfer or Card payment */}
-                    {(paymentMethod === 'TRANSFER' || paymentMethod === 'CARD') && (
-                        <div className="bank-info-panel">
-                            <div className="bank-select-row">
-                                <label>Tài khoản:</label>
-                                <select
-                                    value={selectedBankAccount}
-                                    onChange={(e) => setSelectedBankAccount(e.target.value)}
-                                >
-                                    {bankAccounts.map(bank => (
-                                        <option key={bank.id} value={bank.id}>
-                                            {bank.bankName} - {bank.accountNumber.slice(-4)}
-                                        </option>
-                                    ))}
-                                </select>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                            {bankAccounts.find(b => b.id === selectedBankAccount) && (
-                                <div className="bank-details">
-                                    <div className="bank-info-row">
-                                        <span className="label">Ngân hàng:</span>
-                                        <span className="value">{bankAccounts.find(b => b.id === selectedBankAccount)?.bankName}</span>
-                                    </div>
-                                    <div className="bank-info-row">
-                                        <span className="label">Số TK:</span>
-                                        <span className="value account-number">{bankAccounts.find(b => b.id === selectedBankAccount)?.accountNumber}</span>
-                                    </div>
-                                    <div className="bank-info-row">
-                                        <span className="label">Chủ TK:</span>
-                                        <span className="value">{bankAccounts.find(b => b.id === selectedBankAccount)?.accountName}</span>
-                                    </div>
-                                    <div className="bank-actions">
+
+                            <span className="time">{new Date().toLocaleDateString('vi-VN')} {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+
+                        {/* Customer & Price List Row */}
+                        <div className="customer-row">
+                            <div className="customer-search-wrapper">
+                                <div className="customer-search-box">
+                                    <MdSearch className="search-icon" />
+                                    <input
+                                        type="text"
+                                        placeholder="Tìm khách hàng (F4)"
+                                        value={customerSearch}
+                                        onChange={(e) => setCustomerSearch(e.target.value)}
+                                        onFocus={() => setShowCustomerDropdown(true)}
+                                        className="customer-search-input"
+                                    />
+                                    {selectedCustomer && (
                                         <button
-                                            className="btn-edit-bank"
+                                            className="clear-customer-btn"
                                             onClick={() => {
-                                                const bank = bankAccounts.find(b => b.id === selectedBankAccount);
-                                                if (bank) {
-                                                    setEditingBank({ ...bank });
-                                                    setShowBankModal(true);
-                                                }
+                                                updateActiveInvoice({ customerId: '' });
+                                                setCustomerSearch('');
                                             }}
+                                            title="Xóa khách hàng"
                                         >
-                                            ✏️ Sửa
+                                            ×
                                         </button>
-                                        <button
-                                            className="btn-add-bank"
-                                            onClick={() => {
-                                                setEditingBank({ bankCode: 'VCB', bankName: 'Vietcombank', accountNumber: '', accountName: '', hasQR: true });
-                                                setShowBankModal(true);
-                                            }}
-                                        >
-                                            + Thêm TK
-                                        </button>
-                                    </div>
-                                    {bankAccounts.find(b => b.id === selectedBankAccount)?.hasQR && (
-                                        <button
-                                            className="btn-show-qr"
-                                            onClick={() => setShowQRCode(!showQRCode)}
-                                        >
-                                            <MdQrCodeScanner /> {showQRCode ? 'Ẩn QR' : 'Hiện QR'}
-                                        </button>
-                                    )}
-                                    {showQRCode && bankAccounts.find(b => b.id === selectedBankAccount)?.hasQR && (
-                                        <div className="qr-code-display">
-                                            {(() => {
-                                                const bank = bankAccounts.find(b => b.id === selectedBankAccount);
-                                                if (!bank) return null;
-                                                const qrUrl = generateVietQRUrl(bank.bankCode, bank.accountNumber, bank.accountName, total);
-                                                return (
-                                                    <div className="qr-real">
-                                                        <img
-                                                            src={qrUrl}
-                                                            alt="VietQR Payment Code"
-                                                            onError={(e) => {
-                                                                (e.target as HTMLImageElement).style.display = 'none';
-                                                            }}
-                                                        />
-                                                        <div className="qr-info">
-                                                            <span className="qr-amount">{formatCurrency(total)}đ</span>
-                                                            <span className="qr-note">Quét mã để thanh toán</span>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })()}
-                                        </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Quick Amount Buttons */}
-                    <div className="quick-amounts">
-                        {[total, Math.ceil(total / 1000) * 1000, Math.ceil(total / 10000) * 10000, Math.ceil(total / 50000) * 50000].filter((v, i, a) => a.indexOf(v) === i && v > 0).slice(0, 4).map((amount) => (
-                            <button key={amount} className="amount-btn" onClick={() => updateActiveInvoice({ customerPayment: amount })}>
-                                {formatCurrency(amount)}
+                                {showCustomerDropdown && (
+                                    <div className="customer-dropdown">
+                                        {filteredCustomers.length === 0 ? (
+                                            <div className="dropdown-empty">Không tìm thấy khách hàng</div>
+                                        ) : (
+                                            filteredCustomers.slice(0, 8).map((c) => (
+                                                <div
+                                                    key={c.id}
+                                                    className={`dropdown-item ${c.id === selectedCustomer ? 'active' : ''}`}
+                                                    onClick={() => {
+                                                        updateActiveInvoice({ customerId: c.id });
+                                                        setCustomerSearch(c.name);
+                                                        setShowCustomerDropdown(false);
+                                                    }}
+                                                >
+                                                    <span className="customer-name">{c.name}</span>
+                                                    {c.phone && <span className="customer-phone">{c.phone}</span>}
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <button
+                                className="add-customer-btn"
+                                title="Thêm khách hàng"
+                                onClick={() => {
+                                    setShowAddCustomerModal(true);
+                                    setShowCustomerDropdown(false);
+                                }}
+                            >
+                                +
                             </button>
-                        ))}
-                    </div>
+                            <select
+                                className="pricelist-select"
+                                value={selectedPriceList}
+                                onChange={(e) => setSelectedPriceList(e.target.value)}
+                            >
+                                {priceLists.map((pl) => (
+                                    <option key={pl.id} value={pl.id}>
+                                        {pl.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
 
-                    {/* Balance */}
-                    <div className="balance-line">
-                        <span>Tiền thừa trả khách</span>
-                        <span className={`amount ${customerPayment - total >= 0 ? 'positive' : 'negative'}`}>
-                            {customerPayment - total >= 0 ? formatCurrency(customerPayment - total) : `-${formatCurrency(total - customerPayment)}`}
-                        </span>
+                        {/* Summary */}
+                        <div className="payment-summary">
+                            <div className="summary-line">
+                                <span>Tổng tiền hàng</span>
+                                <span className="count">{cart.reduce((sum, i) => sum + i.quantity, 0)}</span>
+                                <span className="amount">{formatCurrency(subtotal)}</span>
+                            </div>
+                            <div className="summary-line">
+                                <span>Giảm giá</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={discountAmount || ''}
+                                    onChange={(e) => updateActiveInvoice({ discountAmount: Number(e.target.value) || 0, discountPercent: 0 })}
+                                    placeholder="0"
+                                    className="discount-input"
+                                />
+                            </div>
+                            <div className="summary-line highlight">
+                                <span>Khách cần trả</span>
+                                <span className="amount total">{formatCurrency(total)}</span>
+                            </div>
+                            <div className="summary-line">
+                                <span>Khách thanh toán</span>
+                                <input
+                                    type="text"
+                                    value={customerPayment > 0 ? formatCurrency(customerPayment) : ''}
+                                    onChange={(e) => {
+                                        const value = e.target.value.replace(/\./g, '');
+                                        const num = parseInt(value) || 0;
+                                        updateActiveInvoice({ customerPayment: num });
+                                    }}
+                                    placeholder="0"
+                                    className="payment-input"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Payment Methods */}
+                        <div className="payment-methods">
+                            <label className={paymentMethod === 'CASH' ? 'active' : ''}>
+                                <input type="radio" name="payment" checked={paymentMethod === 'CASH'} onChange={() => updateActiveInvoice({ paymentMethod: 'CASH' })} />
+                                <MdAttachMoney /> Tiền mặt
+                            </label>
+                            <label className={paymentMethod === 'TRANSFER' ? 'active' : ''}>
+                                <input type="radio" name="payment" checked={paymentMethod === 'TRANSFER'} onChange={() => updateActiveInvoice({ paymentMethod: 'TRANSFER' })} />
+                                <MdAccountBalance /> Chuyển khoản
+                            </label>
+                            <label className={paymentMethod === 'CARD' ? 'active' : ''}>
+                                <input type="radio" name="payment" checked={paymentMethod === 'CARD'} onChange={() => updateActiveInvoice({ paymentMethod: 'CARD' })} />
+                                <MdCreditCard /> Thẻ
+                            </label>
+                        </div>
+
+                        {/* Bank Info Panel - Show for Transfer or Card payment */}
+                        {(paymentMethod === 'TRANSFER' || paymentMethod === 'CARD') && (
+                            <div className="bank-info-panel">
+                                <div className="bank-select-row">
+                                    <label>Tài khoản:</label>
+                                    <select
+                                        value={selectedBankAccount}
+                                        onChange={(e) => setSelectedBankAccount(e.target.value)}
+                                    >
+                                        {bankAccounts.map(bank => (
+                                            <option key={bank.id} value={bank.id}>
+                                                {bank.bankName} - {bank.accountNumber.slice(-4)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {bankAccounts.find(b => b.id === selectedBankAccount) && (
+                                    <div className="bank-details">
+                                        <div className="bank-info-row">
+                                            <span className="label">Ngân hàng:</span>
+                                            <span className="value">{bankAccounts.find(b => b.id === selectedBankAccount)?.bankName}</span>
+                                        </div>
+                                        <div className="bank-info-row">
+                                            <span className="label">Số TK:</span>
+                                            <span className="value account-number">{bankAccounts.find(b => b.id === selectedBankAccount)?.accountNumber}</span>
+                                        </div>
+                                        <div className="bank-info-row">
+                                            <span className="label">Chủ TK:</span>
+                                            <span className="value">{bankAccounts.find(b => b.id === selectedBankAccount)?.accountName}</span>
+                                        </div>
+                                        <div className="bank-actions">
+                                            <button
+                                                className="btn-edit-bank"
+                                                onClick={() => {
+                                                    const bank = bankAccounts.find(b => b.id === selectedBankAccount);
+                                                    if (bank) {
+                                                        setEditingBank({ ...bank });
+                                                        setShowBankModal(true);
+                                                    }
+                                                }}
+                                            >
+                                                ✏️ Sửa
+                                            </button>
+                                            <button
+                                                className="btn-add-bank"
+                                                onClick={() => {
+                                                    setEditingBank({ bankCode: 'VCB', bankName: 'Vietcombank', accountNumber: '', accountName: '', hasQR: true });
+                                                    setShowBankModal(true);
+                                                }}
+                                            >
+                                                + Thêm TK
+                                            </button>
+                                        </div>
+                                        {bankAccounts.find(b => b.id === selectedBankAccount)?.hasQR && (
+                                            <button
+                                                className="btn-show-qr"
+                                                onClick={() => setShowQRCode(!showQRCode)}
+                                            >
+                                                <MdQrCodeScanner /> {showQRCode ? 'Ẩn QR' : 'Hiện QR'}
+                                            </button>
+                                        )}
+                                        {showQRCode && bankAccounts.find(b => b.id === selectedBankAccount)?.hasQR && (
+                                            <div className="qr-code-display">
+                                                {(() => {
+                                                    const bank = bankAccounts.find(b => b.id === selectedBankAccount);
+                                                    if (!bank) return null;
+                                                    const qrUrl = generateVietQRUrl(bank.bankCode, bank.accountNumber, bank.accountName, total);
+                                                    return (
+                                                        <div className="qr-real">
+                                                            <img
+                                                                src={qrUrl}
+                                                                alt="VietQR Payment Code"
+                                                                onError={(e) => {
+                                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                                }}
+                                                            />
+                                                            <div className="qr-info">
+                                                                <span className="qr-amount">{formatCurrency(total)}đ</span>
+                                                                <span className="qr-note">Quét mã để thanh toán</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Quick Amount Buttons */}
+                        <div className="quick-amounts">
+                            {[total, Math.ceil(total / 1000) * 1000, Math.ceil(total / 10000) * 10000, Math.ceil(total / 50000) * 50000].filter((v, i, a) => a.indexOf(v) === i && v > 0).slice(0, 4).map((amount) => (
+                                <button key={amount} className="amount-btn" onClick={() => updateActiveInvoice({ customerPayment: amount })}>
+                                    {formatCurrency(amount)}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Balance */}
+                        <div className="balance-line">
+                            <span>Tiền thừa trả khách</span>
+                            <span className={`amount ${customerPayment - total >= 0 ? 'positive' : 'negative'}`}>
+                                {customerPayment - total >= 0 ? formatCurrency(customerPayment - total) : `-${formatCurrency(total - customerPayment)}`}
+                            </span>
+                        </div>
                     </div>
 
                     {/* Action Buttons */}

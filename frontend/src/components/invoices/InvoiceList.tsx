@@ -21,6 +21,8 @@ import {
 } from 'react-icons/md';
 import * as XLSX from 'xlsx';
 import './InvoiceList.css';
+import CreateInvoiceModal from './CreateInvoiceModal';
+import EditInvoiceModal from './EditInvoiceModal';
 
 interface InvoiceItem {
     id: string;
@@ -126,8 +128,8 @@ export default function InvoiceList() {
     const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
 
     // Modals
-    const [_showAddModal, setShowAddModal] = useState(false);
-    const [_showEditModal, setShowEditModal] = useState(false);
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -1126,7 +1128,13 @@ export default function InvoiceList() {
                                                                     </button>
                                                                 </div>
                                                                 <div className="right-actions">
-                                                                    <button className="btn-primary-action">
+                                                                    <button
+                                                                        className="btn-primary-action"
+                                                                        onClick={() => {
+                                                                            setSelectedInvoice(expandedInvoiceDetail || invoice);
+                                                                            setShowEditModal(true);
+                                                                        }}
+                                                                    >
                                                                         <MdEdit /> Chỉnh sửa
                                                                     </button>
                                                                     <button className="btn-secondary-action">
@@ -1307,6 +1315,24 @@ export default function InvoiceList() {
                     </div>
                 )}
             </Modal>
+
+
+            <CreateInvoiceModal
+                isOpen={showAddModal}
+                onClose={() => setShowAddModal(false)}
+                onSuccess={() => {
+                    fetchInvoices();
+                }}
+            />
+
+            <EditInvoiceModal
+                isOpen={showEditModal}
+                onClose={() => setShowEditModal(false)}
+                onSuccess={() => {
+                    fetchInvoices();
+                }}
+                invoice={selectedInvoice}
+            />
         </div>
     );
 }

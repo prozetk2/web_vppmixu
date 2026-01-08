@@ -61,9 +61,18 @@ export class SalesService {
                 }
             }
 
-            // 2. Calculate totals
+            // 2. Fetch Customer if exists
+            let customerData: any = null;
+            if (dto.customerId) {
+                customerData = await tx.customer.findUnique({
+                    where: { id: BigInt(dto.customerId) }
+                });
+            }
+
+            // 3. Calculate totals & Prepare Items
             let subtotal = 0;
             const orderItems: any[] = [];
+            const invoiceItems: any[] = [];
 
             for (const item of dto.items) {
                 const info = productMap.get(item.productId);
@@ -76,6 +85,8 @@ export class SalesService {
                 const totalPrice = unitPrice * item.quantity - discount;
 
                 subtotal += totalPrice;
+
+                // For Order
                 orderItems.push({
                     variantId: info.variant.id,
                     quantity: BigInt(item.quantity),
@@ -83,13 +94,26 @@ export class SalesService {
                     totalPrice,
                     discount,
                 });
+
+                // For Invoice
+                invoiceItems.push({
+                    productCode: info.product.code,
+                    productName: info.product.name,
+                    unit: info.product.unit,
+                    quantity: item.quantity,
+                    unitPrice: unitPrice,
+                    discountAmount: discount,
+                    totalPrice: totalPrice,
+                    brand: info.product.brand,
+                    salePrice: unitPrice // Assuming sale price is the unit price used
+                });
             }
 
             const discountAmount = dto.discountAmount ?? 0;
             const taxAmount = 0; // Can implement VAT later
             const totalAmount = subtotal - discountAmount + taxAmount;
 
-            // 3. Create order
+            // 4. Create order
             const orderNumber = await this.generateOrderNumber();
             const order = await tx.order.create({
                 data: {
@@ -116,13 +140,18 @@ export class SalesService {
                 },
             });
 
-            // 4. Create payment if provided
+            // 5. Create Payment
+            let amountPaid = 0;
+            let paymentMethod = PaymentMethod.CASH;
             if (dto.payment && dto.payment.amount > 0) {
+                amountPaid = dto.payment.amount;
+                paymentMethod = dto.payment.method || PaymentMethod.CASH;
+
                 await tx.payment.create({
                     data: {
                         orderId: order.id,
-                        amount: dto.payment.amount,
-                        method: dto.payment.method || PaymentMethod.CASH,
+                        amount: amountPaid,
+                        method: paymentMethod,
                         status: 'COMPLETED',
                         paidAt: new Date(),
                         reference: dto.payment.reference,
@@ -130,7 +159,39 @@ export class SalesService {
                 });
             }
 
-            // 5. Deduct inventory (trừ tồn kho)
+            // 6. Create Invoice (LINKED TO ORDER)
+            // We use the same orderNumber as invoiceNumber for simplicity and traceability
+            // Amount Due = Total - Paid
+            const amountDue = totalAmount - amountPaid;
+
+            await tx.invoice.create({
+                data: {
+                    invoiceNumber: orderNumber,
+                    orderCode: orderNumber,
+                    customerCode: customerData?.code,
+                    customerName: customerData?.name || 'Khách lẻ',
+                    customerPhone: customerData?.phone,
+                    customerAddress: customerData?.address,
+                    customerEmail: customerData?.email,
+                    issuedAt: new Date(),
+                    paymentMethod: paymentMethod.toString(),
+                    status: 'COMPLETED',
+                    totalAmount: totalAmount,
+                    discountAmount: discountAmount,
+                    amountPaid: amountPaid,
+                    amountDue: amountDue > 0 ? amountDue : 0,
+                    // Map payment specific columns based on method
+                    cashAmount: paymentMethod === 'CASH' ? amountPaid : 0,
+                    transferAmount: paymentMethod === 'TRANSFER' ? amountPaid : 0,
+                    cardAmount: paymentMethod === 'CARD' ? amountPaid : 0,
+                    notes: dto.note,
+                    items: {
+                        create: invoiceItems
+                    }
+                }
+            });
+
+            // 7. Deduct inventory (trừ tồn kho)
             const whId = warehouseId ? BigInt(warehouseId) : null;
             let targetWarehouseId = whId;
 
