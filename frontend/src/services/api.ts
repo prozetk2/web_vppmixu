@@ -101,7 +101,8 @@ export const customersAPI = {
     update: (id: string, data: any) => api.put(`/customers/${id}`, data),
     delete: (id: string) => api.delete(`/customers/${id}`),
     getOrders: (id: string) => api.get(`/customers/${id}/orders`),
-    getDebts: (id: string) => api.get(`/customers/${id}/debts`),
+    getInvoices: (id: string) => api.get(`/customers/${id}/invoices`),
+    getDebts: (id: string, filter?: string) => api.get(`/customers/${id}/debts`, { params: { filter } }),
 };
 
 export const suppliersAPI = {

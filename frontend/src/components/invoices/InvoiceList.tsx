@@ -96,7 +96,11 @@ const STATUS_CLASSES: Record<string, string> = {
     DRAFT: 'status-draft',
 };
 
-export default function InvoiceList() {
+interface InvoiceListProps {
+    onEditInPOS?: (invoiceData: any) => void;
+}
+
+export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
     const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -1128,6 +1132,26 @@ export default function InvoiceList() {
                                                                     </button>
                                                                 </div>
                                                                 <div className="right-actions">
+                                                                    {onEditInPOS && (
+                                                                        <button
+                                                                            className="btn-edit-pos"
+                                                                            onClick={() => {
+                                                                                const invoiceToEdit = expandedInvoiceDetail || invoice;
+                                                                                onEditInPOS({
+                                                                                    invoiceId: invoiceToEdit.id,
+                                                                                    invoiceNumber: invoiceToEdit.invoiceNumber,
+                                                                                    items: invoiceToEdit.items || [],
+                                                                                    customerId: invoiceToEdit.customerCode,
+                                                                                    customerName: invoiceToEdit.customerName,
+                                                                                    discountAmount: invoiceToEdit.discountAmount || 0,
+                                                                                    totalAmount: invoiceToEdit.totalAmount,
+                                                                                    status: invoiceToEdit.status,
+                                                                                });
+                                                                            }}
+                                                                        >
+                                                                            <MdEdit /> Sửa tại Bán hàng
+                                                                        </button>
+                                                                    )}
                                                                     <button
                                                                         className="btn-primary-action"
                                                                         onClick={() => {

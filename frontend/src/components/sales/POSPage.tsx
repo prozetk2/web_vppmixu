@@ -281,7 +281,12 @@ const PrintInvoice = ({
     );
 };
 
-export default function POSPage() {
+interface POSPageProps {
+    editData?: any;
+    onClearEdit?: () => void;
+}
+
+export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     const [products, setProducts] = useState<Product[]>([]);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [_warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -508,6 +513,46 @@ export default function POSPage() {
             fetchData();
         }
     }, [selectedPriceList]);
+
+    // Load edit data from InvoiceList when editing an invoice
+    useEffect(() => {
+        if (editData && editData.items && products.length > 0) {
+            // Convert invoice items to cart format
+            const cartItems: CartItem[] = editData.items.map((item: any) => {
+                // Find product by code or name
+                const product = products.find(
+                    p => p.sku === item.productCode || p.name === item.productName
+                );
+
+                return {
+                    product: product || {
+                        id: item.productCode || 'unknown',
+                        name: item.productName || 'Sản phẩm không xác định',
+                        sku: item.productCode || '',
+                        defaultPrice: item.unitPrice || 0,
+                    },
+                    quantity: item.quantity || 1,
+                    unitPrice: item.unitPrice || item.salePrice || 0,
+                };
+            });
+
+            // Update active invoice with edit data
+            updateActiveInvoice({
+                cart: cartItems,
+                discountAmount: editData.discountAmount || 0,
+            });
+
+            // Set customer if available
+            if (editData.customerId) {
+                updateActiveInvoice({ customerId: editData.customerId });
+            }
+
+            toast.success(`Đang sửa hóa đơn: ${editData.invoiceNumber}`);
+
+            // Clear edit data after loading
+            onClearEdit?.();
+        }
+    }, [editData, products]);
 
     const fetchPriceLists = async () => {
         try {

@@ -925,3 +925,23 @@
 .btn-secondary-action:hover {
     background: #e3f2fd;
 }
+
+/* Edit in POS button - distinct green style */
+.btn-edit-pos {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: #10b981;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btn-edit-pos:hover {
+    background: #059669;
+}

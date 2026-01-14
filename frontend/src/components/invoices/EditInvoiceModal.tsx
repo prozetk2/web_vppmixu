@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Modal from '../shared/Modal';
 import { invoicesAPI, productsAPI } from '../../services/api';
 import { useToast } from '../shared/Toast';

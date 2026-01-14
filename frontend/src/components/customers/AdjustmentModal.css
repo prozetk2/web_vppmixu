@@ -1,0 +1,167 @@
+/* Adjustment Modal Styles */
+
+.adjustment-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+}
+
+.adjustment-modal {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+    width: 90%;
+    max-width: 450px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.adjustment-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e8eaed;
+}
+
+.adjustment-modal-title h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #202124;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.adjustment-modal-title .info-icon {
+    color: #5f6368;
+    font-size: 18px;
+}
+
+.adjustment-close-btn {
+    background: none;
+    border: none;
+    color: #5f6368;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.adjustment-close-btn:hover {
+    background: #e8eaed;
+}
+
+.adjustment-modal-body {
+    padding: 20px;
+}
+
+.adjustment-form-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.adjustment-form-row label {
+    flex: 0 0 140px;
+    font-size: 14px;
+    color: #5f6368;
+}
+
+.adjustment-form-row input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+.adjustment-form-row input:focus {
+    outline: none;
+    border-color: #1a73e8;
+}
+
+.current-debt-value {
+    font-size: 14px;
+    color: #202124;
+    font-weight: 500;
+}
+
+.description-input-wrapper {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.description-input-wrapper input {
+    flex: 1;
+    padding-right: 30px;
+}
+
+.description-input-wrapper .edit-icon {
+    position: absolute;
+    right: 10px;
+    color: #5f6368;
+    font-size: 14px;
+}
+
+.adjustment-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid #e8eaed;
+}
+
+.adjustment-modal-footer .btn-cancel {
+    padding: 10px 20px;
+    background: #fff;
+    color: #5f6368;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.adjustment-modal-footer .btn-cancel:hover {
+    background: #f1f3f4;
+}
+
+.adjustment-modal-footer .btn-primary {
+    padding: 10px 20px;
+    background: #1a73e8;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.adjustment-modal-footer .btn-primary:hover {
+    background: #1557b0;
+}
+
+.adjustment-modal-footer .btn-primary:disabled,
+.adjustment-modal-footer .btn-cancel:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

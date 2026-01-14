@@ -44,6 +44,18 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [user, setUser] = useState<any>(null);
+    const [editInvoiceData, setEditInvoiceData] = useState<any>(null);
+
+    // Handle edit invoice from InvoiceList - switch to POS with data
+    const handleEditInvoice = (invoiceData: any) => {
+        setEditInvoiceData(invoiceData);
+        setActiveTab('pos');
+    };
+
+    // Clear edit data after POSPage has loaded it
+    const handleClearEditData = () => {
+        setEditInvoiceData(null);
+    };
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -155,7 +167,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         }
 
         if (activeTab === 'pos') {
-            return <POSPage />;
+            return <POSPage editData={editInvoiceData} onClearEdit={handleClearEditData} />;
         }
 
         if (activeTab === 'sales') {
@@ -183,7 +195,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         }
 
         if (activeTab === 'invoices') {
-            return <InvoiceList />;
+            return <InvoiceList onEditInPOS={handleEditInvoice} />;
         }
 
         if (activeTab === 'reports') {

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { purchasesAPI, suppliersAPI, productsAPI, warehousesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
-import { MdDownload, MdInventory, MdCheck, MdClose, MdEdit, MdVisibility, MdSearch, MdDelete, MdFileDownload, MdAdd, MdInventory2 } from 'react-icons/md';
+import { MdDownload, MdInventory, MdCheck, MdClose, MdEdit, MdVisibility, MdSearch, MdDelete, MdFileDownload, MdAdd, MdInventory2, MdStar, MdStarBorder, MdSettings, MdHelp, MdChevronLeft, MdChevronRight } from 'react-icons/md';
 import './PurchaseList.css';
 
 interface PurchaseItem {
@@ -23,14 +23,16 @@ interface Purchase {
     note?: string;
     createdAt: string;
     confirmedAt?: string;
-    supplier: { id: string; name: string };
+    supplier: { id: string; name: string; code?: string };
     warehouse?: { name: string };
     purchaseItems: PurchaseItem[];
+    starred?: boolean;
 }
 
 interface Supplier {
     id: string;
     name: string;
+    code?: string;
 }
 
 interface Product {
@@ -52,8 +54,8 @@ interface FormItem {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-    PENDING: 'Chờ xác nhận',
-    CONFIRMED: 'Đã nhập kho',
+    PENDING: 'Phiếu tạm',
+    CONFIRMED: 'Đã nhập hàng',
     CANCELLED: 'Đã hủy',
 };
 
@@ -65,12 +67,31 @@ export default function PurchaseList() {
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
+    const [itemsPerPage, setItemsPerPage] = useState(15);
 
-    // Filters
-    const [statusFilter, setStatusFilter] = useState('');
-    const [searchQuery, setSearchQuery] = useState('');
+    // Sidebar Filters - Status checkboxes
+    const [statusPending, setStatusPending] = useState(true);
+    const [statusConfirmed, setStatusConfirmed] = useState(true);
+    const [statusCancelled, setStatusCancelled] = useState(false);
+
+    // Sidebar Filters - Date range
+    const [dateRangeType, setDateRangeType] = useState<'last_year' | 'custom'>('custom');
     const [fromDate, setFromDate] = useState('');
     const [toDate, setToDate] = useState('');
+
+    // Sidebar Filters - Creator/Importer (placeholders)
+    const [creatorFilter, setCreatorFilter] = useState('');
+    const [importerFilter, setImporterFilter] = useState('');
+
+    // Search
+    const [searchQuery, setSearchQuery] = useState('');
+
+    // Selection
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
+
+    // Sidebar collapsed state
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     // Create/Edit Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -96,13 +117,16 @@ export default function PurchaseList() {
 
     const toast = useToast();
 
+    // Legacy statusFilter for API compatibility
+    const statusFilter = [statusPending && 'PENDING', statusConfirmed && 'CONFIRMED', statusCancelled && 'CANCELLED'].filter(Boolean).join(',');
+
     useEffect(() => {
         fetchData();
     }, []);
 
     useEffect(() => {
         fetchPurchases();
-    }, [page, statusFilter, searchQuery, fromDate, toDate]);
+    }, [page, statusPending, statusConfirmed, statusCancelled, searchQuery, fromDate, toDate]);
 
     const fetchData = async () => {
         try {
@@ -351,10 +375,47 @@ export default function PurchaseList() {
 
     const clearFilters = () => {
         setSearchQuery('');
-        setStatusFilter('');
+        setStatusPending(true);
+        setStatusConfirmed(true);
+        setStatusCancelled(false);
         setFromDate('');
         setToDate('');
         setPage(1);
+    };
+
+    // Toggle star
+    const toggleStar = (id: string) => {
+        setStarredIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    };
+
+    // Toggle selection
+    const toggleSelection = (id: string) => {
+        setSelectedIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    };
+
+    // Select all
+    const toggleSelectAll = () => {
+        if (selectedIds.size === purchases.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(purchases.map(p => p.id)));
+        }
     };
 
     const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
@@ -366,25 +427,15 @@ export default function PurchaseList() {
         <div className="purchase-page">
             <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
 
-            <div className="purchase-header">
-                <h2><MdDownload /> Nhập hàng</h2>
-                <div className="header-actions">
-                    <button onClick={openExportModal} className="btn-export">
-                        <MdFileDownload /> Xuất Excel
-                    </button>
-                    <button onClick={openCreateModal} className="btn-create">
-                        <MdAdd /> Tạo đơn nhập
-                    </button>
-                </div>
-            </div>
-
-            <div className="purchase-filters">
-                <div className="filter-row">
-                    <div className="search-box">
+            {/* Header - KiotViet style */}
+            <div className="purchase-header-v2">
+                <h2>Nhập hàng</h2>
+                <div className="header-center">
+                    <div className="search-box-v2">
                         <MdSearch className="search-icon" />
                         <input
                             type="text"
-                            placeholder="Tìm mã đơn..."
+                            placeholder="Theo mã phiếu nhập"
                             value={searchQuery}
                             onChange={(e) => {
                                 setSearchQuery(e.target.value);
@@ -393,269 +444,476 @@ export default function PurchaseList() {
                             className="search-input"
                         />
                     </div>
-                    <select
-                        value={statusFilter}
-                        onChange={(e) => {
-                            setStatusFilter(e.target.value);
-                            setPage(1);
-                        }}
-                        className="filter-select"
-                    >
-                        <option value="">Tất cả trạng thái</option>
-                        <option value="PENDING">Chờ xác nhận</option>
-                        <option value="CONFIRMED">Đã nhập kho</option>
-                        <option value="CANCELLED">Đã hủy</option>
-                    </select>
-                    <input
-                        type="date"
-                        value={fromDate}
-                        onChange={(e) => {
-                            setFromDate(e.target.value);
-                            setPage(1);
-                        }}
-                        className="date-input"
-                    />
-                    <input
-                        type="date"
-                        value={toDate}
-                        onChange={(e) => {
-                            setToDate(e.target.value);
-                            setPage(1);
-                        }}
-                        className="date-input"
-                    />
-                    {(searchQuery || statusFilter || fromDate || toDate) && (
-                        <button onClick={clearFilters} className="btn-clear-filter">
-                            Xóa lọc
-                        </button>
-                    )}
+                </div>
+                <div className="header-actions-v2">
+                    <button onClick={openCreateModal} className="btn-create-v2">
+                        <MdAdd /> Nhập hàng
+                    </button>
+                    <button onClick={openExportModal} className="btn-export-v2">
+                        <MdFileDownload /> Xuất file
+                    </button>
+                    <button className="btn-icon" title="Cài đặt">
+                        <MdSettings />
+                    </button>
+                    <button className="btn-icon" title="Trợ giúp">
+                        <MdHelp />
+                    </button>
                 </div>
             </div>
 
-            <div className="purchase-table-wrapper">
-                {loading ? (
-                    <div className="purchase-loading">Đang tải...</div>
-                ) : purchases.length === 0 ? (
-                    <div className="purchase-empty">
-                        <div className="purchase-empty-icon"><MdInventory size={64} /></div>
-                        <p>Chưa có đơn nhập hàng</p>
+            {/* Main Container with Sidebar */}
+            <div className="purchase-container">
+                {/* Sidebar Filters */}
+                <div className={`purchase-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+                    <button
+                        className="sidebar-toggle"
+                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                        title={sidebarCollapsed ? 'Mở rộng' : 'Thu gọn'}
+                    >
+                        {sidebarCollapsed ? <MdChevronRight /> : <MdChevronLeft />}
+                    </button>
+
+                    {/* Trạng thái Filter */}
+                    <div className="filter-group">
+                        <label className="filter-label">Trạng thái</label>
+                        <div className="checkbox-group">
+                            <label className="checkbox-item">
+                                <input
+                                    type="checkbox"
+                                    checked={statusPending}
+                                    onChange={(e) => { setStatusPending(e.target.checked); setPage(1); }}
+                                />
+                                <span className="checkbox-custom"></span>
+                                <span>Phiếu tạm</span>
+                            </label>
+                            <label className="checkbox-item">
+                                <input
+                                    type="checkbox"
+                                    checked={statusConfirmed}
+                                    onChange={(e) => { setStatusConfirmed(e.target.checked); setPage(1); }}
+                                />
+                                <span className="checkbox-custom"></span>
+                                <span>Đã nhập hàng</span>
+                            </label>
+                            <label className="checkbox-item">
+                                <input
+                                    type="checkbox"
+                                    checked={statusCancelled}
+                                    onChange={(e) => { setStatusCancelled(e.target.checked); setPage(1); }}
+                                />
+                                <span className="checkbox-custom"></span>
+                                <span>Đã hủy</span>
+                            </label>
+                        </div>
                     </div>
-                ) : (
-                    <table className="purchase-table">
-                        <thead>
-                            <tr>
-                                <th>Mã đơn</th>
-                                <th>Nhà cung cấp</th>
-                                <th>Số SP</th>
-                                <th>Tổng tiền</th>
-                                <th>Trạng thái</th>
-                                <th>Ngày tạo</th>
-                                <th>Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {purchases.map((p) => (
-                                <tr key={p.id}>
-                                    <td>
-                                        <span
-                                            className="order-number clickable"
-                                            onClick={() => openDetailModal(p)}
-                                        >
-                                            {p.orderNumber}
-                                        </span>
-                                    </td>
-                                    <td className="purchase-supplier">{p.supplier?.name}</td>
-                                    <td className="purchase-items-count">{p.purchaseItems?.length || 0}</td>
-                                    <td className="purchase-total">{formatCurrency(Number(p.totalAmount))}đ</td>
-                                    <td>
-                                        <span className={`purchase-status ${p.status}`}>
-                                            {STATUS_LABELS[p.status] || p.status}
-                                        </span>
-                                    </td>
-                                    <td className="purchase-date">{formatDate(p.createdAt)}</td>
-                                    <td>
-                                        <div className="action-btns">
-                                            <button
-                                                className="btn-view"
-                                                onClick={() => openDetailModal(p)}
-                                                title="Xem chi tiết"
-                                            >
-                                                <MdVisibility />
-                                            </button>
-                                            {p.status === 'PENDING' && (
-                                                <>
-                                                    <button
-                                                        className="btn-edit"
-                                                        onClick={() => openEditModal(p)}
-                                                        title="Sửa"
-                                                    >
-                                                        <MdEdit />
-                                                    </button>
-                                                    <button
-                                                        className="btn-confirm"
-                                                        onClick={() => handleConfirm(p.id)}
-                                                        title="Nhập kho"
-                                                    >
-                                                        <MdCheck />
-                                                    </button>
-                                                    <button
-                                                        className="btn-cancel"
-                                                        onClick={() => handleCancel(p.id)}
-                                                        title="Hủy"
-                                                    >
-                                                        <MdClose />
-                                                    </button>
-                                                </>
-                                            )}
-                                            <button
-                                                className="btn-delete"
-                                                onClick={() => handleDelete(p.id, p.orderNumber)}
-                                                title="Xóa"
-                                            >
-                                                <MdDelete />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
+
+                    {/* Thời gian Filter */}
+                    <div className="filter-group">
+                        <label className="filter-label">Thời gian ▼</label>
+                        <div className="radio-group">
+                            <label className="radio-item">
+                                <input
+                                    type="radio"
+                                    name="dateRange"
+                                    value="last_year"
+                                    checked={dateRangeType === 'last_year'}
+                                    onChange={() => setDateRangeType('last_year')}
+                                />
+                                <span className="radio-custom"></span>
+                                <span>Năm trước</span>
+                            </label>
+                            <label className="radio-item">
+                                <input
+                                    type="radio"
+                                    name="dateRange"
+                                    value="custom"
+                                    checked={dateRangeType === 'custom'}
+                                    onChange={() => setDateRangeType('custom')}
+                                />
+                                <span className="radio-custom"></span>
+                                <span>Tùy chọn</span>
+                            </label>
+                        </div>
+                        {dateRangeType === 'custom' && (
+                            <div className="date-range-inputs">
+                                <input
+                                    type="date"
+                                    value={fromDate}
+                                    onChange={(e) => { setFromDate(e.target.value); setPage(1); }}
+                                    className="date-input-v2"
+                                />
+                                <span className="date-separator">-</span>
+                                <input
+                                    type="date"
+                                    value={toDate}
+                                    onChange={(e) => { setToDate(e.target.value); setPage(1); }}
+                                    className="date-input-v2"
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Người tạo Filter */}
+                    <div className="filter-group">
+                        <label className="filter-label">Người tạo</label>
+                        <input
+                            type="text"
+                            placeholder="Chọn người tạo"
+                            value={creatorFilter}
+                            onChange={(e) => setCreatorFilter(e.target.value)}
+                            className="filter-input-v2"
+                        />
+                    </div>
+
+                    {/* Người nhập Filter */}
+                    <div className="filter-group">
+                        <label className="filter-label">Người nhập</label>
+                        <input
+                            type="text"
+                            placeholder="Chọn người nhập"
+                            value={importerFilter}
+                            onChange={(e) => setImporterFilter(e.target.value)}
+                            className="filter-input-v2"
+                        />
+                    </div>
+                </div>
+
+                {/* Main Content */}
+                <div className="purchase-main">
+                    <div className="purchase-table-wrapper-v2">
+                        {loading ? (
+                            <div className="purchase-loading">Đang tải...</div>
+                        ) : purchases.length === 0 ? (
+                            <div className="purchase-empty">
+                                <div className="purchase-empty-icon"><MdInventory size={64} /></div>
+                                <p>Chưa có đơn nhập hàng</p>
+                            </div>
+                        ) : (
+                            <table className="purchase-table-v2">
+                                <thead>
+                                    <tr>
+                                        <th className="col-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedIds.size === purchases.length && purchases.length > 0}
+                                                onChange={toggleSelectAll}
+                                            />
+                                        </th>
+                                        <th className="col-star"></th>
+                                        <th>Mã nhập hàng</th>
+                                        <th>Thời gian</th>
+                                        <th>Mã NCC</th>
+                                        <th>Nhà cung cấp</th>
+                                        <th className="col-amount">Cần trả NCC</th>
+                                        <th>Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {purchases.map((p) => (
+                                        <tr key={p.id} className={selectedIds.has(p.id) ? 'selected' : ''}>
+                                            <td className="col-checkbox">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedIds.has(p.id)}
+                                                    onChange={() => toggleSelection(p.id)}
+                                                />
+                                            </td>
+                                            <td className="col-star">
+                                                <button className="btn-star" onClick={() => toggleStar(p.id)}>
+                                                    {starredIds.has(p.id) ? <MdStar className="starred" /> : <MdStarBorder />}
+                                                </button>
+                                            </td>
+                                            <td>
+                                                <span
+                                                    className="order-number-v2"
+                                                    onClick={() => openDetailModal(p)}
+                                                >
+                                                    {p.orderNumber}
+                                                </span>
+                                            </td>
+                                            <td className="col-date">{formatDate(p.createdAt)}</td>
+                                            <td className="col-supplier-code">{p.supplier?.code || 'NCC' + p.supplier?.id?.slice(-6)}</td>
+                                            <td className="col-supplier">{p.supplier?.name}</td>
+                                            <td className="col-amount">{formatCurrency(Number(p.totalAmount))}</td>
+                                            <td>
+                                                <span className={`status-badge-v2 ${p.status}`}>
+                                                    {STATUS_LABELS[p.status] || p.status}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    {/* Pagination - KiotViet style */}
+                    <div className="purchase-pagination-v2">
+                        <div className="pagination-left">
+                            <span>Hiển thị</span>
+                            <select
+                                value={itemsPerPage}
+                                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setPage(1); }}
+                                className="items-per-page"
+                            >
+                                <option value={15}>15 dòng</option>
+                                <option value={30}>30 dòng</option>
+                                <option value={50}>50 dòng</option>
+                            </select>
+                        </div>
+                        <div className="pagination-center">
+                            <button
+                                className="pagination-btn-v2"
+                                onClick={() => setPage(1)}
+                                disabled={page <= 1}
+                            >
+                                ⟨⟨
+                            </button>
+                            <button
+                                className="pagination-btn-v2"
+                                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                disabled={page <= 1}
+                            >
+                                ⟨
+                            </button>
+                            <span className="pagination-current">{page}</span>
+                            <button
+                                className="pagination-btn-v2"
+                                onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
+                                disabled={page >= meta.totalPages}
+                            >
+                                ⟩
+                            </button>
+                            <button
+                                className="pagination-btn-v2"
+                                onClick={() => setPage(meta.totalPages)}
+                                disabled={page >= meta.totalPages}
+                            >
+                                ⟩⟩
+                            </button>
+                        </div>
+                        <div className="pagination-right">
+                            {((page - 1) * itemsPerPage) + 1} - {Math.min(page * itemsPerPage, meta.total)} trong {meta.total} giao dịch
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            {meta.totalPages > 1 && (
-                <div className="purchase-pagination">
-                    <div className="pagination-info">
-                        Trang {page} / {meta.totalPages} ({meta.total} đơn)
+            {/* Full-page Create/Edit Purchase Form */}
+            {isModalOpen && (
+                <div className="purchase-create-page">
+                    {/* Header */}
+                    <div className="create-header">
+                        <div className="create-header-left">
+                            <button className="btn-back" onClick={closeModal}>
+                                ←
+                            </button>
+                            <h2>Nhập hàng</h2>
+                        </div>
+                        <div className="create-header-center">
+                            <div className="product-search-box">
+                                <MdSearch className="search-icon" />
+                                <input
+                                    type="text"
+                                    placeholder="Tìm hàng hóa theo mã hoặc tên (F3)"
+                                    className="product-search-input"
+                                />
+                            </div>
+                            <button className="btn-barcode" title="Quét mã vạch">
+                                <span>⊞</span>
+                            </button>
+                            <button className="btn-add-inline" onClick={addItem}>
+                                +
+                            </button>
+                        </div>
+                        <div className="create-header-right">
+                            <span className="create-date">{new Date().toLocaleDateString('vi-VN')} {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
                     </div>
-                    <div className="pagination-buttons">
+
+                    {/* Main Content */}
+                    <div className="create-content">
+                        {/* Left: Product Table */}
+                        <div className="create-left">
+                            <table className="create-product-table">
+                                <thead>
+                                    <tr>
+                                        <th className="col-stt">STT</th>
+                                        <th className="col-code">Mã hàng</th>
+                                        <th className="col-name">Tên hàng</th>
+                                        <th className="col-unit">ĐVT</th>
+                                        <th className="col-qty">Số lượng</th>
+                                        <th className="col-price">Đơn giá</th>
+                                        <th className="col-discount">Giảm giá</th>
+                                        <th className="col-total">Thành tiền</th>
+                                        <th className="col-action"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {items.map((item, idx) => {
+                                        const product = products.find(p => p.id === item.productId);
+                                        const lineTotal = item.quantity * item.unitCost;
+                                        return (
+                                            <tr key={idx}>
+                                                <td className="col-stt">{idx + 1}</td>
+                                                <td className="col-code">
+                                                    <select
+                                                        value={item.productId}
+                                                        onChange={(e) => updateItem(idx, 'productId', e.target.value)}
+                                                        className="inline-select"
+                                                    >
+                                                        <option value="">-- Chọn SP --</option>
+                                                        {products.map((p) => (
+                                                            <option key={p.id} value={p.id}>
+                                                                {p.sku || p.id.slice(-8)}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="col-name">{product?.name || '-'}</td>
+                                                <td className="col-unit">Cái</td>
+                                                <td className="col-qty">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={item.quantity}
+                                                        onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
+                                                        className="inline-input qty-input"
+                                                    />
+                                                </td>
+                                                <td className="col-price">
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={item.unitCost}
+                                                        onChange={(e) => updateItem(idx, 'unitCost', e.target.value)}
+                                                        className="inline-input price-input"
+                                                    />
+                                                </td>
+                                                <td className="col-discount">0</td>
+                                                <td className="col-total">{formatCurrency(lineTotal)}</td>
+                                                <td className="col-action">
+                                                    {items.length > 1 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeItem(idx)}
+                                                            className="btn-remove-row"
+                                                        >
+                                                            ×
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+
+                            {items.length === 1 && !items[0].productId && (
+                                <div className="empty-products">
+                                    <h3>Thêm sản phẩm từ file excel</h3>
+                                    <p>(Tải về file mẫu: <a href="#">Excel file</a>)</p>
+                                    <button className="btn-import-excel">
+                                        📁 Chọn file dữ liệu
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Right: Info Sidebar */}
+                        <div className="create-right">
+                            <div className="info-section">
+                                <div className="store-search">
+                                    <select className="store-select">
+                                        <option>Mixu</option>
+                                    </select>
+                                    <button className="btn-add-store">+</button>
+                                </div>
+                            </div>
+
+                            <div className="info-section compact">
+                                <div className="supplier-search-compact">
+                                    <select
+                                        value={formData.supplierId}
+                                        onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
+                                        className="supplier-select-sm"
+                                    >
+                                        <option value="">Tìm NCC</option>
+                                        {suppliers.map((s) => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
+                                    </select>
+                                    <button className="btn-add-supplier-sm">+</button>
+                                </div>
+                            </div>
+
+                            <div className="info-row">
+                                <span className="info-label">Mã phiếu nhập</span>
+                                <span className={`info-value ${items.some(i => i.productId) ? 'code-active' : 'muted'}`}>
+                                    {items.some(i => i.productId)
+                                        ? `PN${new Date().toISOString().slice(0, 10).replace(/-/g, '')}0001`
+                                        : 'Mã phiếu tự động'}
+                                </span>
+                            </div>
+
+                            <div className="info-row">
+                                <span className="info-label">Mã đặt hàng nhập</span>
+                                <span className="info-value"></span>
+                            </div>
+
+                            <div className="info-row">
+                                <span className="info-label">Trạng thái</span>
+                                <span className="info-value status-temp">Phiếu tạm</span>
+                            </div>
+
+                            <div className="info-row">
+                                <span className="info-label">Tổng tiền hàng</span>
+                                <input type="text" value="0" readOnly className="info-input" />
+                                <span className="info-amount">{formatCurrency(totalAmount)}</span>
+                            </div>
+
+                            <div className="info-row">
+                                <span className="info-label">Giảm giá</span>
+                                <input type="text" value="0" className="info-input discount-input" />
+                            </div>
+
+                            <div className="info-row highlight">
+                                <span className="info-label">Cần trả nhà cung cấp</span>
+                                <span className="info-amount total-pay">{formatCurrency(totalAmount)}</span>
+                            </div>
+
+                            <div className="note-section">
+                                <textarea
+                                    value={formData.note}
+                                    onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                                    placeholder="Ghi chú"
+                                    className="note-textarea"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Bottom Actions */}
+                    <div className="create-footer">
                         <button
-                            className="pagination-btn"
-                            onClick={() => setPage((p) => Math.max(1, p - 1))}
-                            disabled={page <= 1}
+                            type="button"
+                            onClick={() => { handleSubmit(new Event('submit') as any); }}
+                            className="btn-save-temp"
+                            disabled={submitting}
                         >
-                            ← Trước
+                            💾 Lưu tạm
                         </button>
                         <button
-                            className="pagination-btn"
-                            onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
-                            disabled={page >= meta.totalPages}
+                            type="button"
+                            onClick={() => { handleSubmit(new Event('submit') as any); }}
+                            className="btn-complete"
+                            disabled={submitting}
                         >
-                            Sau →
+                            ✓ Hoàn thành
                         </button>
                     </div>
                 </div>
             )}
-
-            {/* Create/Edit Modal */}
-            <Modal
-                isOpen={isModalOpen}
-                onClose={closeModal}
-                title={editingId ? 'Sửa đơn nhập hàng' : 'Tạo đơn nhập hàng'}
-            >
-                <form onSubmit={handleSubmit} className="purchase-form">
-                    <div className="form-row">
-                        <div className="form-group">
-                            <label className="form-label">
-                                Nhà cung cấp <span className="required">*</span>
-                            </label>
-                            <select
-                                value={formData.supplierId}
-                                onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
-                                className="form-select"
-                            >
-                                <option value="">-- Chọn NCC --</option>
-                                {suppliers.map((s) => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label className="form-label">Kho nhập</label>
-                            <select
-                                value={formData.warehouseId}
-                                onChange={(e) => setFormData({ ...formData, warehouseId: e.target.value })}
-                                className="form-select"
-                            >
-                                <option value="">-- Tự động --</option>
-                                {warehouses.map((w) => (
-                                    <option key={w.id} value={w.id}>{w.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="items-section">
-                        <div className="items-header">
-                            <h4>Sản phẩm nhập</h4>
-                            <button type="button" onClick={addItem} className="btn-add-item">
-                                + Thêm SP
-                            </button>
-                        </div>
-                        {items.map((item, idx) => (
-                            <div key={idx} className="item-row">
-                                <select
-                                    value={item.productId}
-                                    onChange={(e) => updateItem(idx, 'productId', e.target.value)}
-                                >
-                                    <option value="">-- Chọn SP --</option>
-                                    {products.map((p) => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.name} {p.sku ? `(${p.sku})` : ''}
-                                        </option>
-                                    ))}
-                                </select>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={item.quantity}
-                                    onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
-                                    placeholder="SL"
-                                />
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={item.unitCost}
-                                    onChange={(e) => updateItem(idx, 'unitCost', e.target.value)}
-                                    placeholder="Giá nhập"
-                                />
-                                {items.length > 1 && (
-                                    <button
-                                        type="button"
-                                        onClick={() => removeItem(idx)}
-                                        className="btn-remove-item"
-                                    >
-                                        <MdClose />
-                                    </button>
-                                )}
-                            </div>
-                        ))}
-                        <div className="items-total">
-                            Tổng: {formatCurrency(totalAmount)}đ
-                        </div>
-                    </div>
-
-                    <div className="form-group">
-                        <label className="form-label">Ghi chú</label>
-                        <textarea
-                            value={formData.note}
-                            onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-                            className="form-textarea"
-                            rows={2}
-                            placeholder="Ghi chú đơn nhập..."
-                        />
-                    </div>
-
-                    <div className="form-actions">
-                        <button type="button" onClick={closeModal} className="btn btn-secondary">
-                            Hủy
-                        </button>
-                        <button type="submit" className="btn btn-primary" disabled={submitting}>
-                            {submitting ? 'Đang xử lý...' : (editingId ? 'Cập nhật' : 'Tạo đơn nhập')}
-                        </button>
-                    </div>
-                </form>
-            </Modal>
 
             {/* Detail Modal - Improved Layout */}
             <Modal

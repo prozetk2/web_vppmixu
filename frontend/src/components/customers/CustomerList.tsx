@@ -4,7 +4,8 @@ import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import * as XLSX from 'xlsx';
 import * as pdfjsLib from 'pdfjs-dist';
-import { MdPeople, MdHourglassEmpty, MdDownload, MdAttachMoney, MdDescription, MdSearch, MdAdd, MdBarChart } from 'react-icons/md';
+import { MdPeople, MdHourglassEmpty, MdDownload, MdSearch, MdAdd, MdBarChart, MdKeyboardArrowRight, MdCalendarToday, MdChevronLeft, MdChevronRight } from 'react-icons/md';
+import CustomerDetail from './CustomerDetail';
 import './CustomerList.css';
 
 // Configure PDF.js worker
@@ -66,20 +67,7 @@ interface Customer {
     createdAt: string;           // Ngày tạo
 }
 
-interface DebtData {
-    totalOrders: number;
-    totalPaid: number;
-    totalDebt: number;
-    orderCount: number;
-    orders: {
-        id: string;
-        orderNumber: string;
-        totalAmount: number;
-        paidAmount: number;
-        status: string;
-        createdAt: string;
-    }[];
-}
+
 
 interface FormData {
     code: string;
@@ -167,21 +155,38 @@ export default function CustomerList() {
     const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
-    const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-    const [debtData, setDebtData] = useState<DebtData | null>(null);
+    const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
     const [formData, setFormData] = useState<FormData>(createEmptyFormData());
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
+
+    // Sidebar Filter States
+    const [filterGroup, setFilterGroup] = useState('all');
+    const [dateCreatedRange, setDateCreatedRange] = useState('all');
+    const [filterCreator, setFilterCreator] = useState('');
+    const [filterType, setFilterType] = useState('all');
+    const [filterGender, setFilterGender] = useState('all');
+    const [birthDateRange, setBirthDateRange] = useState('all');
+    const [lastTxDateRange, setLastTxDateRange] = useState('all');
+    const [salesRangeFrom, setSalesRangeFrom] = useState('');
+    const [salesRangeTo, setSalesRangeTo] = useState('');
+    const [salesTimeRange, setSalesTimeRange] = useState('all');
+    const [currentDebtFrom, setCurrentDebtFrom] = useState('');
+    const [currentDebtTo, setCurrentDebtTo] = useState('');
+    const [debtDaysFrom, setDebtDaysFrom] = useState('');
+    const [debtDaysTo, setDebtDaysTo] = useState('');
+    const [deliveryArea, setDeliveryArea] = useState('');
+    const [customerStatus, setCustomerStatus] = useState('active');
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [importNote, setImportNote] = useState('');
     const [importing, setImporting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Search & Filter state
     const [searchQuery, setSearchQuery] = useState('');
-    const [debtFilter, setDebtFilter] = useState<'all' | 'has-debt' | 'no-debt'>('all');
-    const [debtDaysFilter, setDebtDaysFilter] = useState<'all' | '<30' | '>30' | '>60'>('all');
+    const [debtFilter, _setDebtFilter] = useState<'all' | 'has-debt' | 'no-debt'>('all');
+    const [debtDaysFilter, _setDebtDaysFilter] = useState<'all' | '<30' | '>30' | '>60'>('all');
     const [sortBy, setSortBy] = useState<'name' | 'debt' | 'date'>('date');
 
     // Pagination state
@@ -194,12 +199,7 @@ export default function CustomerList() {
         fetchCustomers();
     }, []);
 
-    useEffect(() => {
-        if (debtData) {
-            console.log('🎯 DEBT DATA CHANGED:', debtData);
-            console.log('🎯 totalOrders:', debtData.totalOrders, 'formatted:', formatCurrency(debtData.totalOrders));
-        }
-    }, [debtData]);
+
 
     // Apply search, filter, and sort
     useEffect(() => {
@@ -215,14 +215,113 @@ export default function CustomerList() {
             );
         }
 
-        // Filter by debt
+        // Filter by customer type (Cá nhân / Công ty)
+        if (filterType !== 'all') {
+            if (filterType === 'Cá nhân') {
+                // Individual: customerType is 'Cá nhân' OR undefined/null (default to individual)
+                result = result.filter(c =>
+                    !c.customerType ||
+                    c.customerType === 'Cá nhân' ||
+                    c.customerType.toLowerCase().includes('cá nhân')
+                );
+            } else if (filterType === 'Công ty') {
+                // Company: customerType explicitly contains 'Công ty' or 'Doanh nghiệp'
+                result = result.filter(c =>
+                    c.customerType && (
+                        c.customerType === 'Công ty' ||
+                        c.customerType.toLowerCase().includes('công ty') ||
+                        c.customerType.toLowerCase().includes('doanh nghiệp')
+                    )
+                );
+            }
+        }
+
+        // Filter by gender (only for individual customers)
+        if (filterGender !== 'all') {
+            // Gender detection based on Vietnamese name patterns
+            // This is a basic implementation - names starting with female prefixes
+            if (filterGender === 'male') {
+                result = result.filter(c => {
+                    // Skip companies
+                    if (c.customerType?.toLowerCase().includes('công ty')) return false;
+                    // Check notes for gender info
+                    if (c.notes?.toLowerCase().includes('nam')) return true;
+                    // Basic name pattern: names not typically female
+                    return !c.name?.match(/^(Nguyễn Thị|Trần Thị|Lê Thị|Phạm Thị|Võ Thị|Đặng Thị|Bùi Thị)/i);
+                });
+            } else if (filterGender === 'female') {
+                result = result.filter(c => {
+                    // Skip companies
+                    if (c.customerType?.toLowerCase().includes('công ty')) return false;
+                    // Check notes for gender info
+                    if (c.notes?.toLowerCase().includes('nữ')) return true;
+                    // Basic name pattern: common female name prefixes
+                    return !!c.name?.match(/^(Nguyễn Thị|Trần Thị|Lê Thị|Phạm Thị|Võ Thị|Đặng Thị|Bùi Thị)/i);
+                });
+            }
+        }
+
+        // Filter by customer status
+        if (customerStatus !== 'all') {
+            if (customerStatus === 'active') {
+                // Active: active is true or undefined (default to active)
+                result = result.filter(c => c.active !== false);
+            } else if (customerStatus === 'inactive') {
+                // Inactive: active is explicitly false
+                result = result.filter(c => c.active === false);
+            }
+        }
+
+        // Filter by sales range (Tổng bán)
+        if (salesRangeFrom) {
+            const fromValue = parseFloat(salesRangeFrom);
+            if (!isNaN(fromValue)) {
+                result = result.filter(c => (c.totalSales || 0) >= fromValue);
+            }
+        }
+        if (salesRangeTo) {
+            const toValue = parseFloat(salesRangeTo);
+            if (!isNaN(toValue)) {
+                result = result.filter(c => (c.totalSales || 0) <= toValue);
+            }
+        }
+
+        // Filter by current debt range (Nợ hiện tại)
+        if (currentDebtFrom) {
+            const fromValue = parseFloat(currentDebtFrom);
+            if (!isNaN(fromValue)) {
+                result = result.filter(c => (c.currentDebt || 0) >= fromValue);
+            }
+        }
+        if (currentDebtTo) {
+            const toValue = parseFloat(currentDebtTo);
+            if (!isNaN(toValue)) {
+                result = result.filter(c => (c.currentDebt || 0) <= toValue);
+            }
+        }
+
+        // Filter by debt days range (Số ngày nợ)
+        if (debtDaysFrom) {
+            const fromValue = parseInt(debtDaysFrom);
+            if (!isNaN(fromValue)) {
+                result = result.filter(c => (c.debtDays || 0) >= fromValue);
+            }
+        }
+        if (debtDaysTo) {
+            const toValue = parseInt(debtDaysTo);
+            if (!isNaN(toValue)) {
+                result = result.filter(c => (c.debtDays || 0) <= toValue);
+            }
+        }
+
+        // Legacy debt filter
         if (debtFilter === 'has-debt') {
             result = result.filter(c => c.currentDebt && c.currentDebt > 0);
         } else if (debtFilter === 'no-debt') {
             result = result.filter(c => !c.currentDebt || c.currentDebt === 0);
         }
 
-        // Filter by debt days
+        // Legacy debt days filter
         if (debtDaysFilter === '<30') {
             result = result.filter(c => c.debtDays && c.debtDays > 0 && c.debtDays < 30);
         } else if (debtDaysFilter === '>30') {
@@ -241,12 +340,12 @@ export default function CustomerList() {
         }
 
         setFilteredCustomers(result);
-    }, [customers, searchQuery, debtFilter, debtDaysFilter, sortBy]);
+    }, [customers, searchQuery, filterType, filterGender, customerStatus, salesRangeFrom, salesRangeTo, currentDebtFrom, currentDebtTo, debtDaysFrom, debtDaysTo, debtFilter, debtDaysFilter, sortBy]);
 
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, debtFilter, debtDaysFilter, itemsPerPage]);
+    }, [searchQuery, filterType, filterGender, customerStatus, salesRangeFrom, salesRangeTo, currentDebtFrom, currentDebtTo, debtDaysFrom, debtDaysTo, debtFilter, debtDaysFilter, itemsPerPage]);
 
     // Calculate pagination
     const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
@@ -323,26 +422,15 @@ export default function CustomerList() {
         setEditingCustomer(null);
     };
 
-    const openDetail = async (customer: Customer) => {
-        setSelectedCustomer(customer);
-        setDebtData(null);
-        setIsDetailOpen(true);
-
-        try {
-            const response = await customersAPI.getDebts(customer.id);
-            console.log('🔥 DEBT DATA RECEIVED:', response.data);
-            // API returns {data: {totalOrders, ...}}, we need the inner data
-            setDebtData(response.data.data || response.data);
-        } catch (error) {
-            console.error('Failed to fetch debts:', error);
+    const openDetail = (customer: Customer) => {
+        if (expandedCustomerId === customer.id) {
+            setExpandedCustomerId(null);
+        } else {
+            setExpandedCustomerId(customer.id);
         }
     };
 
-    const closeDetail = () => {
-        setIsDetailOpen(false);
-        setSelectedCustomer(null);
-        setDebtData(null);
-    };
+
 
     const validate = () => {
         const newErrors: Record<string, string> = {};
@@ -389,7 +477,6 @@ export default function CustomerList() {
         if (isNaN(num)) return '0';
         return new Intl.NumberFormat('vi-VN').format(num);
     };
-    const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('vi-VN');
 
     // === IMPORT FUNCTIONALITY ===
     const handleImportClick = () => {
@@ -739,206 +826,522 @@ export default function CustomerList() {
             )}
 
             {/* Search & Filter Bar */}
-            <div className="search-filter-bar">
-                <div className="search-box">
-                    <MdSearch className="search-icon" />
-                    <input
-                        type="text"
-                        placeholder="Tìm kiếm theo tên, mã KH, hoặc số điện thoại..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="search-input"
-                    />
-                    {searchQuery && (
-                        <button
-                            className="clear-search"
-                            onClick={() => setSearchQuery('')}
-                            title="Xóa tìm kiếm"
+            <div className="customer-layout">
+                {/* Sidebar Filters */}
+                <div className={`customer-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+                    <button
+                        className="sidebar-toggle"
+                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                        title={sidebarCollapsed ? 'Mở rộng' : 'Thu gọn'}
+                    >
+                        {sidebarCollapsed ? <MdChevronRight /> : <MdChevronLeft />}
+                    </button>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Nhóm khách hàng <a href="#" className="create-link">Tạo mới</a></label>
+                        <select
+                            className="filter-select-sidebar"
+                            value={filterGroup}
+                            onChange={(e) => setFilterGroup(e.target.value)}
                         >
-                            ×
-                        </button>
+                            <option value="all">Tất cả các nhóm</option>
+                            <option value="vip">VIP</option>
+                            <option value="le">Khách lẻ</option>
+                        </select>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Ngày tạo</label>
+                        <div className="radio-group-vertical">
+                            <label className="radio-item">
+                                <input
+                                    type="radio"
+                                    name="dateCreated"
+                                    checked={dateCreatedRange === 'all'}
+                                    onChange={() => setDateCreatedRange('all')}
+                                />
+                                <span>Toàn thời gian</span>
+                                <MdKeyboardArrowRight className="arrow-icon" />
+                            </label>
+                            <label className="radio-item">
+                                <input
+                                    type="radio"
+                                    name="dateCreated"
+                                    checked={dateCreatedRange === 'custom'}
+                                    onChange={() => setDateCreatedRange('custom')}
+                                />
+                                <span>Tùy chỉnh</span>
+                                <MdCalendarToday className="calendar-icon" />
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Người tạo</label>
+                        <div className="search-input-wrapper">
+                            <input
+                                type="text"
+                                placeholder="Chọn người tạo"
+                                className="filter-input"
+                                value={filterCreator}
+                                onChange={(e) => setFilterCreator(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Loại khách hàng</label>
+                        <div className="pill-group">
+                            <button
+                                className={`pill-btn ${filterType === 'all' ? 'active' : ''}`}
+                                onClick={() => setFilterType('all')}
+                            >
+                                Tất cả
+                            </button>
+                            <button
+                                className={`pill-btn ${filterType === 'personal' ? 'active' : ''}`}
+                                onClick={() => setFilterType('personal')}
+                            >
+                                Cá nhân
+                            </button>
+                            <button
+                                className={`pill-btn ${filterType === 'company' ? 'active' : ''}`}
+                                onClick={() => setFilterType('company')}
+                            >
+                                Công ty
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Giới tính</label>
+                        <div className="pill-group">
+                            <button
+                                className={`pill-btn ${filterGender === 'all' ? 'active' : ''}`}
+                                onClick={() => setFilterGender('all')}
+                            >
+                                Tất cả
+                            </button>
+                            <button
+                                className={`pill-btn ${filterGender === 'male' ? 'active' : ''}`}
+                                onClick={() => setFilterGender('male')}
+                            >
+                                Nam
+                            </button>
+                            <button
+                                className={`pill-btn ${filterGender === 'female' ? 'active' : ''}`}
+                                onClick={() => setFilterGender('female')}
+                            >
+                                Nữ
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Sinh nhật</label>
+                        <div className="radio-group-vertical">
+                            <label className="radio-item">
+                                <input
+                                    type="radio"
+                                    name="birthDate"
+                                    checked={birthDateRange === 'all'}
+                                    onChange={() => setBirthDateRange('all')}
+                                />
+                                <span>Toàn thời gian</span>
+                                <MdKeyboardArrowRight className="arrow-icon" />
+                            </label>
+                            <label className="radio-item">
+                                <input
+                                    type="radio"
+                                    name="birthDate"
+                                    checked={birthDateRange === 'custom'}
+                                    onChange={() => setBirthDateRange('custom')}
+                                />
+                                <span>Tùy chỉnh</span>
+                                <MdCalendarToday className="calendar-icon" />
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Ngày giao dịch cuối</label>
+                        <div className="radio-group-vertical">
+                            <label className="radio-item">
+                                <input
+                                    type="radio"
+                                    name="lastTxDate"
+                                    checked={lastTxDateRange === 'all'}
+                                    onChange={() => setLastTxDateRange('all')}
+                                />
+                                <span>Toàn thời gian</span>
+                                <MdKeyboardArrowRight className="arrow-icon" />
+                            </label>
+                            <label className="radio-item">
+                                <input
+                                    type="radio"
+                                    name="lastTxDate"
+                                    checked={lastTxDateRange === 'custom'}
+                                    onChange={() => setLastTxDateRange('custom')}
+                                />
+                                <span>Tùy chỉnh</span>
+                                <MdCalendarToday className="calendar-icon" />
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Tổng bán</label>
+
+                        {/* Giá trị section */}
+                        <div className="sub-filter-group">
+                            <label className="sub-label">Giá trị</label>
+                            <div className="range-inputs-vertical">
+                                <div className="input-group-prefix">
+                                    <span className="input-prefix">Từ</span>
+                                    <input
+                                        type="text"
+                                        placeholder="Nhập giá trị"
+                                        value={salesRangeFrom}
+                                        onChange={(e) => setSalesRangeFrom(e.target.value)}
+                                        className="prefix-input"
+                                    />
+                                </div>
+                                <div className="input-group-prefix">
+                                    <span className="input-prefix">Tới</span>
+                                    <input
+                                        type="text"
+                                        placeholder="Nhập giá trị"
+                                        value={salesRangeTo}
+                                        onChange={(e) => setSalesRangeTo(e.target.value)}
+                                        className="prefix-input"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Thời gian section */}
+                        <div className="sub-filter-group">
+                            <label className="sub-label">Thời gian</label>
+                            <div className="radio-group-vertical">
+                                <label className="radio-item">
+                                    <input
+                                        type="radio"
+                                        name="salesTime"
+                                        checked={salesTimeRange === 'all'}
+                                        onChange={() => setSalesTimeRange('all')}
+                                    />
+                                    <span>Toàn thời gian</span>
+                                    <MdKeyboardArrowRight className="arrow-icon" />
+                                </label>
+                                <label className="radio-item">
+                                    <input
+                                        type="radio"
+                                        name="salesTime"
+                                        checked={salesTimeRange === 'custom'}
+                                        onChange={() => setSalesTimeRange('custom')}
+                                    />
+                                    <span>Tùy chỉnh</span>
+                                    <MdCalendarToday className="calendar-icon" />
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Nợ hiện tại</label>
+                        <div className="range-inputs-row">
+                            <div className="range-input-compact">
+                                <span className="range-prefix">Từ</span>
+                                <input
+                                    type="text"
+                                    placeholder="Giá trị"
+                                    value={currentDebtFrom}
+                                    onChange={(e) => setCurrentDebtFrom(e.target.value)}
+                                />
+                            </div>
+                            <div className="range-input-compact">
+                                <span className="range-prefix">Tới</span>
+                                <input
+                                    type="text"
+                                    placeholder="Giá trị"
+                                    value={currentDebtTo}
+                                    onChange={(e) => setCurrentDebtTo(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Số ngày nợ</label>
+                        <div className="range-inputs-row">
+                            <div className="range-input-compact">
+                                <span className="range-prefix">Từ</span>
+                                <input
+                                    type="text"
+                                    placeholder="Giá trị"
+                                    value={debtDaysFrom}
+                                    onChange={(e) => setDebtDaysFrom(e.target.value)}
+                                />
+                            </div>
+                            <div className="range-input-compact">
+                                <span className="range-prefix">Tới</span>
+                                <input
+                                    type="text"
+                                    placeholder="Giá trị"
+                                    value={debtDaysTo}
+                                    onChange={(e) => setDebtDaysTo(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Khu vực giao hàng</label>
+                        <div className="search-input-wrapper">
+                            <input
+                                type="text"
+                                placeholder="Chọn Tỉnh/TP - Quận/Huyện"
+                                className="filter-input"
+                                value={deliveryArea}
+                                onChange={(e) => setDeliveryArea(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Trạng thái</label>
+                        <div className="status-pill-group">
+                            <button
+                                className={`status-pill ${customerStatus === 'all' ? 'active' : ''}`}
+                                onClick={() => setCustomerStatus('all')}
+                            >
+                                Tất cả
+                            </button>
+                            <button
+                                className={`status-pill ${customerStatus === 'active' ? 'active' : ''}`}
+                                onClick={() => setCustomerStatus('active')}
+                            >
+                                Đang hoạt động
+                            </button>
+                            <button
+                                className={`status-pill ${customerStatus === 'inactive' ? 'active' : ''}`}
+                                onClick={() => setCustomerStatus('inactive')}
+                            >
+                                Ngừng hoạt động
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Main Content */}
+                <div className="customer-main-content">
+                    {/* Search & Filter Bar */}
+                    <div className="search-filter-bar">
+                        <div className="search-box">
+                            <MdSearch className="search-icon" />
+                            <input
+                                type="text"
+                                placeholder="Tìm kiếm theo tên, mã KH, hoặc số điện thoại..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="search-input"
+                            />
+                            {searchQuery && (
+                                <button
+                                    className="clear-search"
+                                    onClick={() => setSearchQuery('')}
+                                    title="Xóa tìm kiếm"
+                                >
+                                    ×
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="filter-controls">
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value as any)}
+                                className="filter-select"
+                            >
+                                <option value="date">Mới nhất</option>
+                                <option value="name">Theo tên</option>
+                                <option value="debt">Nợ cao nhất</option>
+                            </select>
+
+                            <select
+                                value={itemsPerPage}
+                                onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                                className="filter-select"
+                            >
+                                <option value="10">10 / trang</option>
+                                <option value="20">20 / trang</option>
+                                <option value="50">50 / trang</option>
+                                <option value="100">100 / trang</option>
+                            </select>
+                        </div>
+
+                        <div className="result-count">
+                            <span>{filteredCustomers.length}</span> / {customers.length} khách hàng
+                        </div>
+                    </div>
+
+                    <div className="customer-table-wrapper">
+                        {loading ? (
+                            <div className="customer-loading">Đang tải...</div>
+                        ) : customers.length === 0 ? (
+                            <div className="customer-empty">
+                                <div className="customer-empty-icon"><MdPeople size={64} /></div>
+                                <p>Chưa có khách hàng</p>
+                            </div>
+                        ) : (
+                            <table className="customer-table">
+                                <thead>
+                                    <tr>
+                                        <th>Mã KH</th>
+                                        <th>Tên khách hàng</th>
+                                        <th>Điện thoại</th>
+                                        <th className="text-right">Nợ hiện tại</th>
+                                        <th className="text-center">Số ngày nợ</th>
+                                        <th className="text-right">Tổng bán</th>
+                                        <th className="text-right">Tổng bán trừ TH</th>
+                                        <th className="text-center">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {paginatedCustomers.map((c) => (
+                                        <>
+                                            <tr
+                                                key={c.id}
+                                                className={expandedCustomerId === c.id ? 'selected-row' : ''}
+                                                onClick={() => openDetail(c)}
+                                                style={{ cursor: 'pointer' }}
+                                            >
+                                                <td className="customer-code">{c.code || '—'}</td>
+                                                <td>
+                                                    <span className="customer-name">
+                                                        {c.name}
+                                                    </span>
+                                                </td>
+                                                <td className="customer-contact">{c.phone || '—'}</td>
+                                                <td className="text-right">
+                                                    <span className={c.currentDebt && c.currentDebt > 0 ? 'debt-amount' : ''}>
+                                                        {c.currentDebt ? formatCurrency(c.currentDebt) : '0'}đ
+                                                    </span>
+                                                </td>
+                                                <td className="text-center">
+                                                    {c.debtDays && c.debtDays > 0 ? (
+                                                        <span className={c.debtDays > 30 ? 'debt-days-warning' : 'debt-days'}>
+                                                            {c.debtDays} ngày
+                                                        </span>
+                                                    ) : '—'}
+                                                </td>
+                                                <td className="text-right">
+                                                    {c.totalSales ? formatCurrency(c.totalSales) : '0'}đ
+                                                </td>
+                                                <td className="text-right">
+                                                    {c.totalSalesAfterReturn ? formatCurrency(c.totalSalesAfterReturn) : '0'}đ
+                                                </td>
+                                                <td>
+                                                    <div className="actions-cell">
+                                                        <button onClick={(e) => { e.stopPropagation(); openEditModal(c); }} className="btn-edit">
+                                                            Sửa
+                                                        </button>
+                                                        <button onClick={(e) => { e.stopPropagation(); handleDelete(c); }} className="btn-delete">
+                                                            Xóa
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {expandedCustomerId === c.id && (
+                                                <tr className="expanded-row">
+                                                    <td colSpan={8} className="detail-cell">
+                                                        <div className="detail-container">
+                                                            <CustomerDetail
+                                                                customerId={c.id}
+                                                                onEdit={() => {
+                                                                    openEditModal(c);
+                                                                }}
+                                                                onDelete={() => {
+                                                                    handleDelete(c);
+                                                                }}
+                                                                onRefresh={fetchCustomers}
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+
+                    {/* Pagination */}
+                    {!loading && filteredCustomers.length > 0 && (
+                        <div className="pagination-container">
+                            <div className="pagination-info">
+                                Hiển thị {startIndex + 1} - {Math.min(endIndex, filteredCustomers.length)} của {filteredCustomers.length} khách hàng
+                            </div>
+
+                            <div className="pagination-controls">
+                                <button
+                                    className="pagination-btn"
+                                    onClick={() => setCurrentPage(1)}
+                                    disabled={currentPage === 1}
+                                >
+                                    ««
+                                </button>
+                                <button
+                                    className="pagination-btn"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                >
+                                    ‹
+                                </button>
+
+                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                    let pageNum;
+                                    if (totalPages <= 5) {
+                                        pageNum = i + 1;
+                                    } else if (currentPage <= 3) {
+                                        pageNum = i + 1;
+                                    } else if (currentPage >= totalPages - 2) {
+                                        pageNum = totalPages - 4 + i;
+                                    } else {
+                                        pageNum = currentPage - 2 + i;
+                                    }
+
+                                    return (
+                                        <button
+                                            key={pageNum}
+                                            className={`pagination-btn ${currentPage === pageNum ? 'active' : ''}`}
+                                            onClick={() => setCurrentPage(pageNum)}
+                                        >
+                                            {pageNum}
+                                        </button>
+                                    );
+                                })}
+
+                                <button
+                                    className="pagination-btn"
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                >
+                                    ›
+                                </button>
+                                <button
+                                    className="pagination-btn"
+                                    onClick={() => setCurrentPage(totalPages)}
+                                    disabled={currentPage === totalPages}
+                                >
+                                    »»
+                                </button>
+                            </div>
+                        </div>
                     )}
                 </div>
-
-                <div className="filter-controls">
-                    <select
-                        value={debtFilter}
-                        onChange={(e) => setDebtFilter(e.target.value as any)}
-                        className="filter-select"
-                    >
-                        <option value="all">Tất cả</option>
-                        <option value="has-debt">Có nợ</option>
-                        <option value="no-debt">Không nợ</option>
-                    </select>
-
-                    <select
-                        value={debtDaysFilter}
-                        onChange={(e) => setDebtDaysFilter(e.target.value as any)}
-                        className="filter-select"
-                    >
-                        <option value="all">Tất cả ngày nợ</option>
-                        <option value="<30">&lt; 30 ngày</option>
-                        <option value=">30">30-60 ngày</option>
-                        <option value=">60">&gt; 60 ngày</option>
-                    </select>
-
-                    <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as any)}
-                        className="filter-select"
-                    >
-                        <option value="date">Mới nhất</option>
-                        <option value="name">Theo tên</option>
-                        <option value="debt">Nợ cao nhất</option>
-                    </select>
-
-                    <select
-                        value={itemsPerPage}
-                        onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                        className="filter-select"
-                    >
-                        <option value="10">10 / trang</option>
-                        <option value="20">20 / trang</option>
-                        <option value="50">50 / trang</option>
-                        <option value="100">100 / trang</option>
-                    </select>
-                </div>
-
-                <div className="result-count">
-                    <span>{filteredCustomers.length}</span> / {customers.length} khách hàng
-                </div>
             </div>
-
-            <div className="customer-table-wrapper">
-                {loading ? (
-                    <div className="customer-loading">Đang tải...</div>
-                ) : customers.length === 0 ? (
-                    <div className="customer-empty">
-                        <div className="customer-empty-icon"><MdPeople size={64} /></div>
-                        <p>Chưa có khách hàng</p>
-                    </div>
-                ) : (
-                    <table className="customer-table">
-                        <thead>
-                            <tr>
-                                <th>Mã KH</th>
-                                <th>Tên khách hàng</th>
-                                <th>Điện thoại</th>
-                                <th className="text-right">Nợ hiện tại</th>
-                                <th className="text-center">Số ngày nợ</th>
-                                <th className="text-right">Tổng bán</th>
-                                <th className="text-right">Tổng bán trừ TH</th>
-                                <th className="text-center">Thao tác</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {paginatedCustomers.map((c) => (
-                                <tr key={c.id}>
-                                    <td className="customer-code">{c.code || '—'}</td>
-                                    <td>
-                                        <span className="customer-name" onClick={() => openDetail(c)}>
-                                            {c.name}
-                                        </span>
-                                    </td>
-                                    <td className="customer-contact">{c.phone || '—'}</td>
-                                    <td className="text-right">
-                                        <span className={c.currentDebt && c.currentDebt > 0 ? 'debt-amount' : ''}>
-                                            {c.currentDebt ? formatCurrency(c.currentDebt) : '0'}đ
-                                        </span>
-                                    </td>
-                                    <td className="text-center">
-                                        {c.debtDays && c.debtDays > 0 ? (
-                                            <span className={c.debtDays > 30 ? 'debt-days-warning' : 'debt-days'}>
-                                                {c.debtDays} ngày
-                                            </span>
-                                        ) : '—'}
-                                    </td>
-                                    <td className="text-right">
-                                        {c.totalSales ? formatCurrency(c.totalSales) : '0'}đ
-                                    </td>
-                                    <td className="text-right">
-                                        {c.totalSalesAfterReturn ? formatCurrency(c.totalSalesAfterReturn) : '0'}đ
-                                    </td>
-                                    <td>
-                                        <div className="actions-cell">
-                                            <button onClick={() => openEditModal(c)} className="btn-edit">
-                                                Sửa
-                                            </button>
-                                            <button onClick={() => handleDelete(c)} className="btn-delete">
-                                                Xóa
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-            </div>
-
-            {/* Pagination */}
-            {!loading && filteredCustomers.length > 0 && (
-                <div className="pagination-container">
-                    <div className="pagination-info">
-                        Hiển thị {startIndex + 1} - {Math.min(endIndex, filteredCustomers.length)} của {filteredCustomers.length} khách hàng
-                    </div>
-
-                    <div className="pagination-controls">
-                        <button
-                            className="pagination-btn"
-                            onClick={() => setCurrentPage(1)}
-                            disabled={currentPage === 1}
-                        >
-                            ««
-                        </button>
-                        <button
-                            className="pagination-btn"
-                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                            disabled={currentPage === 1}
-                        >
-                            ‹
-                        </button>
-
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                            let pageNum;
-                            if (totalPages <= 5) {
-                                pageNum = i + 1;
-                            } else if (currentPage <= 3) {
-                                pageNum = i + 1;
-                            } else if (currentPage >= totalPages - 2) {
-                                pageNum = totalPages - 4 + i;
-                            } else {
-                                pageNum = currentPage - 2 + i;
-                            }
-
-                            return (
-                                <button
-                                    key={pageNum}
-                                    className={`pagination-btn ${currentPage === pageNum ? 'active' : ''}`}
-                                    onClick={() => setCurrentPage(pageNum)}
-                                >
-                                    {pageNum}
-                                </button>
-                            );
-                        })}
-
-                        <button
-                            className="pagination-btn"
-                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages}
-                        >
-                            ›
-                        </button>
-                        <button
-                            className="pagination-btn"
-                            onClick={() => setCurrentPage(totalPages)}
-                            disabled={currentPage === totalPages}
-                        >
-                            »»
-                        </button>
-                    </div>
-                </div>
-            )}
 
             {/* Add/Edit Modal */}
             <Modal
@@ -1084,100 +1487,7 @@ export default function CustomerList() {
             </Modal>
 
             {/* Detail Modal */}
-            <Modal
-                isOpen={isDetailOpen}
-                onClose={closeDetail}
-                title={`Chi tiết: ${selectedCustomer?.name || ''}`}
-            >
-                {selectedCustomer && (
-                    <div className="customer-detail">
-                        <div className="detail-info">
-                            <div className="info-item">
-                                <span className="info-label">Mã KH</span>
-                                <span className="info-value">{selectedCustomer.code || '—'}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="info-label">Điện thoại</span>
-                                <span className="info-value">{selectedCustomer.phone || '—'}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="info-label">Email</span>
-                                <span className="info-value">{selectedCustomer.email || '—'}</span>
-                            </div>
-                            <div className="info-item">
-                                <span className="info-label">Địa chỉ</span>
-                                <span className="info-value">{selectedCustomer.address || '—'}</span>
-                            </div>
-                        </div>
-
-                        <div className="debt-summary">
-                            <h4><MdAttachMoney /> Công nợ</h4>
-                            {debtData ? (
-                                <div className="debt-stats">
-                                    <div className="debt-stat">
-                                        <div className="debt-stat-value">
-                                            {formatCurrency(debtData.totalOrders)}đ
-                                        </div>
-                                        <div className="debt-stat-label">Tổng đơn hàng</div>
-                                    </div>
-                                    <div className="debt-stat">
-                                        <div className="debt-stat-value">
-                                            {formatCurrency(debtData.totalPaid)}đ
-                                        </div>
-                                        <div className="debt-stat-label">Đã thanh toán</div>
-                                    </div>
-                                    <div className="debt-stat">
-                                        <div className={`debt-stat-value ${debtData.totalDebt > 0 ? 'positive' : 'zero'}`}>
-                                            {formatCurrency(debtData.totalDebt)}đ
-                                        </div>
-                                        <div className="debt-stat-label">Còn nợ</div>
-                                    </div>
-                                </div>
-                            ) : (
-                                <p>Đang tải...</p>
-                            )}
-                        </div>
-
-                        {debtData && debtData.orders && debtData.orders.length > 0 && (
-                            <div className="orders-section">
-                                <h4><MdDescription /> Lịch sử đơn hàng ({debtData.orderCount})</h4>
-                                <table className="orders-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Mã đơn</th>
-                                            <th>Tổng tiền</th>
-                                            <th>Đã TT</th>
-                                            <th>Trạng thái</th>
-                                            <th>Ngày</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {debtData.orders.slice(0, 10).map((order) => (
-                                            <tr key={order.id}>
-                                                <td>{order.orderNumber}</td>
-                                                <td>{formatCurrency(order.totalAmount)}đ</td>
-                                                <td>{formatCurrency(order.paidAmount)}đ</td>
-                                                <td>
-                                                    <span className={`order-status ${order.status}`}>
-                                                        {order.status === 'COMPLETED' ? 'Hoàn thành' : order.status}
-                                                    </span>
-                                                </td>
-                                                <td>{formatDate(order.createdAt)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-
-                        <div className="detail-actions">
-                            <button onClick={closeDetail} className="btn btn-secondary">
-                                Đóng
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </Modal>
+            {/* Detail Modal Removed - now inline */}
         </div>
     );
 }

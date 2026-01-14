@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -44,8 +44,13 @@ export class CustomersController {
         return this.customersService.getOrders(id);
     }
 
+    @Get(':id/invoices')
+    getInvoices(@Param('id') id: string) {
+        return this.customersService.getInvoices(id);
+    }
+
     @Get(':id/debts')
-    getDebts(@Param('id') id: string) {
-        return this.customersService.getDebts(id);
+    getDebts(@Param('id') id: string, @Query('filter') filter?: string) {
+        return this.customersService.getDebts(id, filter);
     }
 }

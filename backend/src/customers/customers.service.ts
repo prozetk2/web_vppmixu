@@ -230,66 +230,141 @@ export class CustomersService {
         });
     }
 
-    // Get customer's debt summary
-    async getDebts(id: string) {
-        const customer = await this.ensureExists(id);
+    // Get customer's invoices history
+    async getInvoices(id: string) {
+        await this.ensureExists(id);
 
-        // Check if customer has imported data
-        const hasImportedData = customer.currentDebt !== null && customer.totalSales !== null;
-
-        if (hasImportedData) {
-            // Use imported data from Excel
-            return {
-                customerId: id,
-                totalOrders: Number(customer.totalSales || 0),
-                totalPaid: Number(customer.totalSales || 0) - Number(customer.currentDebt || 0),
-                totalDebt: Number(customer.currentDebt || 0),
-                orderCount: 0,
-                orders: [],
-            };
-        }
-
-        // Otherwise, calculate from orders
-        const orders = await this.prisma.order.findMany({
-            where: {
-                customerId: BigInt(id),
-                status: { in: ['COMPLETED', 'PENDING'] },
-            },
+        const invoices = await this.prisma.invoice.findMany({
+            where: { customerId: BigInt(id) },
+            orderBy: { createdAt: 'desc' },
             include: {
-                payments: true,
+                items: true,
             },
         });
 
-        // Calculate debts: total order amount - total paid
-        let totalOrders = 0;
-        let totalPaid = 0;
+        return invoices.map((inv) => ({
+            id: inv.id.toString(),
+            invoiceNumber: inv.invoiceNumber,
+            orderCode: inv.orderCode,
+            totalAmount: Number(inv.totalAmount || 0),
+            amountPaid: Number(inv.amountPaid || 0),
+            amountDue: Number(inv.amountDue || 0),
+            discountAmount: Number(inv.discountAmount || 0),
+            status: inv.status,
+            seller: inv.seller || inv.creator || 'N/A',
+            branch: inv.branch,
+            paymentMethod: inv.paymentMethod,
+            notes: inv.notes,
+            createdAt: inv.createdAt,
+            issuedAt: inv.issuedAt,
+            itemCount: inv.items.length,
+        }));
+    }
 
-        for (const order of orders) {
-            totalOrders += Number(order.totalAmount);
-            for (const payment of order.payments) {
-                if (payment.status === 'COMPLETED') {
-                    totalPaid += Number(payment.amount);
-                }
+    // Get customer's debt summary with transactions
+    async getDebts(id: string, filter?: string) {
+        const customer = await this.ensureExists(id);
+
+        // Get invoices for this customer (main debt source)
+        const invoices = await this.prisma.invoice.findMany({
+            where: { customerId: BigInt(id) },
+            orderBy: { createdAt: 'asc' }, // Oldest first for running balance
+        });
+
+        // Build transactions list with running balance
+        const transactions: {
+            id: string;
+            code: string;
+            time: Date;
+            type: string;
+            value: number;
+            runningBalance: number;
+        }[] = [];
+
+        let runningBalance = 0;
+
+        // Check if customer has imported debt data
+        const hasImportedData = customer.currentDebt !== null && customer.totalSales !== null;
+
+        if (hasImportedData && invoices.length === 0) {
+            // Use imported data when no actual invoices exist
+            return {
+                customerId: id,
+                customerName: customer.name,
+                customerCode: customer.code,
+                totalSales: Number(customer.totalSales || 0),
+                totalPaid: Number(customer.totalSales || 0) - Number(customer.currentDebt || 0),
+                totalDebt: Number(customer.currentDebt || 0),
+                transactionCount: 0,
+                transactions: [],
+            };
+        }
+
+        // Process invoices
+        for (const inv of invoices) {
+            const invoiceAmount = Number(inv.amountDue || inv.totalAmount || 0);
+            const paidAmount = Number(inv.amountPaid || 0);
+
+            // Sale transaction (increases debt)
+            if (invoiceAmount > 0) {
+                runningBalance += invoiceAmount;
+                transactions.push({
+                    id: inv.id.toString(),
+                    code: inv.invoiceNumber || `HD${inv.id}`,
+                    time: inv.createdAt,
+                    type: 'Bán hàng',
+                    value: invoiceAmount,
+                    runningBalance: runningBalance,
+                });
+            }
+
+            // Payment transaction (decreases debt)
+            if (paidAmount > 0) {
+                runningBalance -= paidAmount;
+                transactions.push({
+                    id: `${inv.id}-payment`,
+                    code: inv.invoiceNumber || `HD${inv.id}`,
+                    time: inv.createdAt,
+                    type: 'Thanh toán',
+                    value: -paidAmount,
+                    runningBalance: runningBalance,
+                });
             }
         }
 
-        const totalDebt = totalOrders - totalPaid;
+        // Filter transactions if filter is provided
+        let filteredTransactions = transactions;
+        if (filter && filter !== 'all') {
+            filteredTransactions = transactions.filter(t => t.type === filter);
+        }
+
+        // Sort by time descending (newest first for display)
+        filteredTransactions.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+        // Calculate totals
+        const totalSales = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
+        const totalPaid = invoices.reduce((sum, inv) => sum + Number(inv.amountPaid || 0), 0);
+        const totalDebt = totalSales - totalPaid;
 
         return {
             customerId: id,
-            totalOrders,
+            customerName: customer.name,
+            customerCode: customer.code,
+            totalSales,
             totalPaid,
             totalDebt,
-            orderCount: orders.length,
-            orders: orders.map((o) => ({
-                id: o.id.toString(),
-                orderNumber: o.orderNumber,
-                totalAmount: Number(o.totalAmount),
-                paidAmount: o.payments
-                    .filter((p) => p.status === 'COMPLETED')
-                    .reduce((sum, p) => sum + Number(p.amount), 0),
-                status: o.status,
-                createdAt: o.createdAt,
+            transactionCount: filteredTransactions.length,
+            transactions: filteredTransactions,
+            // Legacy fields for backward compatibility
+            totalOrders: totalSales,
+            orderCount: invoices.length,
+            orders: invoices.map((inv) => ({
+                id: inv.id.toString(),
+                orderNumber: inv.invoiceNumber,
+                totalAmount: Number(inv.totalAmount || 0),
+                paidAmount: Number(inv.amountPaid || 0),
+                status: inv.status,
+                createdAt: inv.createdAt,
             })),
         };
     }
