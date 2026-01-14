@@ -19,12 +19,55 @@ A full-stack warehouse and debt management application built with NestJS, React,
 
 ## Features
 
+### Core Modules
 - ✅ User Authentication (JWT)
-- ✅ Product Management
+- ✅ Product Management (CRUD, bulk import/export)
 - ✅ Category Management
 - ✅ Warehouse Management
-- ✅ Customer Management
+- ✅ Customer Management (filters, debt tracking, export)
 - ✅ Supplier Management
+
+### Sales & POS
+- ✅ Point of Sale (POS) with multi-invoice tabs
+- ✅ Barcode/SKU search
+- ✅ Multiple payment methods (Cash, Card, Transfer)
+- ✅ VietQR integration for bank transfers
+- ✅ Customer selection and quick add
+- ✅ Discount by percentage or amount
+- ✅ Print invoice templates (A/B/C formats)
+- ✅ Sales channel tracking (Direct, Facebook, Instagram)
+- ✅ Return order functionality
+
+### Invoices
+- ✅ Invoice list with expandable details
+- ✅ Filters by status, time, creator, seller
+- ✅ Import/Export Excel (summary & detailed)
+- ✅ Print invoice
+- ✅ Return invoice
+- ✅ **Edit invoice via Sales page** (like KiotViet)
+
+### Purchases (Nhập hàng)
+- ✅ Purchase list with KiotViet-style sidebar filters
+- ✅ Full-page purchase creation form
+- ✅ Supplier search with quick add
+- ✅ Store/unit selection
+- ✅ Auto-generate purchase code (PN + YYYYMMDD + sequence)
+- ✅ Product table with quantity, price, discount
+
+### Inventory
+- ✅ Stock overview by product/warehouse
+- ✅ Stock movement tracking
+- ✅ Low stock alerts
+
+### Reports
+- ✅ Revenue reports
+- ✅ Sales analytics
+- ✅ Customer debt reports with Excel export
+
+### Price Lists
+- ✅ Multiple price lists
+- ✅ Default price list setting
+- ✅ Product-specific pricing
 
 ## Setup
 
