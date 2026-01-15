@@ -58,6 +58,8 @@ A full-stack warehouse and debt management application built with NestJS, React,
 - ✅ Stock overview by product/warehouse
 - ✅ Stock movement tracking
 - ✅ Low stock alerts
+- ✅ **KiotViet-style Inventory Report** (Colored columns, sticky headers)
+- ✅ **Advanced Excel Export** (Merged headers, formatted columns)
 
 ### Reports
 - ✅ Revenue reports
@@ -68,6 +70,13 @@ A full-stack warehouse and debt management application built with NestJS, React,
 - ✅ Multiple price lists
 - ✅ Default price list setting
 - ✅ Product-specific pricing
+- ✅ **Redesigned UI** (Sticky headers, compact filters)
+- ✅ **Import/Export Price Lists** (Excel/CSV support)
+- ✅ **Dynamic Pricing in POS** (Auto-update cart when changing price list)
+
+### UI Standardization
+- ✅ Consistent Page Headers (Title - Search - Actions) across all modules
+- ✅ Unified button styles (Outline Primary for "Add", Secondary for tools)
 
 ## Setup
 
