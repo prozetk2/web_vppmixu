@@ -64,4 +64,8 @@ export class CreateOrderDto {
     @IsOptional()
     @IsString()
     note?: string;
+
+    @IsOptional()
+    @IsString()
+    storeId?: string; // Company/Store for this sale (for reporting)
 }

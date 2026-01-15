@@ -240,6 +240,7 @@ export class SalesService {
                             fromWarehouseId: targetWarehouseId,
                             quantity: -Number(item.quantity),
                             note: `Bán hàng: ${orderNumber}`,
+                            storeId: dto.storeId ? BigInt(dto.storeId) : null, // Company for this sale
                         },
                     });
                 }

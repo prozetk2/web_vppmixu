@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
-import { priceListsAPI, productsAPI } from '../../services/api';
+import { useRef, useState, useEffect, useMemo } from 'react';
+import { priceListsAPI, productsAPI, categoriesAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
-import { MdAdd, MdDelete, MdSave, MdClose, MdSearch } from 'react-icons/md';
+import { MdAdd, MdDelete, MdClose, MdSearch, MdFileDownload, MdFileUpload, MdGridView, MdSettings, MdExpandMore, MdHelpOutline } from 'react-icons/md';
+import * as XLSX from 'xlsx';
 import './PriceListsPage.css';
 
 interface PriceList {
@@ -18,32 +19,109 @@ interface Product {
     sku: string;
     name: string;
     defaultPrice: number;
+    defaultCost: number;
+    categoryId?: string;
+    totalStock?: number;
+    unit?: string;
+}
+
+interface Category {
+    id: string;
+    name: string;
 }
 
 export default function PriceListsPage() {
     const [priceLists, setPriceLists] = useState<PriceList[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [selectedPriceList, setSelectedPriceList] = useState<string | null>(null);
     const [productPrices, setProductPrices] = useState<Map<string, number>>(new Map());
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingPriceList, setEditingPriceList] = useState<Partial<PriceList> | null>(null);
+    const [showPriceListDropdown, setShowPriceListDropdown] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Filters
+    const [searchTerm, setSearchTerm] = useState('');
+    const [skuFilter, setSkuFilter] = useState('');
+    const [nameFilter, setNameFilter] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('');
+    const [stockFilter, setStockFilter] = useState<'all' | 'inStock' | 'outOfStock'>('all');
+    const [priceCondition, setPriceCondition] = useState<'all' | 'gt' | 'lt' | 'eq'>('all');
+    const [priceCompareValue, setPriceCompareValue] = useState<number>(0);
+
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(15);
 
     const toast = useToast();
-    const [searchTerm, setSearchTerm] = useState('');
 
-    // Filter products by search term
+    // Filter products
     const filteredProducts = useMemo(() => {
-        if (!searchTerm.trim()) return products;
-        const term = searchTerm.toLowerCase();
-        return products.filter(
-            p => p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term)
-        );
-    }, [products, searchTerm]);
+        let result = products;
+
+        // Global search
+        if (searchTerm.trim()) {
+            const term = searchTerm.toLowerCase();
+            result = result.filter(
+                p => p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term)
+            );
+        }
+
+        // Column filters
+        if (skuFilter.trim()) {
+            result = result.filter(p => p.sku.toLowerCase().includes(skuFilter.toLowerCase()));
+        }
+        if (nameFilter.trim()) {
+            result = result.filter(p => p.name.toLowerCase().includes(nameFilter.toLowerCase()));
+        }
+
+        // Category filter
+        if (categoryFilter) {
+            result = result.filter(p => p.categoryId === categoryFilter);
+        }
+
+        // Stock filter
+        if (stockFilter === 'inStock') {
+            result = result.filter(p => (p.totalStock || 0) > 0);
+        } else if (stockFilter === 'outOfStock') {
+            result = result.filter(p => (p.totalStock || 0) <= 0);
+        }
+
+        // Price condition filter
+        if (priceCondition !== 'all' && priceCompareValue > 0) {
+            result = result.filter(p => {
+                const price = productPrices.get(p.id) || p.defaultPrice;
+                if (priceCondition === 'gt') return price > priceCompareValue;
+                if (priceCondition === 'lt') return price < priceCompareValue;
+                if (priceCondition === 'eq') return price === priceCompareValue;
+                return true;
+            });
+        }
+
+        return result;
+    }, [products, searchTerm, skuFilter, nameFilter, categoryFilter, stockFilter, priceCondition, priceCompareValue, productPrices]);
+
+    // Pagination
+    const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+    const paginatedProducts = useMemo(() => {
+        const start = (currentPage - 1) * itemsPerPage;
+        return filteredProducts.slice(start, start + itemsPerPage);
+    }, [filteredProducts, currentPage, itemsPerPage]);
 
     useEffect(() => {
         fetchPriceLists();
         fetchProducts();
+        fetchCategories();
     }, []);
+
+    // Auto-select first price list
+    useEffect(() => {
+        if (priceLists.length > 0 && !selectedPriceList) {
+            const defaultList = priceLists.find(pl => pl.isDefault) || priceLists[0];
+            loadPriceListProducts(defaultList.id);
+        }
+    }, [priceLists]);
 
     const fetchPriceLists = async () => {
         try {
@@ -62,16 +140,33 @@ export default function PriceListsPage() {
 
     const fetchProducts = async () => {
         try {
-            const response = await productsAPI.getAll({ page: 1, limit: 1000 });
+            const response = await productsAPI.getAll({ page: 1, limit: 5000 });
             const data = response.data?.data || [];
             setProducts(data.map((p: any) => ({
                 id: p.id.toString(),
-                sku: p.sku,
+                sku: p.sku || p.code || '',
                 name: p.name,
                 defaultPrice: Number(p.defaultPrice || 0),
+                defaultCost: Number(p.defaultCost || 0),
+                categoryId: p.categoryId?.toString(),
+                totalStock: Number(p.totalStock || 0),
+                unit: p.unit,
             })));
         } catch (error) {
             toast.error('Không thể tải danh sách sản phẩm');
+        }
+    };
+
+    const fetchCategories = async () => {
+        try {
+            const response = await categoriesAPI.getAll();
+            const data = response.data?.data || response.data || [];
+            setCategories(data.map((c: any) => ({
+                id: c.id.toString(),
+                name: c.name,
+            })));
+        } catch (error) {
+            console.error('Error fetching categories:', error);
         }
     };
 
@@ -87,6 +182,7 @@ export default function PriceListsPage() {
 
             setProductPrices(prices);
             setSelectedPriceList(priceListId);
+            setShowPriceListDropdown(false);
         } catch (error) {
             toast.error('Không thể tải giá sản phẩm');
         }
@@ -155,114 +251,397 @@ export default function PriceListsPage() {
         return new Intl.NumberFormat('vi-VN').format(value);
     };
 
+    const selectedPriceListName = priceLists.find(pl => pl.id === selectedPriceList)?.name || 'Bảng giá chung';
+
+    const handleExport = () => {
+        if (!selectedPriceList) {
+            toast.error('Vui lòng chọn bảng giá cần xuất');
+            return;
+        }
+
+        // Filter products that have a price set in the current list
+        const productsToExport = products
+            .filter(p => productPrices.has(p.id))
+            .map(p => {
+                const categoryName = categories.find(c => c.id === p.categoryId)?.name || '';
+                const price = productPrices.get(p.id) || 0;
+
+                return {
+                    'Mã hàng': p.sku,
+                    'Tên hàng': p.name,
+                    'Đơn vị tính': p.unit || '',
+                    'Nhóm hàng': categoryName,
+                    'Tồn kho': p.totalStock || 0,
+                    'Giá vốn': p.defaultCost || 0,
+                    'Giá nhập cuối': p.defaultCost || 0, // Fallback as we don't have explicit lastImportPrice
+                    [selectedPriceListName]: price
+                };
+            });
+
+        if (productsToExport.length === 0) {
+            toast.error('Không có sản phẩm nào có giá trong bảng giá này');
+            return;
+        }
+
+        const ws = XLSX.utils.json_to_sheet(productsToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "BangGia");
+
+        // Generate filename
+        const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const filename = `BangGia_${selectedPriceListName}_${date}.xlsx`;
+
+        XLSX.writeFile(wb, filename);
+        toast.success('Xuất file thành công');
+    };
+
+    const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const data = await file.arrayBuffer();
+            const workbook = XLSX.read(data);
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+
+            if (jsonData.length < 2) {
+                toast.error('File không có dữ liệu');
+                return;
+            }
+
+            // Find headers
+            const headers = jsonData[0].map((h: any) => String(h || '').trim());
+
+            // Map columns
+            const skuIdx = headers.findIndex(h => h.includes('Mã hàng') || h.toLowerCase().includes('sku'));
+            const priceIdx = headers.findIndex(h => h === selectedPriceListName || h.toLowerCase().includes('giá') || h.toLowerCase().includes('price'));
+
+            if (skuIdx === -1) {
+                toast.error('Không tìm thấy cột "Mã hàng"');
+                return;
+            }
+            if (priceIdx === -1) {
+                toast.error(`Không tìm thấy cột giá "${selectedPriceListName}"`);
+                return;
+            }
+
+            // Process rows
+            const newPrices = new Map(productPrices);
+            let updatedCount = 0;
+
+            for (let i = 1; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                const sku = String(row[skuIdx] || '').trim();
+                const price = typeof row[priceIdx] === 'number' ? row[priceIdx] : parseFloat(String(row[priceIdx] || '').replace(/,/g, ''));
+
+                if (sku && !isNaN(price)) {
+                    // Find product by SKU
+                    const product = products.find(p => p.sku === sku);
+                    if (product) {
+                        if (price > 0) {
+                            newPrices.set(product.id, price);
+                        } else {
+                            newPrices.delete(product.id);
+                        }
+                        updatedCount++;
+                    }
+                }
+            }
+
+            setProductPrices(newPrices);
+            toast.success(`Đã cập nhật giá cho ${updatedCount} sản phẩm. Vui lòng bấm "Lưu thay đổi" để hoàn tất.`);
+
+        } catch (error) {
+            console.error('Import error:', error);
+            toast.error('Lỗi khi đọc file');
+        } finally {
+            // Reset input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    };
+
     return (
-        <div className="price-lists-page">
+        <div className="price-lists-page kiotviet-style">
             <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
 
+            {/* Header */}
             <div className="page-header">
-                <h2>Bảng giá</h2>
-                <button className="btn-add" onClick={() => {
-                    setEditingPriceList({ active: true, isDefault: false });
-                    setShowAddModal(true);
-                }}>
-                    <MdAdd /> Tạo bảng giá
-                </button>
+                <h2>{selectedPriceListName}</h2>
+                <div className="search-box">
+                    <MdSearch className="search-icon" />
+                    <input
+                        type="text"
+                        placeholder="Theo mã, tên hàng"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <div className="header-actions">
+                    <button className="btn-outline-primary" onClick={() => {
+                        setEditingPriceList({ active: true, isDefault: false });
+                        setShowAddModal(true);
+                    }}>
+                        <MdAdd /> Bảng giá
+                    </button>
+                    <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>
+                        <MdFileUpload /> Import
+                    </button>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
+                        accept=".xlsx, .xls, .csv"
+                        onChange={handleFileImport}
+                    />
+                    <button className="btn-secondary" onClick={handleExport}>
+                        <MdFileDownload /> Xuất file
+                    </button>
+                    <button className="btn-icon"><MdGridView /></button>
+                    <button className="btn-icon"><MdSettings /></button>
+                    <button className="btn-icon"><MdHelpOutline /></button>
+                </div>
             </div>
 
-            <div className="price-lists-content">
-                {/* Left: Price Lists */}
-                <div className="price-lists-sidebar">
-                    <h3>Danh sách bảng giá</h3>
-                    <div className="price-list-items">
-                        {priceLists.map(pl => (
-                            <div
-                                key={pl.id}
-                                className={`price-list-item ${selectedPriceList === pl.id ? 'active' : ''}`}
-                                onClick={() => loadPriceListProducts(pl.id)}
-                            >
-                                <div className="price-list-info">
-                                    <strong>{pl.name}</strong>
-                                    <span className="code">{pl.code}</span>
-                                    {pl.isDefault && <span className="badge-default">Mặc định</span>}
-                                </div>
-                                <button
-                                    className="btn-delete-small"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeletePriceList(pl.id);
-                                    }}
-                                >
-                                    <MdDelete />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Right: Product Prices */}
-                <div className="price-list-products">
-                    {selectedPriceList ? (
-                        <>
-                            <div className="products-header">
-                                <h3>Giá sản phẩm - {priceLists.find(pl => pl.id === selectedPriceList)?.name}</h3>
-                                <button className="btn-save" onClick={handleSavePrices}>
-                                    <MdSave /> Lưu tất cả
-                                </button>
-                            </div>
-
-                            {/* Search Bar */}
-                            <div className="product-search-bar">
-                                <MdSearch className="search-icon" />
-                                <input
-                                    type="text"
-                                    placeholder="Tìm kiếm theo tên hoặc SKU..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                                {searchTerm && (
-                                    <span className="search-result-count">
-                                        {filteredProducts.length} / {products.length} sản phẩm
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="products-table">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>SKU</th>
-                                            <th>Tên sản phẩm</th>
-                                            <th>Giá mặc định</th>
-                                            <th>Giá bán</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredProducts.map(product => (
-                                            <tr key={product.id}>
-                                                <td>{product.sku}</td>
-                                                <td>{product.name}</td>
-                                                <td>{formatCurrency(product.defaultPrice)}đ</td>
-                                                <td>
-                                                    <input
-                                                        type="number"
-                                                        value={productPrices.get(product.id) || ''}
-                                                        onChange={(e) => updateProductPrice(product.id, parseFloat(e.target.value) || 0)}
-                                                        placeholder="Nhập giá"
-                                                    />
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="empty-state">
-                            <p>Chọn một bảng giá để xem và chỉnh sửa giá sản phẩm</p>
+            <div className="page-content">
+                {/* Sidebar */}
+                <div className="sidebar">
+                    {/* Price List Selector */}
+                    <div className="filter-section">
+                        <div className="filter-header">
+                            <span>Bảng giá</span>
+                            <a href="#" className="link-add" onClick={(e) => {
+                                e.preventDefault();
+                                setEditingPriceList({ active: true, isDefault: false });
+                                setShowAddModal(true);
+                            }}>Tạo mới</a>
                         </div>
+                        <div className="price-list-selector" onClick={() => setShowPriceListDropdown(!showPriceListDropdown)}>
+                            <span className="selected-tag">
+                                {selectedPriceListName}
+                                <button className="btn-remove-tag" onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Keep selection, don't remove
+                                }}>×</button>
+                            </span>
+                            <MdExpandMore />
+                        </div>
+                        {showPriceListDropdown && (
+                            <div className="dropdown-menu">
+                                {priceLists.map(pl => (
+                                    <div
+                                        key={pl.id}
+                                        className={`dropdown-item ${selectedPriceList === pl.id ? 'active' : ''}`}
+                                        onClick={() => loadPriceListProducts(pl.id)}
+                                    >
+                                        {pl.name}
+                                        {pl.isDefault && <span className="badge-default">Mặc định</span>}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Category Filter */}
+                    <div className="filter-section">
+                        <div className="filter-header">Nhóm hàng</div>
+                        <select
+                            value={categoryFilter}
+                            onChange={(e) => setCategoryFilter(e.target.value)}
+                            className="filter-select"
+                        >
+                            <option value="">Chọn nhóm hàng</option>
+                            {categories.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Stock Filter */}
+                    <div className="filter-section">
+                        <div className="filter-header">Tồn kho</div>
+                        <select
+                            value={stockFilter}
+                            onChange={(e) => setStockFilter(e.target.value as any)}
+                            className="filter-select"
+                        >
+                            <option value="all">Tất cả</option>
+                            <option value="inStock">Còn hàng</option>
+                            <option value="outOfStock">Hết hàng</option>
+                        </select>
+                    </div>
+
+                    {/* Price Condition Filter */}
+                    <div className="filter-section">
+                        <div className="filter-header">Giá bán</div>
+                        <select
+                            value={priceCondition}
+                            onChange={(e) => setPriceCondition(e.target.value as any)}
+                            className="filter-select"
+                        >
+                            <option value="all">Chọn điều kiện</option>
+                            <option value="gt">Lớn hơn</option>
+                            <option value="lt">Nhỏ hơn</option>
+                            <option value="eq">Bằng</option>
+                        </select>
+                        {priceCondition !== 'all' && (
+                            <input
+                                type="number"
+                                placeholder="Nhập giá"
+                                value={priceCompareValue || ''}
+                                onChange={(e) => setPriceCompareValue(parseFloat(e.target.value) || 0)}
+                                className="filter-input"
+                            />
+                        )}
+                    </div>
+
+                    {/* Save Button - in sidebar */}
+                    {selectedPriceList && productPrices.size > 0 && (
+                        <button className="btn-save-sidebar" onClick={handleSavePrices}>
+                            Lưu thay đổi
+                        </button>
                     )}
                 </div>
+
+                {/* Main Table */}
+                <div className="main-content">
+                    <div className="table-container">
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th className="col-sku">Mã hàng</th>
+                                    <th className="col-name">Tên hàng</th>
+                                    <th className="col-cost">Giá vốn</th>
+                                    <th className="col-last-cost">Giá nhập cuối</th>
+                                    <th className="col-price">{selectedPriceListName}</th>
+                                </tr>
+                                <tr className="filter-row">
+                                    <th>
+                                        <input
+                                            type="text"
+                                            placeholder="Tìm mã hàng"
+                                            value={skuFilter}
+                                            onChange={(e) => setSkuFilter(e.target.value)}
+                                        />
+                                    </th>
+                                    <th>
+                                        <input
+                                            type="text"
+                                            placeholder="Tìm tên hàng"
+                                            value={nameFilter}
+                                            onChange={(e) => setNameFilter(e.target.value)}
+                                        />
+                                    </th>
+                                    <th></th>
+                                    <th></th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {paginatedProducts.map(product => (
+                                    <tr key={product.id}>
+                                        <td className="col-sku">{product.sku}</td>
+                                        <td className="col-name">{product.name}</td>
+                                        <td className="col-cost">{formatCurrency(product.defaultCost)}</td>
+                                        <td className="col-last-cost">{formatCurrency(product.defaultCost)}</td>
+                                        <td className="col-price">
+                                            <input
+                                                type="number"
+                                                value={productPrices.get(product.id) || ''}
+                                                onChange={(e) => updateProductPrice(product.id, parseFloat(e.target.value) || 0)}
+                                                placeholder="0"
+                                                className="price-input"
+                                            />
+                                        </td>
+                                    </tr>
+                                ))}
+                                {paginatedProducts.length === 0 && (
+                                    <tr>
+                                        <td colSpan={5} className="empty-row">
+                                            Không có sản phẩm nào
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Pagination */}
+                    <div className="pagination-bar">
+                        <div className="pagination-info">
+                            <span>Hiện thị</span>
+                            <select
+                                value={itemsPerPage}
+                                onChange={(e) => {
+                                    setItemsPerPage(parseInt(e.target.value));
+                                    setCurrentPage(1);
+                                }}
+                            >
+                                <option value={15}>15 dòng</option>
+                                <option value={30}>30 dòng</option>
+                                <option value={50}>50 dòng</option>
+                                <option value={100}>100 dòng</option>
+                            </select>
+                        </div>
+                        <div className="pagination-pages">
+                            <button
+                                disabled={currentPage === 1}
+                                onClick={() => setCurrentPage(1)}
+                            >«</button>
+                            <button
+                                disabled={currentPage === 1}
+                                onClick={() => setCurrentPage(p => p - 1)}
+                            >‹</button>
+
+                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                let pageNum;
+                                if (totalPages <= 5) {
+                                    pageNum = i + 1;
+                                } else if (currentPage <= 3) {
+                                    pageNum = i + 1;
+                                } else if (currentPage >= totalPages - 2) {
+                                    pageNum = totalPages - 4 + i;
+                                } else {
+                                    pageNum = currentPage - 2 + i;
+                                }
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        className={currentPage === pageNum ? 'active' : ''}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+
+                            {totalPages > 5 && currentPage < totalPages - 2 && (
+                                <>
+                                    <span>...</span>
+                                    <button onClick={() => setCurrentPage(totalPages)}>{totalPages}</button>
+                                </>
+                            )}
+
+                            <button
+                                disabled={currentPage === totalPages}
+                                onClick={() => setCurrentPage(p => p + 1)}
+                            >›</button>
+                            <button
+                                disabled={currentPage === totalPages}
+                                onClick={() => setCurrentPage(totalPages)}
+                            >»</button>
+                        </div>
+                        <div className="pagination-total">
+                            {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredProducts.length)} trong {filteredProducts.length} hàng hóa
+                        </div>
+                    </div>
+                </div>
             </div>
+
+
 
             {/* Add Modal */}
             {showAddModal && (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { productsAPI, invoicesAPI, priceListsAPI } from '../../services/api';
+import { productsAPI, invoicesAPI, priceListsAPI, storesAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
-import { MdAdd, MdRemove, MdDelete, MdShoppingCart, MdRefresh, MdViewModule, MdViewList } from 'react-icons/md';
+import { MdAdd, MdRemove, MdDelete, MdShoppingCart, MdRefresh, MdViewModule, MdViewList, MdBusiness } from 'react-icons/md';
 import './POSPage.css';
 
 interface Product {
@@ -19,6 +19,12 @@ interface PriceList {
     name: string;
     code: string;
     isDefault: boolean;
+}
+
+interface Store {
+    id: string;
+    name: string;
+    code?: string;
 }
 
 interface CartItem {
@@ -46,6 +52,10 @@ export default function POSPage() {
     const [priceLists, setPriceLists] = useState<PriceList[]>([]);
     const [selectedPriceList, setSelectedPriceList] = useState<string>('');
 
+    // Stores (Companies)
+    const [stores, setStores] = useState<Store[]>([]);
+    const [selectedStore, setSelectedStore] = useState<string>('');
+
     // Payment
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'wallet' | 'transfer'>('cash');
     const [cashAmount, setCashAmount] = useState(0);
@@ -65,6 +75,7 @@ export default function POSPage() {
 
     useEffect(() => {
         fetchPriceLists();
+        fetchStores();
     }, []);
 
     useEffect(() => {
@@ -103,6 +114,24 @@ export default function POSPage() {
             }
         } catch (error) {
             console.error('Error fetching price lists:', error);
+        }
+    };
+
+    const fetchStores = async () => {
+        try {
+            const response = await storesAPI.getAll();
+            const storeList = (response.data.data || response.data || []).map((s: any) => ({
+                id: s.id.toString(),
+                name: s.name,
+                code: s.code,
+            }));
+            setStores(storeList);
+            // Auto-select first store if available
+            if (storeList.length > 0) {
+                setSelectedStore(storeList[0].id);
+            }
+        } catch (error) {
+            console.error('Error fetching stores:', error);
         }
     };
 
@@ -256,6 +285,7 @@ export default function POSPage() {
                 customerPhone: customerPhone || undefined,
                 status: 'COMPLETED',
                 salesChannel: 'POS',
+                storeId: selectedStore || undefined, // Company for this sale
             };
 
             const response = await invoicesAPI.create(invoiceData);
@@ -469,6 +499,24 @@ export default function POSPage() {
                                 onChange={(e) => setCustomerPhone(e.target.value)}
                             />
                         </div>
+
+                        {/* Company/Store Selection */}
+                        {stores.length > 0 && (
+                            <div className="store-section">
+                                <label><MdBusiness /> Công ty bán hàng:</label>
+                                <select
+                                    value={selectedStore}
+                                    onChange={(e) => setSelectedStore(e.target.value)}
+                                    className="store-selector"
+                                >
+                                    {stores.map(store => (
+                                        <option key={store.id} value={store.id}>
+                                            {store.name} {store.code ? `(${store.code})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         {/* Totals */}
                         <div className="totals-section">

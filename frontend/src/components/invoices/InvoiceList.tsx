@@ -18,6 +18,10 @@ import {
     MdPrint,
     MdUndo,
     MdCancel,
+    MdMoreHoriz,
+    MdViewColumn,
+    MdSettings,
+    MdHelpOutline,
 } from 'react-icons/md';
 import * as XLSX from 'xlsx';
 import './InvoiceList.css';
@@ -590,18 +594,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
         }
     };
 
-    const activeFiltersCount = () => {
-        let count = 0;
-        if (statusFilter.length !== 2) count++;
-        if (eInvoiceStatus) count++;
-        if (paymentMethod) count++;
-        if (creator) count++;
-        if (seller) count++;
-        if (priceList) count++;
-        if (salesChannel) count++;
-        if (timeFilter !== 'all') count++;
-        return count;
-    };
+
 
     // Print invoice
     const handlePrintInvoice = async (invoice: Invoice) => {
@@ -701,59 +694,73 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
             <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
 
             {/* Header */}
-            <div className="invoice-header">
+            {/* Header */}
+            <div className="page-header">
                 <h2>Hóa đơn</h2>
+                <div className="search-box">
+                    <MdSearch className="search-icon" />
+                    <input
+                        type="text"
+                        placeholder="Theo mã hóa đơn"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                    />
+                </div>
                 <div className="header-actions">
-                    <div className="search-box">
-                        <MdSearch className="search-icon" />
+                    <div className="header-actions">
+                        <button
+                            className={`btn-secondary ${showFilterPanel ? 'active' : ''}`}
+                            onClick={() => setShowFilterPanel(!showFilterPanel)}
+                        >
+                            <MdFilterList />
+                        </button>
+                        <button className="btn-outline-primary" onClick={() => setShowAddModal(true)} style={{ fontWeight: 'bold', color: '#009ddc', borderColor: '#009ddc' }}>
+                            <MdAdd /> Hóa đơn
+                        </button>
+                        <button className="btn-secondary" onClick={handleImportClick}>
+                            <MdFileUpload /> Import file
+                        </button>
+                        <div className="export-dropdown" style={{ position: 'relative' }}>
+                            <button
+                                className="btn-secondary"
+                                onClick={() => setShowExportMenu(!showExportMenu)}
+                            >
+                                <MdFileDownload /> Xuất file {showExportMenu ? <MdExpandMore style={{ transform: 'rotate(180deg)' }} /> : <MdExpandMore />}
+                            </button>
+                            {showExportMenu && (
+                                <div className="export-menu" style={{ position: 'absolute', top: '100%', right: 0, zIndex: 100 }}>
+                                    <button onClick={() => handleExport('summary')}>
+                                        Xuất tổng quan
+                                    </button>
+                                    <button onClick={() => handleExport('detailed')}>
+                                        Xuất chi tiết
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <button className="btn-icon">
+                            <MdMoreHoriz />
+                        </button>
+                        <button className="btn-icon">
+                            <MdViewColumn />
+                        </button>
+                        <button className="btn-icon">
+                            <MdSettings />
+                        </button>
+                        <button className="btn-icon">
+                            <MdHelpOutline />
+                        </button>
+
                         <input
-                            type="text"
-                            placeholder="Theo mã hóa đơn"
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            onKeyDown={handleKeyDown}
+                            type="file"
+                            ref={fileInputRef}
+                            style={{ display: 'none' }}
+                            accept=".xlsx,.xls,.csv"
+                            onChange={handleFileChange}
                         />
                     </div>
-                    <button
-                        className={`btn-filter ${showFilterPanel ? 'active' : ''}`}
-                        onClick={() => setShowFilterPanel(!showFilterPanel)}
-                    >
-                        <MdFilterList />
-                        {activeFiltersCount() > 0 && (
-                            <span className="filter-badge">{activeFiltersCount()}</span>
-                        )}
-                    </button>
-                    <button className="btn-primary" onClick={() => setShowAddModal(true)}>
-                        <MdAdd /> Hóa đơn
-                    </button>
-                    <button className="btn-secondary" onClick={handleImportClick}>
-                        <MdFileUpload /> Import file
-                    </button>
-                    <div className="export-dropdown">
-                        <button
-                            className="btn-secondary"
-                            onClick={() => setShowExportMenu(!showExportMenu)}
-                        >
-                            <MdFileDownload /> Xuất file <MdExpandMore />
-                        </button>
-                        {showExportMenu && (
-                            <div className="export-menu">
-                                <button onClick={() => handleExport('summary')}>
-                                    Xuất tổng quan
-                                </button>
-                                <button onClick={() => handleExport('detailed')}>
-                                    Xuất chi tiết
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                    <input
-                        type="file"
-                        ref={fileInputRef}
-                        style={{ display: 'none' }}
-                        accept=".xlsx,.xls,.csv"
-                        onChange={handleFileChange}
-                    />
                 </div>
             </div>
 

@@ -468,6 +468,42 @@
     border-color: #3b82f6;
 }
 
+.store-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.store-section label {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.875rem;
+}
+
+.store-section label svg {
+    color: #3b82f6;
+}
+
+.store-selector {
+    padding: 0.625rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.store-selector:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
 .totals-section {
     display: flex;
     flex-direction: column;

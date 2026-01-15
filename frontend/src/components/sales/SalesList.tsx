@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { salesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
-import { MdDescription, MdSearch, MdInbox, MdUndo } from 'react-icons/md';
+import { MdSearch, MdInbox, MdUndo, MdFileUpload, MdFileDownload, MdExpandMore, MdMoreHoriz, MdViewColumn, MdSettings, MdHelpOutline } from 'react-icons/md';
 import './SalesList.css';
 
 interface OrderItem {
@@ -119,36 +119,55 @@ export default function SalesList() {
         <div className="sales-list">
             <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
 
-            <div className="sales-header">
-                <h2><MdDescription /> Danh sách hóa đơn</h2>
-            </div>
+            <div className="page-header">
+                <h2>Danh sách đơn hàng</h2>
+                <div className="search-box">
+                    <MdSearch className="search-icon" />
+                    <input
+                        type="text"
+                        placeholder="Tìm mã đơn hàng..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                    />
+                </div>
+                <div className="header-actions">
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => {
+                            setStatusFilter(e.target.value);
+                            setPage(1);
+                        }}
+                        className="filter-select"
+                        style={{ height: '36px', borderColor: '#e5e7eb', borderRadius: '4px', paddingRight: '24px' }}
+                    >
+                        <option value="">Tất cả trạng thái</option>
+                        <option value="COMPLETED">Hoàn thành</option>
+                        <option value="PENDING">Chờ xử lý</option>
+                        <option value="CANCELLED">Đã hủy</option>
+                        <option value="RETURNED">Đã trả hàng</option>
+                    </select>
 
-            <div className="sales-filters">
-                <input
-                    type="text"
-                    placeholder="Tìm mã đơn hàng..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    className="filter-input"
-                />
-                <select
-                    value={statusFilter}
-                    onChange={(e) => {
-                        setStatusFilter(e.target.value);
-                        setPage(1);
-                    }}
-                    className="filter-select"
-                >
-                    <option value="">Tất cả trạng thái</option>
-                    <option value="COMPLETED">Hoàn thành</option>
-                    <option value="PENDING">Chờ xử lý</option>
-                    <option value="CANCELLED">Đã hủy</option>
-                    <option value="RETURNED">Đã trả hàng</option>
-                </select>
-                <button onClick={handleSearch} className="filter-input" style={{ cursor: 'pointer' }}>
-                    <MdSearch /> Tìm
-                </button>
+                    <button className="btn-secondary" title="Import file (Tính năng đang phát triển)">
+                        <MdFileUpload /> Import file
+                    </button>
+                    <button className="btn-secondary" title="Xuất file (Tính năng đang phát triển)">
+                        <MdFileDownload /> Xuất file <MdExpandMore />
+                    </button>
+
+                    <button className="btn-icon">
+                        <MdMoreHoriz />
+                    </button>
+                    <button className="btn-icon">
+                        <MdViewColumn />
+                    </button>
+                    <button className="btn-icon">
+                        <MdSettings />
+                    </button>
+                    <button className="btn-icon">
+                        <MdHelpOutline />
+                    </button>
+                </div>
             </div>
 
             <div className="sales-table-wrapper">

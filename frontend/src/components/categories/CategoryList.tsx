@@ -3,7 +3,7 @@ import { categoriesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import CategoryForm from './CategoryForm';
-import { MdSearch, MdFolder, MdEdit, MdDelete } from 'react-icons/md';
+import { MdSearch, MdFolder, MdEdit, MdDelete, MdAdd, MdRefresh } from 'react-icons/md';
 import './CategoryList.css';
 
 interface Category {
@@ -125,29 +125,35 @@ export default function CategoryList() {
         <div className="category-list">
             <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
 
-            {/* Toolbar */}
-            <div className="category-toolbar">
+            {/* Header */}
+            <div className="page-header">
+                <h2>Danh mục</h2>
                 <div className="search-box">
-                    <span className="search-icon"><MdSearch /></span>
+                    <MdSearch className="search-icon" />
                     <input
                         type="text"
                         placeholder="Tìm kiếm danh mục..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="search-input"
                     />
                     {searchTerm && (
                         <button
                             className="search-clear"
                             onClick={() => setSearchTerm('')}
+                            style={{ position: 'absolute', right: '10px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: '#999' }}
                         >
                             ×
                         </button>
                     )}
                 </div>
-                <button onClick={handleAdd} className="btn-add">
-                    <span>+</span> Thêm danh mục
-                </button>
+                <div className="header-actions">
+                    <button onClick={handleAdd} className="btn-outline-primary" style={{ fontWeight: 'bold', color: '#009ddc', borderColor: '#009ddc' }}>
+                        <MdAdd /> Thêm danh mục
+                    </button>
+                    <button className="btn-icon" onClick={fetchCategories} title="Làm mới">
+                        <MdRefresh />
+                    </button>
+                </div>
             </div>
 
             {/* Table */}

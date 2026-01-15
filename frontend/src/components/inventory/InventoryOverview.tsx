@@ -3,7 +3,7 @@ import { inventoryAPI, warehousesAPI, storesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import StockAdjustment from './StockAdjustment';
-import { MdSearch, MdAdd, MdRemove, MdTune, MdFileUpload, MdFileDownload, MdExpandMore, MdInventory, MdFilterList, MdRefresh } from 'react-icons/md';
+import { MdSearch, MdAdd, MdRemove, MdTune, MdFileUpload, MdFileDownload, MdExpandMore, MdInventory, MdFilterList, MdRefresh, MdMoreHoriz, MdHelpOutline, MdSettings } from 'react-icons/md';
 import * as XLSX from 'xlsx';
 import './InventoryOverview.css';
 
@@ -386,21 +386,64 @@ export default function InventoryOverview() {
     const handleExport = (format: 'excel' | 'csv') => {
         setShowExportDropdown(false);
 
-        const exportData = reportData.map((item) => ({
-            'Mã hàng': item.productCode,
-            'Tên hàng': item.productName,
-            'ĐVT': item.unit,
-            'Đầu kỳ - SL': item.beginningQty,
-            'Đầu kỳ - GT': item.beginningValue,
-            'Nhập kho - SL': item.importQty,
-            'Nhập kho - GT': item.importValue,
-            'Xuất kho - SL': item.exportQty,
-            'Xuất kho - GT': item.exportValue,
-            'Cuối kỳ - SL': item.endingQty,
-            'Cuối kỳ - GT': item.endingValue,
-        }));
+        // Define Headers
+        const headerRow1 = ['Mã hàng', 'Tên hàng', 'ĐVT', 'Đầu kỳ', '', 'Nhập kho', '', 'Xuất kho', '', 'Cuối kỳ', ''];
+        const headerRow2 = ['', '', '', 'Số lượng', 'Giá trị', 'Số lượng', 'Giá trị', 'Số lượng', 'Giá trị', 'Số lượng', 'Giá trị'];
 
-        const worksheet = XLSX.utils.json_to_sheet(exportData);
+        // Define Data
+        const dataRows = reportData.map((item) => [
+            item.productCode,
+            item.productName,
+            item.unit,
+            item.beginningQty,
+            item.beginningValue,
+            item.importQty,
+            item.importValue,
+            item.exportQty,
+            item.exportValue,
+            item.endingQty,
+            item.endingValue,
+        ]);
+
+        if (totals) {
+            dataRows.push([
+                '', 'Tổng cộng', '',
+                totals.beginningQty, totals.beginningValue,
+                totals.importQty, totals.importValue,
+                totals.exportQty, totals.exportValue,
+                totals.endingQty, totals.endingValue
+            ]);
+        }
+
+        // Combine all rows
+        const wsData = [headerRow1, headerRow2, ...dataRows];
+
+        // Create Worksheet
+        const worksheet = XLSX.utils.aoa_to_sheet(wsData);
+
+        // Define Merges
+        // s: start, e: end, r: row, c: col (0-indexed)
+        worksheet['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, // Mã hàng
+            { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }, // Tên hàng
+            { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }, // ĐVT
+            { s: { r: 0, c: 3 }, e: { r: 0, c: 4 } }, // Đầu kỳ
+            { s: { r: 0, c: 5 }, e: { r: 0, c: 6 } }, // Nhập kho
+            { s: { r: 0, c: 7 }, e: { r: 0, c: 8 } }, // Xuất kho
+            { s: { r: 0, c: 9 }, e: { r: 0, c: 10 } } // Cuối kỳ
+        ];
+
+        // Set column widths
+        worksheet['!cols'] = [
+            { wch: 15 }, // Mã hàng
+            { wch: 30 }, // Tên hàng
+            { wch: 8 },  // ĐVT
+            { wch: 12 }, { wch: 15 }, // Đầu kỳ
+            { wch: 12 }, { wch: 15 }, // Nhập kho
+            { wch: 12 }, { wch: 15 }, // Xuất kho
+            { wch: 12 }, { wch: 15 }  // Cuối kỳ
+        ];
+
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Báo cáo tồn kho');
 
@@ -508,56 +551,67 @@ export default function InventoryOverview() {
             {/* Main Content */}
             <main className="inventory-main">
                 {/* Toolbar */}
-                <div className="inventory-toolbar">
-                    <div className="toolbar-left">
+                <div className="page-header">
+                    <h2>Tồn kho</h2>
+                    <div className="search-box">
+                        <MdSearch className="search-icon" />
+                        <input
+                            type="text"
+                            placeholder="Tìm theo mã, tên hàng..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                        />
+                    </div>
+                    <div className="header-actions">
                         <button
-                            className="btn-filter-toggle"
+                            className={`btn-secondary ${showFilters ? 'active' : ''}`}
                             onClick={() => setShowFilters(!showFilters)}
                             title={showFilters ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
                         >
                             <MdFilterList />
                         </button>
-                        <div className="search-box">
-                            <MdSearch className="search-icon" />
-                            <input
-                                type="text"
-                                placeholder="Tìm theo mã, tên hàng..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                            />
-                        </div>
-                    </div>
 
-                    <div className="toolbar-right">
-                        <button onClick={() => openAdjustModal('IMPORT')} className="btn-primary btn-import">
+                        <button onClick={() => openAdjustModal('IMPORT')} className="btn-outline-primary" style={{ fontWeight: 'bold', color: '#009ddc', borderColor: '#009ddc' }}>
                             <MdAdd /> Nhập kho
                         </button>
-                        <button onClick={() => openAdjustModal('EXPORT')} className="btn-secondary btn-export">
+                        <button onClick={() => openAdjustModal('EXPORT')} className="btn-secondary">
                             <MdRemove /> Xuất kho
                         </button>
                         <button onClick={() => openAdjustModal('ADJUST')} className="btn-secondary">
                             <MdTune /> Điều chỉnh
                         </button>
+
                         <button onClick={() => fileInputRef.current?.click()} className="btn-secondary">
                             <MdFileUpload /> Import
                         </button>
-                        <div className="export-dropdown-wrapper">
+
+                        <div className="export-dropdown" style={{ position: 'relative' }}>
                             <button
                                 onClick={() => setShowExportDropdown(!showExportDropdown)}
                                 className="btn-secondary"
                             >
-                                <MdFileDownload /> Xuất file <MdExpandMore />
+                                <MdFileDownload /> Xuất file {showExportDropdown ? <MdExpandMore style={{ transform: 'rotate(180deg)' }} /> : <MdExpandMore />}
                             </button>
                             {showExportDropdown && (
-                                <div className="export-dropdown">
-                                    <button onClick={() => handleExport('excel')}>Xuất Excel (.xlsx)</button>
-                                    <button onClick={() => handleExport('csv')}>Xuất CSV</button>
+                                <div className="dropdown-menu" style={{ right: 0, left: 'auto', top: '100%', marginTop: '4px', position: 'absolute' }}>
+                                    <div className="dropdown-item" onClick={() => handleExport('excel')}>Excel (.xlsx)</div>
+                                    <div className="dropdown-item" onClick={() => handleExport('csv')}>CSV (.csv)</div>
                                 </div>
                             )}
                         </div>
+
+                        <button className="btn-icon">
+                            <MdMoreHoriz />
+                        </button>
                         <button className="btn-icon" onClick={handleSearch} title="Làm mới">
                             <MdRefresh />
+                        </button>
+                        <button className="btn-icon">
+                            <MdSettings />
+                        </button>
+                        <button className="btn-icon">
+                            <MdHelpOutline />
                         </button>
                     </div>
                 </div>
@@ -579,13 +633,13 @@ export default function InventoryOverview() {
                         <table className="inventory-report-table">
                             <thead>
                                 <tr className="header-row-1">
-                                    <th rowSpan={2}>Mã hàng</th>
-                                    <th rowSpan={2}>Tên hàng</th>
+                                    <th rowSpan={2} className="sticky-col first-col">Mã hàng</th>
+                                    <th rowSpan={2} className="sticky-col second-col">Tên hàng</th>
                                     <th rowSpan={2}>ĐVT</th>
-                                    <th colSpan={2} className="header-group">Đầu kỳ</th>
-                                    <th colSpan={2} className="header-group">Nhập kho</th>
-                                    <th colSpan={2} className="header-group">Xuất kho</th>
-                                    <th colSpan={2} className="header-group">Cuối kỳ</th>
+                                    <th colSpan={2} className="header-group header-beginning">Đầu kỳ</th>
+                                    <th colSpan={2} className="header-group header-import">Nhập kho</th>
+                                    <th colSpan={2} className="header-group header-export">Xuất kho</th>
+                                    <th colSpan={2} className="header-group header-ending">Cuối kỳ</th>
                                 </tr>
                                 <tr className="header-row-2">
                                     <th className="num-col">Số lượng</th>

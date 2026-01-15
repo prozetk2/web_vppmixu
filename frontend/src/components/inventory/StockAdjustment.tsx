@@ -334,6 +334,11 @@ export default function StockAdjustment({
             newErrors.quantity = 'Số lượng phải lớn hơn 0';
         }
 
+        // Company required when EXPORT
+        if (formData.type === 'EXPORT' && stores.length > 0 && !formData.storeId) {
+            newErrors.storeId = 'Vui lòng chọn công ty khi xuất kho';
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -363,7 +368,12 @@ export default function StockAdjustment({
     };
 
     const handleTypeChange = (type: MovementType) => {
-        setFormData((prev) => ({ ...prev, type }));
+        setFormData((prev) => ({
+            ...prev,
+            type,
+            // Reset storeId when not EXPORT (only EXPORT requires company)
+            storeId: type === 'EXPORT' ? prev.storeId : ''
+        }));
     };
 
     const getTypeHint = () => {
@@ -438,31 +448,30 @@ export default function StockAdjustment({
                     {errors.warehouseId && <span className="error-text">{errors.warehouseId}</span>}
                 </div>
 
-                {/* Company (optional) */}
-                {
-                    stores.length > 0 && (
-                        <div className="form-group">
-                            <label htmlFor="storeId" className="form-label">
-                                Công ty <span className="optional-hint">(tùy chọn)</span>
-                            </label>
-                            <select
-                                id="storeId"
-                                name="storeId"
-                                value={formData.storeId}
-                                onChange={handleChange}
-                                className="form-select"
-                            >
-                                <option value="">-- Không chọn --</option>
-                                {stores.map((store) => (
-                                    <option key={store.id} value={store.id}>
-                                        {store.name} {store.code ? `(${store.code})` : ''}
-                                    </option>
-                                ))}
-                            </select>
-                            <p className="field-hint">Chọn công ty để ghi nhận giao dịch (dùng cho báo cáo)</p>
-                        </div>
-                    )
-                }
+                {/* Company - Required when EXPORT */}
+                {stores.length > 0 && formData.type === 'EXPORT' && (
+                    <div className="form-group">
+                        <label htmlFor="storeId" className="form-label">
+                            Công ty <span className="required">*</span>
+                        </label>
+                        <select
+                            id="storeId"
+                            name="storeId"
+                            value={formData.storeId}
+                            onChange={handleChange}
+                            className={`form-select ${errors.storeId ? 'error' : ''}`}
+                        >
+                            <option value="">-- Chọn công ty --</option>
+                            {stores.map((store) => (
+                                <option key={store.id} value={store.id}>
+                                    {store.name} {store.code ? `(${store.code})` : ''}
+                                </option>
+                            ))}
+                        </select>
+                        {errors.storeId && <span className="error-text">{errors.storeId}</span>}
+                        <p className="field-hint">Chọn công ty xuất hàng (ghi nhận vào báo cáo)</p>
+                    </div>
+                )}
 
                 {/* Product - Searchable Input */}
                 <div className="form-group">

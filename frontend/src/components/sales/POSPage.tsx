@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { productsAPI, customersAPI, warehousesAPI, salesAPI, inventoryAPI, priceListsAPI } from '../../services/api';
+import { productsAPI, customersAPI, warehousesAPI, salesAPI, inventoryAPI, priceListsAPI, storesAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
 import { MdShoppingCart, MdClose, MdCheckCircle, MdAttachMoney, MdAccountBalance, MdCreditCard, MdQrCodeScanner, MdPrint, MdAssignmentReturn, MdSearch, MdAdd, MdReceipt, MdFlashOn, MdFlashOff, MdPerson, MdStorefront, MdMoreHoriz, MdExpandMore, MdSettings } from 'react-icons/md';
 import { FaFacebook, FaInstagram } from 'react-icons/fa';
@@ -305,12 +305,9 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     // Sale mode: quick (auto-print) or normal
     const [saleMode, setSaleMode] = useState<SaleMode>('normal');
 
-    // Seller state
-    const [sellers, setSellers] = useState([
-        { id: '1', name: 'Mixu' },
-        { id: '2', name: 'Admin' },
-    ]);
-    const [selectedSeller, setSelectedSeller] = useState('1');
+    // Seller state - now fetched from Stores API (sellers = companies)
+    const [sellers, setSellers] = useState<{ id: string, name: string }[]>([]);
+    const [selectedSeller, setSelectedSeller] = useState('');
     const [showSellerDropdown, setShowSellerDropdown] = useState(false);
     const [sellerSearch, setSellerSearch] = useState('');
     const [showAddSellerModal, setShowAddSellerModal] = useState(false);
@@ -505,13 +502,43 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     useEffect(() => {
         fetchData();
         fetchPriceLists();
+        fetchStores();
     }, []);
 
     // Refetch products when price list changes
+    // Refetch products when price list changes and update cart prices
     useEffect(() => {
-        if (selectedPriceList) {
-            fetchData();
-        }
+        const updatePrices = async () => {
+            if (selectedPriceList) {
+                const newProducts = await fetchData();
+
+                // Update prices in all invoices
+                setInvoices(prevInvoices => prevInvoices.map(inv => {
+                    const newCart = inv.cart.map(item => {
+                        const updatedProduct = newProducts.find((p: Product) => p.id === item.product.id);
+                        if (updatedProduct) {
+                            return {
+                                ...item,
+                                unitPrice: updatedProduct.defaultPrice,
+                                product: {
+                                    ...item.product,
+                                    defaultPrice: updatedProduct.defaultPrice
+                                }
+                            };
+                        }
+                        return item;
+                    });
+
+                    return { ...inv, cart: newCart };
+                }));
+
+                // Update prices in active invoice if cart was updated via setInvoices logic
+                // Actually the setInvoices above covers all invoices including active one.
+                // But we might want to show a toast or something.
+            }
+        };
+
+        updatePrices();
     }, [selectedPriceList]);
 
     // Load edit data from InvoiceList when editing an invoice
@@ -575,6 +602,24 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         }
     };
 
+    // Fetch stores/companies for seller dropdown
+    const fetchStores = async () => {
+        try {
+            const response = await storesAPI.getAll();
+            const storeList = (response.data.data || response.data || []).map((s: any) => ({
+                id: s.id.toString(),
+                name: s.name,
+            }));
+            setSellers(storeList);
+            // Auto-select first store if available
+            if (storeList.length > 0 && !selectedSeller) {
+                setSelectedSeller(storeList[0].id);
+            }
+        } catch (error) {
+            console.error('Error fetching stores:', error);
+        }
+    };
+
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -596,7 +641,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             });
 
             const productsData = productsRes.data?.data || [];
-            setProducts(productsData.map((p: any) => {
+            const mappedProducts = productsData.map((p: any) => {
                 // Get price from selected price list if available
                 let price = Number(p.defaultPrice || 0);
                 if (selectedPriceList && p.productPrices) {
@@ -616,7 +661,9 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     stock: stockMap.get(p.id.toString()) || 0,
                     imageUrl: p.imageUrl,
                 };
-            }));
+            });
+
+            setProducts(mappedProducts);
 
             setCustomers((customersRes.data?.data || customersRes.data || []).map((c: any) => ({
                 ...c,
@@ -629,8 +676,11 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             }));
             setWarehouses(whs);
             if (whs.length > 0) setSelectedWarehouse(whs[0].id);
+
+            return mappedProducts;
         } catch (error) {
             console.error('Failed to fetch data:', error);
+            return [];
         } finally {
             setLoading(false);
         }
@@ -724,6 +774,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             const requestBody = {
                 customerId: selectedCustomer || undefined,
                 warehouseId: selectedWarehouse || undefined,
+                storeId: selectedSeller || undefined, // Company/Store for this sale
                 discountAmount: calculatedDiscount,
                 items: cart.map((item) => ({
                     productId: item.product.id,

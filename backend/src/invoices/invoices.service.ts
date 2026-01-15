@@ -290,7 +290,7 @@ export class InvoicesService {
                             })),
                             invoice.invoiceNumber || 'UNKNOWN',
                             undefined, // Use default warehouse
-                            undefined, // storeId - can add later
+                            dto.storeId, // Company for this sale (for reporting)
                             undefined, // performedBy - can add later
                         );
                     }
@@ -328,7 +328,7 @@ export class InvoicesService {
             throw new NotFoundException(`Invoice #${id} not found`);
         }
 
-        const { items, ...invoiceData } = dto;
+        const { items, storeId, ...invoiceData } = dto;
 
         // Parse dates
         const customerDob = dto.customerDob ? new Date(dto.customerDob) : undefined;
@@ -340,6 +340,8 @@ export class InvoicesService {
                 ...invoiceData,
                 customerDob,
                 issuedAt,
+                // Convert storeId string to BigInt if provided
+                storeId: storeId ? BigInt(storeId) : undefined,
                 // Update items if provided
                 items: items?.length
                     ? {

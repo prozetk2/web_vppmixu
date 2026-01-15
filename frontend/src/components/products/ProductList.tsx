@@ -4,7 +4,7 @@ import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import Pagination from '../shared/Pagination';
 import ProductForm from './ProductForm';
-import { MdSearch, MdInventory, MdEdit, MdDelete, MdStarBorder, MdFilterList, MdFileUpload, MdFileDownload, MdAdd, MdSettings, MdViewColumn, MdRefresh } from 'react-icons/md';
+import { MdSearch, MdEdit, MdDelete, MdStarBorder, MdFileUpload, MdFileDownload, MdAdd, MdSettings, MdViewColumn, MdRefresh, MdExpandMore, MdInventory, MdMoreHoriz, MdHelpOutline } from 'react-icons/md';
 import * as XLSX from 'xlsx';
 import './ProductList.css';
 
@@ -543,51 +543,39 @@ export default function ProductList() {
             {/* Main Content */}
             <main className="product-main">
                 {/* Toolbar */}
-                <div className="product-toolbar">
-                    <div className="toolbar-left">
-                        <button
-                            className="btn-filter-toggle"
-                            onClick={() => setShowFilters(!showFilters)}
-                            title={showFilters ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
-                        >
-                            <MdFilterList />
-                        </button>
-                        <div className="search-box">
-                            <MdSearch className="search-icon" />
-                            <input
-                                type="text"
-                                placeholder="Theo mã, tên hàng"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
+                <div className="page-header">
+                    <h2>Hàng hóa</h2>
+                    <div className="search-box">
+                        <MdSearch className="search-icon" />
+                        <input
+                            type="text"
+                            placeholder="Theo mã, tên hàng"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
                     </div>
-
-                    <div className="toolbar-right">
-                        <button className="btn-primary" onClick={handleAdd}>
+                    <div className="header-actions">
+                        <button className="btn-outline-primary" onClick={handleAdd} style={{ fontWeight: 'bold', color: '#009ddc', borderColor: '#009ddc' }}>
                             <MdAdd /> Tạo mới
                         </button>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".xlsx,.xls,.csv"
-                            style={{ display: 'none' }}
-                            onChange={handleFileImport}
-                        />
                         <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>
                             <MdFileUpload /> Import file
                         </button>
-                        <div className="export-dropdown">
+                        <div className="export-dropdown" style={{ position: 'relative' }}>
                             <button className="btn-secondary" onClick={() => setShowExportMenu(!showExportMenu)}>
-                                <MdFileDownload /> Xuất file
+                                <MdFileDownload /> Xuất file {showExportMenu ? <MdExpandMore style={{ transform: 'rotate(180deg)' }} /> : <MdExpandMore />}
                             </button>
                             {showExportMenu && (
-                                <div className="dropdown-menu">
-                                    <button onClick={() => handleExport('xlsx')}>Excel (.xlsx)</button>
-                                    <button onClick={() => handleExport('csv')}>CSV (.csv)</button>
+                                <div className="dropdown-menu" style={{ right: 0, left: 'auto', top: '100%', marginTop: '4px', position: 'absolute' }}>
+                                    <div className="dropdown-item" onClick={() => handleExport('xlsx')}>Excel (.xlsx)</div>
+                                    <div className="dropdown-item" onClick={() => handleExport('csv')}>CSV (.csv)</div>
                                 </div>
                             )}
                         </div>
+
+                        <button className="btn-icon">
+                            <MdMoreHoriz />
+                        </button>
                         <button className="btn-icon" onClick={fetchProducts} title="Làm mới">
                             <MdRefresh />
                         </button>
@@ -597,8 +585,19 @@ export default function ProductList() {
                         <button className="btn-icon" title="Cài đặt">
                             <MdSettings />
                         </button>
+                        <button className="btn-icon">
+                            <MdHelpOutline />
+                        </button>
                     </div>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        style={{ display: 'none' }}
+                        onChange={handleFileImport}
+                    />
                 </div>
+
 
                 {/* Table */}
                 <div className="product-table-wrapper">
@@ -688,21 +687,24 @@ export default function ProductList() {
                 </div>
 
                 {/* Pagination */}
-                {products.length > 0 && (
-                    <Pagination
-                        currentPage={pagination.page}
-                        totalPages={totalPages}
-                        totalItems={pagination.total}
-                        itemsPerPage={pagination.limit}
-                        onPageChange={handlePageChange}
-                    />
-                )}
-            </main>
+                {
+                    products.length > 0 && (
+                        <Pagination
+                            currentPage={pagination.page}
+                            totalPages={totalPages}
+                            totalItems={pagination.total}
+                            itemsPerPage={pagination.limit}
+                            onPageChange={handlePageChange}
+                        />
+                    )
+                }
+            </main >
 
             {/* Add/Edit Modal */}
-            <Modal
+            < Modal
                 isOpen={isFormOpen}
-                onClose={() => setIsFormOpen(false)}
+                onClose={() => setIsFormOpen(false)
+                }
                 title={editingProduct ? 'Sửa sản phẩm' : 'Thêm sản phẩm mới'}
                 size="lg"
             >
@@ -713,10 +715,10 @@ export default function ProductList() {
                     onCancel={() => setIsFormOpen(false)}
                     isLoading={isSubmitting}
                 />
-            </Modal>
+            </Modal >
 
             {/* Delete Confirmation Modal */}
-            <Modal
+            < Modal
                 isOpen={isDeleteOpen}
                 onClose={() => setIsDeleteOpen(false)}
                 title="Xác nhận xóa"
@@ -745,7 +747,7 @@ export default function ProductList() {
                         </button>
                     </div>
                 </div>
-            </Modal>
-        </div>
+            </Modal >
+        </div >
     );
 }
