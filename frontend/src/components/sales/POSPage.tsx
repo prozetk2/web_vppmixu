@@ -424,9 +424,84 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     }, [customers, customerSearch]);
 
     // Multi-invoice tabs state
-    const [invoices, setInvoices] = useState<Invoice[]>([createNewInvoice(1)]);
-    const [activeInvoiceId, setActiveInvoiceId] = useState<string>(invoices[0]?.id || '');
-    const [invoiceCounter, setInvoiceCounter] = useState(2);
+    const [invoices, setInvoices] = useState<Invoice[]>(() => {
+        try {
+            const saved = localStorage.getItem('POS_STATE');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed.invoices && Array.isArray(parsed.invoices)) {
+                    return parsed.invoices.map((inv: any) => ({
+                        ...inv,
+                        createdAt: new Date(inv.createdAt)
+                    }));
+                }
+            }
+        } catch (e) {
+            console.error('Error loading POS state', e);
+        }
+        return [createNewInvoice(1)];
+    });
+
+    const [activeInvoiceId, setActiveInvoiceId] = useState<string>(() => {
+        try {
+            const saved = localStorage.getItem('POS_STATE');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                return parsed.activeInvoiceId || '';
+            }
+        } catch (e) { }
+        return '';
+    });
+
+    const [invoiceCounter, setInvoiceCounter] = useState<number>(() => {
+        try {
+            const saved = localStorage.getItem('POS_STATE');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                return parsed.invoiceCounter || 2;
+            }
+        } catch (e) { }
+        return 2;
+    });
+
+    // Restore settings from localStorage
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('POS_STATE');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed.selectedPriceList) setSelectedPriceList(parsed.selectedPriceList);
+                if (parsed.selectedWarehouse) setSelectedWarehouse(parsed.selectedWarehouse);
+                if (parsed.selectedSeller) setSelectedSeller(parsed.selectedSeller);
+            }
+        } catch (e) {
+            console.error('Error restoring settings:', e);
+        }
+    }, []);
+
+    // Save state to localStorage
+    useEffect(() => {
+        const state = {
+            invoices,
+            activeInvoiceId,
+            invoiceCounter,
+            selectedPriceList,
+            selectedWarehouse,
+            selectedSeller
+        };
+        localStorage.setItem('POS_STATE', JSON.stringify(state));
+    }, [invoices, activeInvoiceId, invoiceCounter, selectedPriceList, selectedWarehouse, selectedSeller]);
+
+    // Ensure activeInvoiceId is valid
+    useEffect(() => {
+        if (invoices.length > 0) {
+            // If activeId is empty or not found in invoices list, default to first invoice
+            const exists = invoices.find(inv => inv.id === activeInvoiceId);
+            if (!activeInvoiceId || !exists) {
+                setActiveInvoiceId(invoices[0].id);
+            }
+        }
+    }, [activeInvoiceId, invoices]);
 
     // Get active invoice
     const activeInvoice = useMemo(() =>
