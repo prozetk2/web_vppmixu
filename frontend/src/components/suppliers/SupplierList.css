@@ -14,6 +14,7 @@
     align-items: center;
     padding: 1rem 1.5rem;
     border-bottom: 1px solid #e5e7eb;
+    gap: 1rem;
 }
 
 .supplier-header h2 {
@@ -24,11 +25,28 @@
     align-items: center;
     gap: 0.5rem;
     color: #1e293b;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Header Search - Centered */
+.header-search {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.header-search .search-box {
+    width: 100%;
+    max-width: 400px;
 }
 
 .header-actions {
     display: flex;
     gap: 0.75rem;
+    flex-shrink: 0;
 }
 
 .btn-add {
@@ -179,10 +197,11 @@
 
 /* Filter Panel */
 .filter-panel {
-    width: 280px;
+    width: 320px;
+    min-width: 320px;
     background: #fafafa;
     border-right: 1px solid #e5e7eb;
-    padding: 1rem;
+    padding: 1.25rem;
     overflow-y: auto;
     flex-shrink: 0;
 }
@@ -649,6 +668,44 @@
     font-size: 0.75rem;
 }
 
+/* Collapsible Form Sections */
+.form-section {
+    margin-top: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.form-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: #f9fafb;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+    transition: background-color 0.2s;
+}
+
+.form-section-header:hover {
+    background: #f3f4f6;
+}
+
+.form-section-header svg {
+    font-size: 1.25rem;
+    color: #6b7280;
+}
+
+.form-section-content {
+    padding: 1rem;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+}
+
 .form-actions {
     display: flex;
     justify-content: flex-end;
@@ -689,4 +746,675 @@
 .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+/* Expandable Row Styles */
+.supplier-row {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.supplier-row:hover {
+    background-color: #f8fafc;
+}
+
+.supplier-row.expanded {
+    background-color: #f0f7ff;
+}
+
+.supplier-detail-row {
+    background-color: #fff;
+}
+
+.supplier-detail-row td {
+    padding: 0 !important;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.supplier-detail-container {
+    background: #fff;
+    border-top: 1px solid #e5e7eb;
+}
+
+/* Detail Tabs */
+.detail-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 0 1.5rem;
+    background: #fafafa;
+}
+
+.detail-tab {
+    padding: 0.75rem 1.25rem;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #64748b;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.detail-tab:hover {
+    color: #3b82f6;
+}
+
+.detail-tab.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+    font-weight: 500;
+}
+
+/* Detail Content */
+.detail-content {
+    padding: 1.5rem;
+}
+
+.info-tab-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.info-title h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.supplier-code-tag {
+    font-size: 0.8rem;
+    color: #64748b;
+    font-weight: 400;
+    margin-left: 0.5rem;
+}
+
+.branch-tag {
+    color: #3b82f6;
+    font-size: 0.85rem;
+}
+
+.info-meta {
+    display: flex;
+    gap: 2rem;
+    color: #64748b;
+    font-size: 0.85rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.info-meta strong {
+    color: #1e293b;
+}
+
+.info-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.info-row {
+    display: flex;
+    gap: 2rem;
+}
+
+.info-item {
+    flex: 1;
+}
+
+.info-item.full-width {
+    flex: 2;
+}
+
+.info-item label {
+    display: block;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+}
+
+.info-item p {
+    margin: 0;
+    color: #1e293b;
+    font-size: 0.9rem;
+}
+
+.add-invoice-info {
+    color: #3b82f6;
+    font-size: 0.875rem;
+    text-decoration: none;
+}
+
+.add-invoice-info:hover {
+    text-decoration: underline;
+}
+
+.notes-section {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #64748b;
+    font-size: 0.875rem;
+    padding: 0.75rem;
+    background: #f8fafc;
+    border-radius: 6px;
+}
+
+.notes-icon {
+    font-size: 1rem;
+    color: #94a3b8;
+}
+
+/* Detail Actions */
+.detail-actions {
+    display: flex;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f1f5f9;
+    margin-top: 1rem;
+}
+
+.btn-detail-delete {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.btn-detail-delete:hover {
+    color: #ef4444;
+}
+
+.btn-detail-edit {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    background: #3b82f6;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-detail-edit:hover {
+    background: #2563eb;
+}
+
+.btn-detail-deactivate {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    color: #475569;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-detail-deactivate:hover {
+    background: #f1f5f9;
+}
+
+/* Empty tab message */
+.empty-tab-message {
+    color: #94a3b8;
+    text-align: center;
+    padding: 2rem;
+    font-size: 0.9rem;
+}
+
+/* History Table */
+.history-tab-content {
+    padding: 0;
+}
+
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.history-table th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    color: #64748b;
+    font-weight: 500;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+
+.history-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.history-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+.purchase-code {
+    color: #3b82f6;
+    font-weight: 500;
+}
+
+.purchase-status {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.purchase-status.confirmed {
+    background: #dcfce7;
+    color: #16a34a;
+}
+
+.purchase-status.pending {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.purchase-status.cancelled {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.history-actions {
+    padding: 1rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.btn-export-history {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    background: none;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    color: #374151;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-export-history:hover {
+    background: #f3f4f6;
+}
+
+/* Debt Tab Styles */
+.debt-tab-content {
+    padding: 0;
+}
+
+.debt-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.debt-filter-select {
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: white;
+    cursor: pointer;
+    min-width: 150px;
+}
+
+.debt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.debt-table th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    color: #64748b;
+    font-weight: 500;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+
+.debt-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.debt-table tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+.debt-amount {
+    font-weight: 600;
+    color: #dc2626;
+}
+
+.debt-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+
+.debt-actions-right {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.btn-debt-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 0.75rem;
+    background: none;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    color: #374151;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-debt-action:hover {
+    background: #f3f4f6;
+}
+
+.btn-debt-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    background: #3b82f6;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-debt-primary:hover {
+    background: #2563eb;
+}
+
+.btn-debt-success {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    background: none;
+    border: 1px solid #22c55e;
+    border-radius: 6px;
+    color: #16a34a;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-debt-success:hover {
+    background: #f0fdf4;
+}
+
+.btn-debt-outline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    background: none;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    color: #6b7280;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-debt-outline:hover {
+    background: #f3f4f6;
+}
+
+/* Debt Modal Styles */
+.debt-modal-content {
+    padding: 0;
+}
+
+.debt-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.debt-modal-supplier {
+    font-weight: 500;
+    color: #374151;
+}
+
+.debt-modal-total {
+    color: #3b82f6;
+    font-size: 0.9rem;
+}
+
+.debt-modal-total strong {
+    color: #1d4ed8;
+}
+
+.debt-remaining-display {
+    background: #f3f4f6;
+    padding: 0.625rem 0.875rem;
+    border-radius: 6px;
+    font-weight: 600;
+    color: #374151;
+    text-align: right;
+}
+
+.debt-remaining-hint {
+    display: block;
+    text-align: right;
+    color: #6b7280;
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    color: #374151;
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #3b82f6;
+}
+
+/* Allocation Table */
+.allocation-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    margin: 1rem 0;
+    table-layout: fixed;
+}
+
+.allocation-table th {
+    text-align: left;
+    padding: 0.5rem 0.25rem;
+    color: #64748b;
+    font-weight: 500;
+    font-size: 0.7rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+    white-space: nowrap;
+}
+
+.allocation-table td {
+    padding: 0.5rem 0.25rem;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.75rem;
+    word-break: break-word;
+}
+
+.allocation-input {
+    width: 60px;
+    padding: 0.25rem 0.375rem;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    text-align: right;
+    font-size: 0.75rem;
+}
+
+.allocation-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+}
+
+/* Adjustment Modal */
+.adjustment-info {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.adjustment-label {
+    color: #6b7280;
+}
+
+.adjustment-value {
+    font-weight: 600;
+    color: #374151;
+}
+
+/* Button Outline Primary */
+.btn-outline-primary {
+    background: white;
+    color: #3b82f6;
+    border: 1px solid #3b82f6;
+}
+
+.btn-outline-primary:hover {
+    background: #eff6ff;
+}
+
+/* Export Debt Modal Styles */
+.export-debt-modal-content {
+    padding: 0;
+}
+
+.export-debt-section {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.export-debt-label {
+    display: block;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.75rem;
+}
+
+.time-period-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.time-pill {
+    padding: 0.5rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 20px;
+    background: white;
+    color: #374151;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.time-pill:hover {
+    border-color: #3b82f6;
+    color: #3b82f6;
+}
+
+.time-pill.active {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+}
+
+.export-info-note {
+    background: #f9fafb;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+
+.export-info-note strong {
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+.export-info-note p {
+    color: #3b82f6;
+    font-size: 0.85rem;
+    margin: 0.25rem 0 0 0;
+}
+
+.export-field-group {
+    margin-bottom: 1rem;
+    padding-left: 0.5rem;
+}
+
+.export-field-header {
+    font-weight: 500;
+}
+
+.export-field-desc {
+    color: #9ca3af;
+    font-size: 0.8rem;
+    margin: 0.25rem 0 0.5rem 1.5rem;
+}
+
+.export-field-items {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-left: 1.5rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid #e5e7eb;
 }

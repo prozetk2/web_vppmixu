@@ -2,7 +2,9 @@ import { useRef, useState, useEffect, useMemo } from 'react';
 import { priceListsAPI, productsAPI, categoriesAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
 import { MdAdd, MdDelete, MdClose, MdSearch, MdFileDownload, MdFileUpload, MdGridView, MdSettings, MdExpandMore, MdHelpOutline } from 'react-icons/md';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import './PriceListsPage.css';
 
 interface PriceList {
@@ -253,46 +255,197 @@ export default function PriceListsPage() {
 
     const selectedPriceListName = priceLists.find(pl => pl.id === selectedPriceList)?.name || 'Bảng giá chung';
 
-    const handleExport = () => {
+    const handleExport = async () => {
         if (!selectedPriceList) {
             toast.error('Vui lòng chọn bảng giá cần xuất');
             return;
         }
 
-        // Filter products that have a price set in the current list
-        const productsToExport = products
-            .filter(p => productPrices.has(p.id))
-            .map(p => {
-                const categoryName = categories.find(c => c.id === p.categoryId)?.name || '';
-                const price = productPrices.get(p.id) || 0;
-
-                return {
-                    'Mã hàng': p.sku,
-                    'Tên hàng': p.name,
-                    'Đơn vị tính': p.unit || '',
-                    'Nhóm hàng': categoryName,
-                    'Tồn kho': p.totalStock || 0,
-                    'Giá vốn': p.defaultCost || 0,
-                    'Giá nhập cuối': p.defaultCost || 0, // Fallback as we don't have explicit lastImportPrice
-                    [selectedPriceListName]: price
-                };
-            });
+        const productsToExport = products.filter(p => productPrices.has(p.id));
 
         if (productsToExport.length === 0) {
             toast.error('Không có sản phẩm nào có giá trong bảng giá này');
             return;
         }
 
-        const ws = XLSX.utils.json_to_sheet(productsToExport);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "BangGia");
+        try {
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Bảng báo giá');
 
-        // Generate filename
-        const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-        const filename = `BangGia_${selectedPriceListName}_${date}.xlsx`;
+            // Set column widths - 6 columns: STT, Nội dung, ĐVT, Số Lượng, Đơn giá, Thành Tiền
+            worksheet.columns = [
+                { width: 6 },   // A - STT
+                { width: 50 },  // B - Nội dung
+                { width: 10 },  // C - ĐVT
+                { width: 12 },  // D - Số Lượng
+                { width: 12 },  // E - Đơn giá
+                { width: 14 }   // F - Thành Tiền
+            ];
 
-        XLSX.writeFile(wb, filename);
-        toast.success('Xuất file thành công');
+
+            const greenColor = '7CB342';
+
+            // Row 1: Company name (A1:F1 merged)
+            worksheet.mergeCells('A1:F1');
+            const companyCell = worksheet.getCell('A1');
+            companyCell.value = 'CÔNG TY TNHH MTV TM VÀ DV MIXU';
+            companyCell.font = { bold: true, size: 14 };
+            companyCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            companyCell.border = { bottom: { style: 'medium', color: { argb: `FF${greenColor}` } } };
+
+            // Row 2-4: Logo (A2:B4) + Company info (C2:F4)
+            // Merge logo area
+            worksheet.mergeCells('A2:B4');
+
+            // Fetch logo image and add to worksheet
+            try {
+                const logoResponse = await fetch('/mixu_logo.png');
+                const logoBlob = await logoResponse.blob();
+                const logoArrayBuffer = await logoBlob.arrayBuffer();
+                const logoBase64 = btoa(
+                    new Uint8Array(logoArrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+                );
+
+                const logoImageId = workbook.addImage({
+                    base64: `data:image/png;base64,${logoBase64}`,
+                    extension: 'png',
+                });
+
+                // Add logo to merged area A2:B4
+                worksheet.addImage(logoImageId, {
+                    tl: { col: 0, row: 1 },
+                    ext: { width: 120, height: 60 }
+                });
+            } catch (logoError) {
+                console.error('Logo load error:', logoError);
+                // Fallback to text if logo fails
+                const logoCell = worksheet.getCell('A2');
+                logoCell.value = 'MIXU\nOFFICE SUPPLIES';
+                logoCell.font = { bold: true, size: 14, color: { argb: `FF${greenColor}` } };
+                logoCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+            }
+
+            // Address (C2:F2)
+            worksheet.mergeCells('C2:F2');
+            const addressCell = worksheet.getCell('C2');
+            addressCell.value = 'A -119 Nguyễn Hữu Thọ, Q, Hải Châu Tp. Đà Nẵng.';
+            addressCell.font = { size: 10 };
+            addressCell.alignment = { horizontal: 'left', vertical: 'middle' };
+
+            // Phone (C3:F3)
+            worksheet.mergeCells('C3:F3');
+            const phoneCell = worksheet.getCell('C3');
+            phoneCell.value = 'T - 0236. 6563583 - 0932452168';
+            phoneCell.font = { size: 10 };
+            phoneCell.alignment = { horizontal: 'left', vertical: 'middle' };
+
+            // Email (C4:F4)
+            worksheet.mergeCells('C4:F4');
+            const emailCell = worksheet.getCell('C4');
+            emailCell.value = 'E - mixuoffice@gmail.com.';
+            emailCell.font = { size: 10 };
+            emailCell.alignment = { horizontal: 'left', vertical: 'middle' };
+
+            // Row 6: Title BẢNG BÁO GIÁ
+            worksheet.mergeCells('A6:F6');
+            const titleCell = worksheet.getCell('A6');
+            titleCell.value = 'BẢNG BÁO GIÁ';
+            titleCell.font = { bold: true, size: 16 };
+            titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+            // Row 7: Subtitle
+            worksheet.mergeCells('A7:F7');
+            const subtitleCell = worksheet.getCell('A7');
+            subtitleCell.value = 'Công ty chúng tôi rất hân hạnh xin báo giá các mặt hàng văn phòng phẩm như sau:';
+            subtitleCell.font = { italic: true, size: 11 };
+            subtitleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+            // Row 8: Table headers
+            const headerRow = worksheet.getRow(8);
+            headerRow.values = ['STT', 'Nội dung', 'ĐVT', 'Số Lượng', 'Đơn giá', 'Thành Tiền'];
+            headerRow.eachCell((cell) => {
+                cell.font = { bold: true, size: 11 };
+                cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                cell.border = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                };
+            });
+
+            // Data rows
+            let rowNum = 9;
+            productsToExport.forEach((p, index) => {
+                const price = productPrices.get(p.id) || 0;
+                const row = worksheet.getRow(rowNum);
+                row.values = [index + 1, p.name, p.unit || 'Cái', '', price, ''];
+                row.eachCell((cell, colNumber) => {
+                    cell.border = {
+                        top: { style: 'thin' },
+                        left: { style: 'thin' },
+                        bottom: { style: 'thin' },
+                        right: { style: 'thin' }
+                    };
+                    if (colNumber === 1 || colNumber === 3 || colNumber === 4) {
+                        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                    } else if (colNumber >= 5) {
+                        cell.alignment = { horizontal: 'right', vertical: 'middle' };
+                    } else {
+                        cell.alignment = { vertical: 'middle' };
+                    }
+                });
+                rowNum++;
+            });
+
+            rowNum++;
+
+            // Notes section - GHI CHÚ:
+            worksheet.getCell(`A${rowNum}`).value = 'GHI CHÚ:';
+            worksheet.getCell(`A${rowNum}`).font = { bold: true, size: 11 };
+            rowNum++;
+
+            // Gộp dấu * với nội dung trong cùng 1 cell
+            const notes = [
+                '* Đơn giá đã bao gồm VAT',
+                '* Giá từng mặt hàng có thể thay đổi theo thời giá mà có thể không báo trước.',
+                '* Giao hàng tận nơi trong TP. Đà Nẵng',
+                '* Còn nhiều mặt hàng khác, Quý khách có nhu cầu xin vui lòng liên hệ.',
+                'Tel: 0932542168    Zalo: 0932.542.168    Mail: mixuoffice@gmail.com',
+                'Cảm ơn quý khách hàng đã sử dụng sản phẩm và dịch vụ của chúng tôi'
+            ];
+
+            notes.forEach(note => {
+                worksheet.getCell(`A${rowNum}`).value = note;
+                worksheet.getCell(`A${rowNum}`).font = { size: 10 };
+                rowNum++;
+            });
+
+            rowNum++;
+
+            // Date and signature
+            const now = new Date();
+            const dateStr = `Đà Nẵng, Ngày ${String(now.getDate()).padStart(2, '0')} tháng ${String(now.getMonth() + 1).padStart(2, '0')} năm ${now.getFullYear()}`;
+            worksheet.getCell(`E${rowNum}`).value = dateStr;
+            worksheet.getCell(`E${rowNum}`).font = { italic: true, size: 11 };
+            worksheet.getCell(`E${rowNum}`).alignment = { horizontal: 'right' };
+            rowNum++;
+
+            worksheet.getCell(`E${rowNum}`).value = 'Người báo giá';
+            worksheet.getCell(`E${rowNum}`).font = { bold: true, size: 11 };
+            worksheet.getCell(`E${rowNum}`).alignment = { horizontal: 'right' };
+
+            // Generate file
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const filename = `BangBaoGia_${selectedPriceListName}_${date}.xlsx`;
+            saveAs(blob, filename);
+            toast.success('Xuất file thành công');
+        } catch (error) {
+            console.error('Export error:', error);
+            toast.error('Lỗi khi xuất file');
+        }
     };
 
     const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {

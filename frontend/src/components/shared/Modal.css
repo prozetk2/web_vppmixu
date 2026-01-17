@@ -58,6 +58,10 @@
     width: 900px;
 }
 
+.modal-xl {
+    width: 700px;
+}
+
 .modal-header {
     display: flex;
     align-items: center;
