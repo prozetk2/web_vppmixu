@@ -84,126 +84,94 @@ const PrintInvoice = ({
 }) => {
     if (!invoice) return null;
 
-    const total = invoice.cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) - invoice.discountAmount; // Simplified
+    const total = invoice.cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) - invoice.discountAmount;
+    const now = new Date();
+    const printTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear().toString().slice(-2)}`;
+    const invoiceDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
-    // Template A & B: Standard A4 Invoice
-    if (settings.template === 'A' || settings.template === 'B') {
-        return (
-            <div className="print-template template-a4">
-                <div className="print-header">
-                    <div className="company-info">
-                        <div className="logo-text">MIXU <small>OFFICE SUPPLIES</small></div>
-                        <div className="company-details">
-                            <h1>CÔNG TY TNHH MTV TM VÀ DV MIXU</h1>
-                            <p><strong>A</strong> - 119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng</p>
-                            <p><strong>T/Zalo</strong> - 0932.542.168 - 0934.792.168</p>
-                            <p><strong>W</strong> - mixuoffice.com - <strong>E</strong> - mixuoffice@gmail.com</p>
-                        </div>
-                    </div>
-                    <div className="invoice-title">
-                        <h2>HÓA ĐƠN BÁN HÀNG</h2>
-                        <div className="invoice-meta">
-                            <span>Mã đơn hàng: <strong>{invoice.id}</strong></span>
-                            <span>{new Date().toLocaleString('vi-VN')}</span>
-                            <span className="invoice-number">Hóa đơn <strong>1</strong></span>
-                        </div>
-                    </div>
-                </div>
+    // Store-specific information based on template
+    const storeConfigs: Record<string, {
+        logoText: string;
+        logoSub: string;
+        companyName: string;
+        address: string;
+        phone: string;
+        website: string;
+        email: string;
+    }> = {
+        MIXU: {
+            logoText: 'MIXU',
+            logoSub: 'OFFICE SUPPLIES',
+            companyName: 'CÔNG TY TNHH MTV TM VÀ DV MIXU',
+            address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
+            phone: '0932.542.168 - 0934.792.168',
+            website: 'mixuoffice.com',
+            email: 'mixuoffice@gmail.com'
+        },
+        THANH_VAN: {
+            logoText: 'THANH VÂN',
+            logoSub: 'VĂN PHÒNG PHẨM',
+            companyName: 'CỬA HÀNG VĂN PHÒNG PHẨM THANH VÂN',
+            address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
+            phone: '0932.542.168 - 0934.792.168',
+            website: 'thanhvan.com',
+            email: 'thanhvan@gmail.com'
+        },
+        VIET_HONG: {
+            logoText: '',
+            logoSub: '',
+            companyName: 'CỬA HÀNG ĐẶNG THỊ VIỆT HỒNG',
+            address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
+            phone: '0236. 6563583 - 0932.542.168',
+            website: 'mixuoffice.com',
+            email: 'Mixuhoadon@gmail.com'
+        }
+    };
 
-                <div className="customer-info-print">
-                    <div className="row">
-                        <span className="label">Khách hàng:</span>
-                        <span className="value">{invoice.customerId || 'Khách lẻ'}</span>
-                    </div>
-                    <div className="row">
-                        <span className="label">Số điện thoại:</span>
-                        <span className="value"></span>
-                    </div>
-                    <div className="row">
-                        <span className="label">Địa chỉ:</span>
-                        <span className="value"></span>
-                    </div>
-                </div>
+    // Determine which store config to use (strip _EXTRA suffix)
+    const templateBase = settings.template.replace('_EXTRA', '');
+    const storeInfo = storeConfigs[templateBase] || storeConfigs.MIXU;
 
-                <table className="print-table">
-                    <thead>
-                        <tr>
-                            <th style={{ width: '40px' }}>STT</th>
-                            <th>Tên hàng</th>
-                            <th style={{ width: '60px' }}>DVT</th>
-                            <th style={{ width: '50px' }}>SL</th>
-                            <th style={{ width: '90px' }}>Đơn giá</th>
-                            <th style={{ width: '100px' }}>Thành tiền</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {invoice.cart.map((item, index) => (
-                            <tr key={index}>
-                                <td className="text-center">{index + 1}</td>
-                                <td>{item.product.name}</td>
-                                <td className="text-center">Cái</td>
-                                <td className="text-center">{item.quantity}</td>
-                                <td className="text-right">{new Intl.NumberFormat('vi-VN').format(item.unitPrice)}</td>
-                                <td className="text-right">{new Intl.NumberFormat('vi-VN').format(item.unitPrice * item.quantity)}</td>
-                            </tr>
-                        ))}
-                        {/* Filler rows for Template A */}
-                        {settings.template === 'A' && Array.from({ length: Math.max(0, 10 - invoice.cart.length) }).map((_, i) => (
-                            <tr key={`empty-${i}`} className="empty-row">
-                                <td></td><td></td><td></td><td></td><td></td><td></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <td colSpan={5} className="text-right font-bold">Số tiền cần phải thanh toán:</td>
-                            <td className="text-right font-bold">{new Intl.NumberFormat('vi-VN').format(total)}</td>
-                        </tr>
-                    </tfoot>
-                </table>
+    // Check if template has extra rows
+    const hasExtraRows = settings.template.includes('_EXTRA');
+    const extraRowCount = hasExtraRows ? 5 : 0;
 
-                <div className="print-footer">
-                    <div className="signature-block">
-                        <p className="role">Người mua hàng</p>
-                    </div>
-                    <div className="signature-block">
-                        <p className="role">Đã thanh toán</p>
-                    </div>
-                    <div className="signature-block">
-                        <p className="role">Người bán hàng</p>
-                        <br /><br /><br />
-                        <p className="name">{sellerName}</p>
-                    </div>
-                </div>
+    return (
+        <div className="print-template template-a4">
+            {/* Top bar */}
+            <div className="print-topbar">
+                <span>{printTime}</span>
+                <span>Chi nhánh trung tâm - Bán hàng</span>
+            </div>
 
-                <div className="print-footer-url">
-                    https://vppmixu.kiotviet.vn/sale/#/
-                    <span className="page-number">1/1</span>
+            {/* Header: Centered */}
+            <div className="print-header-centered">
+                {storeInfo.logoText && (
+                    <div className="store-name-centered">
+                        {storeInfo.logoText} {storeInfo.logoSub && <small>{storeInfo.logoSub}</small>}
+                    </div>
+                )}
+                <div className="company-name-centered">{storeInfo.companyName}</div>
+                <div className="company-details-centered">
+                    <span className="label-red">A</span> - {storeInfo.address}.<br />
+                    <span className="label-red">T</span> - {storeInfo.phone}.<br />
+                    <span className="label-red">W</span> - {storeInfo.website} - <span className="label-red">E</span> - {storeInfo.email}.
                 </div>
             </div>
-        );
-    }
 
-    // Template C: Viet Hong
-    return (
-        <div className="print-template template-c">
-            <div className="print-header">
-                <div className="company-info">
-                    {/* Reuse layout but with Viet Hong details */}
-                    <div className="company-details" style={{ marginTop: '10px' }}>
-                        <h1 style={{ fontSize: '18px', color: '#000' }}>CỬA HÀNG ĐẶNG THỊ VIỆT HỒNG</h1>
-                        <p><strong>A</strong> - 119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng</p>
-                        <p><strong>T</strong> - 0236. 6563583 - 0932.542.168</p>
-                        <p><strong>W</strong> - mixuoffice.com - <strong>E</strong> - Mixuhoadon@gmail.com</p>
-                    </div>
+            {/* Invoice Title: Centered */}
+            <div className="print-invoice-title">HÓA ĐƠN BÁN HÀNG</div>
+
+            {/* Order Info: Two columns */}
+            <div className="print-order-section">
+                <div className="order-left">
+                    <span>Mã đơn hàng: <strong>{invoice.id.length > 20 ? invoice.id.slice(-12) : invoice.id}</strong></span><br />
+                    <span>{invoiceDate}</span>
                 </div>
-                <div className="invoice-title">
-                    <h2>HÓA ĐƠN BÁN HÀNG</h2>
-                    <div className="invoice-meta">
-                        <span>Mã đơn hàng: <strong>{invoice.id}</strong></span>
-                        <span>{new Date().toLocaleString('vi-VN')}</span>
-                        <span className="invoice-number">Hóa đơn <strong>1</strong></span>
-                    </div>
+                <div className="order-right">
+                    <div className="barcode-display">*{invoice.id.slice(-8)}*</div>
+                    <div className="order-code-underline">{invoice.id.length > 20 ? invoice.id.slice(-12) : invoice.id}</div>
+                    <div className="invoice-label">Hóa đơn <strong>1</strong></div>
                 </div>
             </div>
 
@@ -244,9 +212,9 @@ const PrintInvoice = ({
                             <td className="text-right">{new Intl.NumberFormat('vi-VN').format(item.unitPrice * item.quantity)}</td>
                         </tr>
                     ))}
-                    {/* Filler rows also for Template C to keep layout consistent */}
-                    {Array.from({ length: Math.max(0, 10 - invoice.cart.length) }).map((_, i) => (
-                        <tr key={`empty-${i}`} className="empty-row">
+                    {/* Extra filler rows for "_EXTRA" templates */}
+                    {Array.from({ length: extraRowCount }).map((_, i) => (
+                        <tr key={`extra-${i}`} className="empty-row">
                             <td></td><td></td><td></td><td></td><td></td><td></td>
                         </tr>
                     ))}
@@ -254,7 +222,7 @@ const PrintInvoice = ({
                 <tfoot>
                     <tr>
                         <td colSpan={5} className="text-right font-bold">Số tiền cần phải thanh toán:</td>
-                        <td className="text-right font-bold">{new Intl.NumberFormat('vi-VN').format(total)}</td>
+                        <td className="text-right font-bold total-amount">{new Intl.NumberFormat('vi-VN').format(total)}</td>
                     </tr>
                 </tfoot>
             </table>
@@ -366,13 +334,13 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         autoPrint: boolean;
         mergeItems: boolean;
         copies: number;
-        template: 'A' | 'B' | 'C';
+        template: 'MIXU' | 'MIXU_EXTRA' | 'THANH_VAN' | 'THANH_VAN_EXTRA' | 'VIET_HONG' | 'VIET_HONG_EXTRA';
     }
     const [printSettings, setPrintSettings] = useState<PrintSettings>({
         autoPrint: true,
         mergeItems: false,
         copies: 1,
-        template: 'A'
+        template: 'MIXU'
     });
     const [showPrintSettings, setShowPrintSettings] = useState(false);
 
@@ -1585,22 +1553,40 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                     <span className="section-title">Chọn mẫu in</span>
                                     <div className="template-options">
                                         <button
-                                            className={`template-btn ${printSettings.template === 'A' ? 'active' : ''}`}
-                                            onClick={() => setPrintSettings({ ...printSettings, template: 'A' })}
+                                            className={`template-btn ${printSettings.template === 'MIXU' ? 'active' : ''}`}
+                                            onClick={() => setPrintSettings({ ...printSettings, template: 'MIXU' })}
                                         >
-                                            A. Hóa Đơn Thêm Dòng
+                                            MIXU
                                         </button>
                                         <button
-                                            className={`template-btn ${printSettings.template === 'B' ? 'active' : ''}`}
-                                            onClick={() => setPrintSettings({ ...printSettings, template: 'B' })}
+                                            className={`template-btn ${printSettings.template === 'MIXU_EXTRA' ? 'active' : ''}`}
+                                            onClick={() => setPrintSettings({ ...printSettings, template: 'MIXU_EXTRA' })}
                                         >
-                                            B. Hóa Đơn
+                                            MIXU thêm dòng
                                         </button>
                                         <button
-                                            className={`template-btn ${printSettings.template === 'C' ? 'active' : ''}`}
-                                            onClick={() => setPrintSettings({ ...printSettings, template: 'C' })}
+                                            className={`template-btn ${printSettings.template === 'THANH_VAN' ? 'active' : ''}`}
+                                            onClick={() => setPrintSettings({ ...printSettings, template: 'THANH_VAN' })}
                                         >
-                                            C. Mẫu in việt hồng
+                                            Thanh Vân
+                                        </button>
+                                        <button
+                                            className={`template-btn ${printSettings.template === 'THANH_VAN_EXTRA' ? 'active' : ''}`}
+                                            onClick={() => setPrintSettings({ ...printSettings, template: 'THANH_VAN_EXTRA' })}
+                                        >
+                                            Thanh Vân thêm dòng
+                                        </button>
+                                        <button
+                                            className={`template-btn ${printSettings.template === 'VIET_HONG' ? 'active' : ''}`}
+                                            onClick={() => setPrintSettings({ ...printSettings, template: 'VIET_HONG' })}
+                                        >
+                                            Việt Hồng
+                                        </button>
+                                        <button
+                                            className={`template-btn ${printSettings.template === 'VIET_HONG_EXTRA' ? 'active' : ''}`}
+                                            onClick={() => setPrintSettings({ ...printSettings, template: 'VIET_HONG_EXTRA' })}
+                                        >
+                                            Việt Hồng thêm dòng
                                         </button>
                                     </div>
                                 </div>

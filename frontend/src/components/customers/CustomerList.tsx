@@ -4,7 +4,7 @@ import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import * as XLSX from 'xlsx';
 import * as pdfjsLib from 'pdfjs-dist';
-import { MdPeople, MdHourglassEmpty, MdDownload, MdSearch, MdAdd, MdBarChart, MdKeyboardArrowRight, MdCalendarToday, MdChevronLeft, MdChevronRight } from 'react-icons/md';
+import { MdPeople, MdHourglassEmpty, MdDownload, MdSearch, MdAdd, MdBarChart, MdKeyboardArrowRight, MdCalendarToday, MdChevronLeft, MdChevronRight, MdFileUpload } from 'react-icons/md';
 import CustomerDetail from './CustomerDetail';
 import './CustomerList.css';
 
@@ -796,6 +796,105 @@ export default function CustomerList() {
         }
     };
 
+    // === EXPORT FUNCTIONALITY ===
+    const handleExportCustomers = () => {
+        if (filteredCustomers.length === 0) {
+            toast.error('Không có khách hàng nào để xuất');
+            return;
+        }
+
+        try {
+            // Chuẩn bị dữ liệu
+            const exportData = filteredCustomers.map((c, index) => ({
+                'STT': index + 1,
+                'Loại khách': c.customerType || 'Cá nhân',
+                'Chi nhánh tạo': 'Mixu', // Default branch
+                'Mã khách hàng': c.code || '',
+                'Tên khách': c.name || '',
+                'Điện thoại': c.phone || '',
+                'Địa chỉ': c.address || '',
+                'Khu vực': c.district || '',
+                'Phường/Xã': c.ward || '',
+                'Công ty': c.contactPerson || '', // Company contact
+                'Mã số thuế': c.taxNumber || '',
+                'Số CMT': '', // ID number - not in current interface
+                'Ngày sinh': '', // Birth date - not in current interface
+                'Giới tính': '', // Gender - not in current interface
+                'Email': c.email || '',
+                'Facebook': c.website || '', // Using website field for social
+                'Nhóm': c.customerGroup || '',
+                'Ghi chú': c.notes || '',
+                'Người tạo': '', // Creator - not tracked
+                'Ngày tạo': c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '',
+                'Ngày giao dịch cuối': '', // Last transaction date
+                'Số ngày nợ': c.debtDays || 0,
+                'Nợ cần thu': c.currentDebt || 0,
+                'Tổng bán': c.totalSales || 0,
+                'Tổng bán trừ TH': c.totalSalesAfterReturn || 0,
+                'Trạng thái': c.active !== false ? 'Đang giao dịch' : 'Ngừng giao dịch',
+            }));
+
+            // Tạo workbook
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+            // Đặt độ rộng cột
+            worksheet['!cols'] = [
+                { wch: 5 },   // STT
+                { wch: 12 },  // Loại khách
+                { wch: 15 },  // Chi nhánh tạo
+                { wch: 15 },  // Mã khách hàng
+                { wch: 30 },  // Tên khách
+                { wch: 15 },  // Điện thoại
+                { wch: 40 },  // Địa chỉ
+                { wch: 15 },  // Khu vực
+                { wch: 15 },  // Phường/Xã
+                { wch: 25 },  // Công ty
+                { wch: 15 },  // Mã số thuế
+                { wch: 15 },  // Số CMT
+                { wch: 12 },  // Ngày sinh
+                { wch: 10 },  // Giới tính
+                { wch: 25 },  // Email
+                { wch: 20 },  // Facebook
+                { wch: 15 },  // Nhóm
+                { wch: 30 },  // Ghi chú
+                { wch: 15 },  // Người tạo
+                { wch: 12 },  // Ngày tạo
+                { wch: 18 },  // Ngày giao dịch cuối
+                { wch: 12 },  // Số ngày nợ (V - index 21)
+                { wch: 18 },  // Nợ cần thu (W - index 22)
+                { wch: 18 },  // Tổng bán (X - index 23)
+                { wch: 18 },  // Tổng bán trừ TH (Y - index 24)
+                { wch: 15 },  // Trạng thái
+            ];
+
+            // Áp dụng định dạng số với dấu phân cách hàng nghìn cho các cột tiền
+            // Các cột cần format: V (Số ngày nợ), W (Nợ cần thu), X (Tổng bán), Y (Tổng bán trừ TH)
+            const numericColumns = ['V', 'W', 'X', 'Y']; // Số ngày nợ, Nợ cần thu, Tổng bán, Tổng bán trừ TH
+            const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+
+            for (let R = range.s.r + 1; R <= range.e.r; R++) { // Bỏ qua header row
+                numericColumns.forEach(col => {
+                    const cellAddress = col + (R + 1);
+                    const cell = worksheet[cellAddress];
+                    if (cell && typeof cell.v === 'number') {
+                        cell.z = '#,##0'; // Format số với dấu phân cách hàng nghìn
+                    }
+                });
+            }
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách khách hàng');
+
+            // Xuất file
+            const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            XLSX.writeFile(workbook, `DanhSachKhachHang_${date}.xlsx`);
+            toast.success(`Xuất thành công ${filteredCustomers.length} khách hàng`);
+        } catch (error) {
+            console.error('Export error:', error);
+            toast.error('Lỗi khi xuất file');
+        }
+    };
+
     return (
         <div className="customer-page">
             <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
@@ -812,6 +911,9 @@ export default function CustomerList() {
                     />
                     <button onClick={handleImportClick} className="btn-import" disabled={importing}>
                         {importing ? <><MdHourglassEmpty /> Đang import...</> : <><MdDownload /> Import</>}
+                    </button>
+                    <button onClick={handleExportCustomers} className="btn-export">
+                        <MdFileUpload /> Xuất file
                     </button>
                     <button onClick={openAddModal} className="btn-add">
                         <MdAdd /> Thêm KH

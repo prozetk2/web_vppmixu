@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { purchasesAPI, suppliersAPI, productsAPI, warehousesAPI } from '../../services/api';
+import { purchasesAPI, suppliersAPI, productsAPI, warehousesAPI, priceListsAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import { MdDownload, MdInventory, MdCheck, MdClose, MdEdit, MdVisibility, MdSearch, MdDelete, MdFileDownload, MdAdd, MdInventory2, MdStar, MdStarBorder, MdSettings, MdHelp, MdChevronLeft, MdChevronRight } from 'react-icons/md';
@@ -49,6 +49,7 @@ interface Warehouse {
 
 interface FormItem {
     productId: string;
+    productSearch: string;
     quantity: number;
     unitCost: number;
 }
@@ -93,6 +94,9 @@ export default function PurchaseList() {
     // Sidebar collapsed state
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+    // Product search in form
+    const [productSearchQuery, setProductSearchQuery] = useState('');
+
     // Create/Edit Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -101,7 +105,7 @@ export default function PurchaseList() {
         warehouseId: '',
         note: '',
     });
-    const [items, setItems] = useState<FormItem[]>([{ productId: '', quantity: 1, unitCost: 0 }]);
+    const [items, setItems] = useState<FormItem[]>([{ productId: '', productSearch: '', quantity: 1, unitCost: 0 }]);
     const [submitting, setSubmitting] = useState(false);
 
     // Detail Modal state
@@ -114,6 +118,113 @@ export default function PurchaseList() {
     const [exportToDate, setExportToDate] = useState('');
     const [exportStatus, setExportStatus] = useState('');
     const [exporting, setExporting] = useState(false);
+
+    // Quick Add Supplier Modal state
+    const [isQuickSupplierOpen, setIsQuickSupplierOpen] = useState(false);
+    const [supplierSearch, setSupplierSearch] = useState('');
+    const [quickSupplierData, setQuickSupplierData] = useState({
+        name: '',
+        code: '',
+        phone: '',
+        email: '',
+        address: '',
+        area: '',
+        ward: '',
+        supplierGroup: '',
+        notes: '',
+        company: '',
+        taxNumber: '',
+    });
+    const [savingSupplier, setSavingSupplier] = useState(false);
+
+    // Filtered suppliers based on search
+    const filteredSuppliers = suppliers.filter(s =>
+        s.name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+        (s.code && s.code.toLowerCase().includes(supplierSearch.toLowerCase()))
+    );
+
+    // Quick Add Importer (Staff) Modal state
+    const [isQuickImporterOpen, setIsQuickImporterOpen] = useState(false);
+    const [importers, setImporters] = useState<{ id: string; fullName: string; username: string }[]>([]);
+    const [importerSearch, setImporterSearch] = useState('');
+    const [selectedImporterId, setSelectedImporterId] = useState('');
+    const [quickImporterData, setQuickImporterData] = useState({
+        fullName: '',
+        username: '',
+        phone: '',
+        email: '',
+    });
+    const [savingImporter, setSavingImporter] = useState(false);
+
+    // Filtered importers based on search
+    const filteredImporters = importers.filter(i =>
+        i.fullName.toLowerCase().includes(importerSearch.toLowerCase()) ||
+        i.username.toLowerCase().includes(importerSearch.toLowerCase())
+    );
+
+    // Quick Add Store/Company Modal state
+    const [isQuickStoreOpen, setIsQuickStoreOpen] = useState(false);
+    const [stores, setStores] = useState<{ id: string; name: string; code: string }[]>([
+        { id: '1', name: 'Mixu', code: 'MIXU' }
+    ]);
+    const [selectedStoreId, setSelectedStoreId] = useState('1');
+    const [quickStoreData, setQuickStoreData] = useState({
+        name: '',
+        code: '',
+        address: '',
+        phone: '',
+        email: '',
+    });
+    const [savingStore, setSavingStore] = useState(false);
+
+    // Filtered products based on search query
+    const filteredProducts = products.filter(p =>
+        productSearchQuery.trim() === '' ||
+        (p.sku && p.sku.toLowerCase().includes(productSearchQuery.toLowerCase())) ||
+        (p.name && p.name.toLowerCase().includes(productSearchQuery.toLowerCase()))
+    );
+
+    // Quick Add Product Modal state
+    const [isQuickProductOpen, setIsQuickProductOpen] = useState(false);
+    const [productTab, setProductTab] = useState<'info' | 'description'>('info');
+    const [quickProductData, setQuickProductData] = useState({
+        sku: '',
+        barcode: '',
+        name: '',
+        categoryId: '',
+        brandId: '',
+        price: 0,
+        costPrice: 0,
+        minStock: 0,
+        maxStock: 999999999,
+        weight: 0,
+        location: '',
+        description: '',
+        notes: '',
+        sellDirectly: true,
+    });
+    const [savingProduct, setSavingProduct] = useState(false);
+
+    // Price List Popup state
+    const [isPriceListPopupOpen, setIsPriceListPopupOpen] = useState(false);
+    const [priceLists, setPriceLists] = useState<Array<{ id: string; name: string }>>([
+        { id: 'pl-1', name: 'Bảng giá chưa CK' },
+        { id: 'pl-2', name: 'Bảng giá lẻ' },
+    ]);
+    const [priceListPrices, setPriceListPrices] = useState<Record<string, number>>({});
+
+    // Auto-generate SKU from product name
+    const generateSKU = (name: string): string => {
+        if (!name.trim()) return '';
+        // Remove diacritics and convert to uppercase
+        const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        // Get first 2 letters of each word (max 3 words)
+        const words = normalized.trim().split(/\s+/).slice(0, 3);
+        const prefix = words.map(w => w.slice(0, 2).toUpperCase()).join('');
+        // Add random 3 digits
+        const suffix = Math.floor(100 + Math.random() * 900);
+        return `${prefix}${suffix}`;
+    };
 
     const toast = useToast();
 
@@ -130,10 +241,11 @@ export default function PurchaseList() {
 
     const fetchData = async () => {
         try {
-            const [suppliersRes, productsRes, warehousesRes] = await Promise.all([
+            const [suppliersRes, productsRes, warehousesRes, priceListsRes] = await Promise.all([
                 suppliersAPI.getAll(),
                 productsAPI.getAll({ limit: 1000 }),
                 warehousesAPI.getAll(),
+                priceListsAPI.getAll(),
             ]);
             setSuppliers((suppliersRes.data?.data || suppliersRes.data || []).map((s: any) => ({
                 ...s,
@@ -147,6 +259,14 @@ export default function PurchaseList() {
                 ...w,
                 id: w.id.toString(),
             })));
+            // Set price lists from API
+            const fetchedPriceLists = (priceListsRes.data?.data || priceListsRes.data || []).map((pl: any) => ({
+                id: pl.id.toString(),
+                name: pl.name,
+            }));
+            if (fetchedPriceLists.length > 0) {
+                setPriceLists(fetchedPriceLists);
+            }
         } catch (error) {
             console.error('Failed to fetch data:', error);
         }
@@ -177,7 +297,7 @@ export default function PurchaseList() {
     const openCreateModal = () => {
         setEditingId(null);
         setFormData({ supplierId: '', warehouseId: '', note: '' });
-        setItems([{ productId: '', quantity: 1, unitCost: 0 }]);
+        setItems([{ productId: '', productSearch: '', quantity: 1, unitCost: 0 }]);
         setIsModalOpen(true);
     };
 
@@ -194,6 +314,7 @@ export default function PurchaseList() {
             );
             return {
                 productId: product?.id || '',
+                productSearch: '',
                 quantity: item.quantity,
                 unitCost: Number(item.unitCost),
             };
@@ -217,7 +338,7 @@ export default function PurchaseList() {
     };
 
     const addItem = () => {
-        setItems([...items, { productId: '', quantity: 1, unitCost: 0 }]);
+        setItems([...items, { productId: '', productSearch: '', quantity: 1, unitCost: 0 }]);
     };
 
     const removeItem = (index: number) => {
@@ -232,6 +353,8 @@ export default function PurchaseList() {
             if (product?.defaultCost) {
                 newItems[index].unitCost = Number(product.defaultCost);
             }
+        } else if (field === 'productSearch') {
+            newItems[index].productSearch = value as string;
         } else if (field === 'quantity') {
             newItems[index].quantity = Number(value) || 1;
         } else if (field === 'unitCost') {
@@ -285,6 +408,19 @@ export default function PurchaseList() {
             fetchPurchases();
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
+        }
+    };
+
+    // Confirm purchase - update inventory
+    const handleConfirmPurchase = async (id: string) => {
+        if (!window.confirm('Xác nhận đã nhập hàng? Hành động này sẽ cập nhật số lượng tồn kho.')) return;
+        try {
+            await purchasesAPI.confirm(id);
+            toast.success('Đã xác nhận nhập hàng và cập nhật tồn kho');
+            fetchPurchases();
+        } catch (error: any) {
+            console.error('Confirm purchase error:', error);
+            toast.error(error.response?.data?.message || 'Có lỗi khi xác nhận phiếu nhập');
         }
     };
 
@@ -381,6 +517,265 @@ export default function PurchaseList() {
         setFromDate('');
         setToDate('');
         setPage(1);
+    };
+
+    // Quick Add Supplier handlers
+    const openQuickSupplierModal = () => {
+        setQuickSupplierData({
+            name: '',
+            code: '',
+            phone: '',
+            email: '',
+            address: '',
+            area: '',
+            ward: '',
+            supplierGroup: '',
+            notes: '',
+            company: '',
+            taxNumber: '',
+        });
+        setIsQuickSupplierOpen(true);
+    };
+
+    const closeQuickSupplierModal = () => {
+        setIsQuickSupplierOpen(false);
+    };
+
+    const handleQuickSaveSupplier = async () => {
+        if (!quickSupplierData.name.trim()) {
+            toast.error('Vui lòng nhập tên nhà cung cấp');
+            return;
+        }
+
+        setSavingSupplier(true);
+        try {
+            const response = await suppliersAPI.create({
+                name: quickSupplierData.name,
+                code: quickSupplierData.code || undefined,
+                phone: quickSupplierData.phone || undefined,
+                email: quickSupplierData.email || undefined,
+                address: quickSupplierData.address || undefined,
+                area: quickSupplierData.area || undefined,
+                ward: quickSupplierData.ward || undefined,
+                supplierGroup: quickSupplierData.supplierGroup || undefined,
+                notes: quickSupplierData.notes || undefined,
+                company: quickSupplierData.company || undefined,
+                taxNumber: quickSupplierData.taxNumber || undefined,
+            });
+
+            const newSupplier = response.data?.data || response.data;
+            const newSupplierId = newSupplier.id?.toString() || '';
+
+            // Add to local suppliers list
+            setSuppliers(prev => [...prev, { id: newSupplierId, name: quickSupplierData.name, code: quickSupplierData.code }]);
+
+            // Auto-select the new supplier
+            setFormData(prev => ({ ...prev, supplierId: newSupplierId }));
+            setSupplierSearch(quickSupplierData.name);
+
+            toast.success('Tạo nhà cung cấp thành công');
+            closeQuickSupplierModal();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Có lỗi khi tạo nhà cung cấp');
+        } finally {
+            setSavingSupplier(false);
+        }
+    };
+
+    const handleSelectSupplier = (supplierId: string) => {
+        setFormData(prev => ({ ...prev, supplierId }));
+        const supplier = suppliers.find(s => s.id === supplierId);
+        if (supplier) {
+            setSupplierSearch(supplier.name);
+        }
+    };
+
+    // Quick Add Importer handlers
+    const openQuickImporterModal = () => {
+        setQuickImporterData({
+            fullName: '',
+            username: '',
+            phone: '',
+            email: '',
+        });
+        setIsQuickImporterOpen(true);
+    };
+
+    const closeQuickImporterModal = () => {
+        setIsQuickImporterOpen(false);
+    };
+
+    const handleQuickSaveImporter = async () => {
+        if (!quickImporterData.fullName.trim()) {
+            toast.error('Vui lòng nhập họ tên người nhập');
+            return;
+        }
+
+        setSavingImporter(true);
+        try {
+            // For now, just add to local list (in real app, would call API)
+            const newImporter = {
+                id: `temp-${Date.now()}`,
+                fullName: quickImporterData.fullName,
+                username: quickImporterData.username || quickImporterData.fullName.toLowerCase().replace(/\s+/g, ''),
+            };
+
+            setImporters(prev => [...prev, newImporter]);
+            setSelectedImporterId(newImporter.id);
+            setImporterSearch(newImporter.fullName);
+
+            toast.success('Thêm người nhập thành công');
+            closeQuickImporterModal();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Có lỗi khi thêm người nhập');
+        } finally {
+            setSavingImporter(false);
+        }
+    };
+
+    const handleSelectImporter = (importerId: string) => {
+        setSelectedImporterId(importerId);
+        const importer = importers.find(i => i.id === importerId);
+        if (importer) {
+            setImporterSearch(importer.fullName);
+        }
+    };
+
+    // Quick Add Store handlers
+    const openQuickStoreModal = () => {
+        setQuickStoreData({
+            name: '',
+            code: '',
+            address: '',
+            phone: '',
+            email: '',
+        });
+        setIsQuickStoreOpen(true);
+    };
+
+    const closeQuickStoreModal = () => {
+        setIsQuickStoreOpen(false);
+    };
+
+    const handleQuickSaveStore = async () => {
+        if (!quickStoreData.name.trim()) {
+            toast.error('Vui lòng nhập tên công ty/cửa hàng');
+            return;
+        }
+
+        setSavingStore(true);
+        try {
+            const newStore = {
+                id: `store-${Date.now()}`,
+                name: quickStoreData.name,
+                code: quickStoreData.code || quickStoreData.name.toUpperCase().replace(/\s+/g, '').slice(0, 10),
+            };
+
+            setStores(prev => [...prev, newStore]);
+            setSelectedStoreId(newStore.id);
+
+            toast.success('Thêm công ty/cửa hàng thành công');
+            closeQuickStoreModal();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Có lỗi khi thêm');
+        } finally {
+            setSavingStore(false);
+        }
+    };
+
+    // Quick Add Product handlers
+    const openQuickProductModal = () => {
+        setQuickProductData({
+            sku: '',
+            barcode: '',
+            name: '',
+            categoryId: '',
+            brandId: '',
+            price: 0,
+            costPrice: 0,
+            minStock: 0,
+            maxStock: 999999999,
+            weight: 0,
+            location: '',
+            description: '',
+            notes: '',
+            sellDirectly: true,
+        });
+        setProductTab('info');
+        setIsQuickProductOpen(true);
+    };
+
+    const closeQuickProductModal = () => {
+        setIsQuickProductOpen(false);
+    };
+
+    const handleQuickSaveProduct = async () => {
+        if (!quickProductData.name.trim()) {
+            toast.error('Vui lòng nhập tên hàng');
+            return;
+        }
+
+        setSavingProduct(true);
+        try {
+            // Call API to create product
+            const payload = {
+                name: quickProductData.name,
+                sku: quickProductData.sku || undefined,
+                barcode: quickProductData.barcode || undefined,
+                categoryId: quickProductData.categoryId || undefined,
+                brand: quickProductData.brandId || undefined,
+                price: quickProductData.price || 0,
+                cost: quickProductData.costPrice || 0,
+                minStock: quickProductData.minStock || 0,
+                maxStock: quickProductData.maxStock || 999999999,
+                weight: quickProductData.weight || undefined,
+                location: quickProductData.location || undefined,
+                description: quickProductData.description || undefined,
+                noteTemplate: quickProductData.notes || undefined,
+                directSale: quickProductData.sellDirectly,
+                active: true,
+            };
+
+            const response = await productsAPI.create(payload);
+            const createdProduct = response.data;
+
+            // Add to local products list
+            setProducts(prev => [...prev, {
+                id: createdProduct.id,
+                sku: createdProduct.sku,
+                name: createdProduct.name,
+                defaultCost: createdProduct.cost || 0,
+            }]);
+
+            // Save prices for each price list
+            const priceListEntries = Object.entries(priceListPrices);
+            if (priceListEntries.length > 0) {
+                const pricePromises = priceListEntries
+                    .filter(([, price]) => price > 0)
+                    .map(([priceListId, price]) =>
+                        priceListsAPI.setProductPrice({
+                            productId: createdProduct.id,
+                            priceListId,
+                            price,
+                        })
+                    );
+
+                if (pricePromises.length > 0) {
+                    await Promise.all(pricePromises);
+                    console.log('Price list prices saved successfully');
+                }
+            }
+
+            toast.success('Thêm hàng hóa thành công');
+            closeQuickProductModal();
+            // Reset price list prices
+            setPriceListPrices({});
+        } catch (error: any) {
+            console.error('Create product error:', error);
+            toast.error(error.response?.data?.message || 'Có lỗi khi thêm hàng hóa');
+        } finally {
+            setSavingProduct(false);
+        }
     };
 
     // Toggle star
@@ -568,13 +963,48 @@ export default function PurchaseList() {
                     {/* Người nhập Filter */}
                     <div className="filter-group">
                         <label className="filter-label">Người nhập</label>
-                        <input
-                            type="text"
-                            placeholder="Chọn người nhập"
-                            value={importerFilter}
-                            onChange={(e) => setImporterFilter(e.target.value)}
-                            className="filter-input-v2"
-                        />
+                        <div className="importer-search-compact">
+                            <div className="importer-search-wrapper">
+                                <input
+                                    type="text"
+                                    value={importerSearch}
+                                    onChange={(e) => {
+                                        setImporterSearch(e.target.value);
+                                        setImporterFilter(e.target.value);
+                                        if (selectedImporterId) {
+                                            const selected = importers.find(i => i.id === selectedImporterId);
+                                            if (selected && e.target.value !== selected.fullName) {
+                                                setSelectedImporterId('');
+                                            }
+                                        }
+                                    }}
+                                    placeholder="Chọn người nhập"
+                                    className="filter-input-v2"
+                                />
+                                {importerSearch && filteredImporters.length > 0 && !selectedImporterId && (
+                                    <div className="importer-dropdown-list">
+                                        {filteredImporters.slice(0, 6).map((i) => (
+                                            <div
+                                                key={i.id}
+                                                className="importer-dropdown-item"
+                                                onClick={() => handleSelectImporter(i.id)}
+                                            >
+                                                <span className="importer-name">{i.fullName}</span>
+                                                <span className="importer-username">@{i.username}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                className="btn-add-importer"
+                                onClick={openQuickImporterModal}
+                                title="Thêm người nhập mới"
+                            >
+                                +
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -606,6 +1036,7 @@ export default function PurchaseList() {
                                         <th>Nhà cung cấp</th>
                                         <th className="col-amount">Cần trả NCC</th>
                                         <th>Trạng thái</th>
+                                        <th className="col-actions">Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -639,6 +1070,23 @@ export default function PurchaseList() {
                                                 <span className={`status-badge-v2 ${p.status}`}>
                                                     {STATUS_LABELS[p.status] || p.status}
                                                 </span>
+                                            </td>
+                                            <td className="col-actions">
+                                                {p.status === 'PENDING' && (
+                                                    <button
+                                                        className="btn-confirm-purchase"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleConfirmPurchase(p.id);
+                                                        }}
+                                                        title="Xác nhận đã nhập hàng"
+                                                    >
+                                                        <MdCheck /> Xác nhận
+                                                    </button>
+                                                )}
+                                                {p.status === 'CONFIRMED' && (
+                                                    <span className="confirm-done">Đã xác nhận</span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))}
@@ -715,6 +1163,8 @@ export default function PurchaseList() {
                                 <MdSearch className="search-icon" />
                                 <input
                                     type="text"
+                                    value={productSearchQuery}
+                                    onChange={(e) => setProductSearchQuery(e.target.value)}
                                     placeholder="Tìm hàng hóa theo mã hoặc tên (F3)"
                                     className="product-search-input"
                                 />
@@ -722,7 +1172,12 @@ export default function PurchaseList() {
                             <button className="btn-barcode" title="Quét mã vạch">
                                 <span>⊞</span>
                             </button>
-                            <button className="btn-add-inline" onClick={addItem}>
+                            <button
+                                type="button"
+                                className="btn-add-product-header"
+                                onClick={openQuickProductModal}
+                                title="Thêm hàng hóa mới"
+                            >
                                 +
                             </button>
                         </div>
@@ -757,18 +1212,50 @@ export default function PurchaseList() {
                                             <tr key={idx}>
                                                 <td className="col-stt">{idx + 1}</td>
                                                 <td className="col-code">
-                                                    <select
-                                                        value={item.productId}
-                                                        onChange={(e) => updateItem(idx, 'productId', e.target.value)}
-                                                        className="inline-select"
-                                                    >
-                                                        <option value="">-- Chọn SP --</option>
-                                                        {products.map((p) => (
-                                                            <option key={p.id} value={p.id}>
-                                                                {p.sku || p.id.slice(-8)}
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                    <div className="product-autocomplete">
+                                                        <input
+                                                            type="text"
+                                                            value={item.productSearch || (product ? (product.sku || product.id.slice(-8)) : '')}
+                                                            onChange={(e) => {
+                                                                updateItem(idx, 'productSearch', e.target.value);
+                                                                if (item.productId) {
+                                                                    updateItem(idx, 'productId', '');
+                                                                }
+                                                            }}
+                                                            placeholder="Gõ mã SP..."
+                                                            className="inline-input product-code-input"
+                                                        />
+                                                        {item.productSearch && !item.productId && (
+                                                            <div className="product-dropdown-list">
+                                                                {products
+                                                                    .filter(p =>
+                                                                        (p.sku && p.sku.toLowerCase().includes(item.productSearch.toLowerCase())) ||
+                                                                        (p.name && p.name.toLowerCase().includes(item.productSearch.toLowerCase()))
+                                                                    )
+                                                                    .slice(0, 8)
+                                                                    .map((p) => (
+                                                                        <div
+                                                                            key={p.id}
+                                                                            className="product-dropdown-item"
+                                                                            onClick={() => {
+                                                                                updateItem(idx, 'productId', p.id);
+                                                                                updateItem(idx, 'productSearch', '');
+                                                                            }}
+                                                                        >
+                                                                            <span className="product-sku">{p.sku || p.id.slice(-8)}</span>
+                                                                            <span className="product-name-hint">{p.name}</span>
+                                                                        </div>
+                                                                    ))
+                                                                }
+                                                                {products.filter(p =>
+                                                                    (p.sku && p.sku.toLowerCase().includes(item.productSearch.toLowerCase())) ||
+                                                                    (p.name && p.name.toLowerCase().includes(item.productSearch.toLowerCase()))
+                                                                ).length === 0 && (
+                                                                        <div className="product-dropdown-empty">Không tìm thấy sản phẩm</div>
+                                                                    )}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="col-name">{product?.name || '-'}</td>
                                                 <td className="col-unit">Cái</td>
@@ -824,26 +1311,112 @@ export default function PurchaseList() {
                         <div className="create-right">
                             <div className="info-section">
                                 <div className="store-search">
-                                    <select className="store-select">
-                                        <option>Mixu</option>
+                                    <select
+                                        className="store-select"
+                                        value={selectedStoreId}
+                                        onChange={(e) => setSelectedStoreId(e.target.value)}
+                                    >
+                                        {stores.map((s) => (
+                                            <option key={s.id} value={s.id}>{s.name}</option>
+                                        ))}
                                     </select>
-                                    <button className="btn-add-store">+</button>
+                                    <button
+                                        type="button"
+                                        className="btn-add-store-form"
+                                        onClick={openQuickStoreModal}
+                                        title="Thêm công ty/cửa hàng mới"
+                                    >
+                                        +
+                                    </button>
                                 </div>
                             </div>
 
                             <div className="info-section compact">
                                 <div className="supplier-search-compact">
-                                    <select
-                                        value={formData.supplierId}
-                                        onChange={(e) => setFormData({ ...formData, supplierId: e.target.value })}
-                                        className="supplier-select-sm"
+                                    <div className="supplier-search-wrapper">
+                                        <input
+                                            type="text"
+                                            value={supplierSearch}
+                                            onChange={(e) => {
+                                                setSupplierSearch(e.target.value);
+                                                // Clear selected if typing
+                                                if (formData.supplierId) {
+                                                    const selected = suppliers.find(s => s.id === formData.supplierId);
+                                                    if (selected && e.target.value !== selected.name) {
+                                                        setFormData(prev => ({ ...prev, supplierId: '' }));
+                                                    }
+                                                }
+                                            }}
+                                            placeholder="Tìm NCC"
+                                            className="supplier-search-input"
+                                        />
+                                        {supplierSearch && filteredSuppliers.length > 0 && !formData.supplierId && (
+                                            <div className="supplier-dropdown-list">
+                                                {filteredSuppliers.slice(0, 8).map((s) => (
+                                                    <div
+                                                        key={s.id}
+                                                        className="supplier-dropdown-item"
+                                                        onClick={() => handleSelectSupplier(s.id)}
+                                                    >
+                                                        <span className="supplier-name">{s.name}</span>
+                                                        {s.code && <span className="supplier-code">{s.code}</span>}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn-add-supplier-sm"
+                                        onClick={openQuickSupplierModal}
+                                        title="Thêm nhà cung cấp mới"
                                     >
-                                        <option value="">Tìm NCC</option>
-                                        {suppliers.map((s) => (
-                                            <option key={s.id} value={s.id}>{s.name}</option>
-                                        ))}
-                                    </select>
-                                    <button className="btn-add-supplier-sm">+</button>
+                                        +
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Người nhập section */}
+                            <div className="info-section compact">
+                                <div className="importer-search-compact-form">
+                                    <div className="importer-search-wrapper-form">
+                                        <input
+                                            type="text"
+                                            value={importerSearch}
+                                            onChange={(e) => {
+                                                setImporterSearch(e.target.value);
+                                                if (selectedImporterId) {
+                                                    const selected = importers.find(i => i.id === selectedImporterId);
+                                                    if (selected && e.target.value !== selected.fullName) {
+                                                        setSelectedImporterId('');
+                                                    }
+                                                }
+                                            }}
+                                            placeholder="Người nhập"
+                                            className="importer-input-form"
+                                        />
+                                        {importerSearch && filteredImporters.length > 0 && !selectedImporterId && (
+                                            <div className="importer-dropdown-list-form">
+                                                {filteredImporters.slice(0, 6).map((i) => (
+                                                    <div
+                                                        key={i.id}
+                                                        className="importer-dropdown-item-form"
+                                                        onClick={() => handleSelectImporter(i.id)}
+                                                    >
+                                                        <span className="importer-name">{i.fullName}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn-add-importer-form"
+                                        onClick={openQuickImporterModal}
+                                        title="Thêm người nhập mới"
+                                    >
+                                        +
+                                    </button>
                                 </div>
                             </div>
 
@@ -1092,6 +1665,679 @@ export default function PurchaseList() {
                     </div>
                 </div>
             </Modal>
+
+            {/* Quick Add Supplier Modal */}
+            <Modal
+                isOpen={isQuickSupplierOpen}
+                onClose={closeQuickSupplierModal}
+                title="Tạo nhà cung cấp"
+            >
+                <div className="quick-supplier-form">
+                    {/* Basic Info Row */}
+                    <div className="form-row two-col">
+                        <div className="form-group">
+                            <label>Tên nhà cung cấp <span className="required">*</span></label>
+                            <input
+                                type="text"
+                                value={quickSupplierData.name}
+                                onChange={(e) => setQuickSupplierData(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="Bắt buộc"
+                                className="form-input required-input"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Mã nhà cung cấp</label>
+                            <input
+                                type="text"
+                                value={quickSupplierData.code}
+                                onChange={(e) => setQuickSupplierData(prev => ({ ...prev, code: e.target.value }))}
+                                placeholder="Tự động"
+                                className="form-input"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="form-row two-col">
+                        <div className="form-group">
+                            <label>Điện thoại</label>
+                            <input
+                                type="text"
+                                value={quickSupplierData.phone}
+                                onChange={(e) => setQuickSupplierData(prev => ({ ...prev, phone: e.target.value }))}
+                                className="form-input"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Email</label>
+                            <input
+                                type="email"
+                                value={quickSupplierData.email}
+                                onChange={(e) => setQuickSupplierData(prev => ({ ...prev, email: e.target.value }))}
+                                placeholder="email@gmail.com"
+                                className="form-input"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Địa chỉ Section */}
+                    <div className="form-section">
+                        <div className="section-header">
+                            <span>Địa chỉ</span>
+                            <span className="section-toggle">▲</span>
+                        </div>
+                        <div className="section-content">
+                            <div className="form-group">
+                                <label>Địa chỉ</label>
+                                <input
+                                    type="text"
+                                    value={quickSupplierData.address}
+                                    onChange={(e) => setQuickSupplierData(prev => ({ ...prev, address: e.target.value }))}
+                                    placeholder="Nhập địa chỉ"
+                                    className="form-input"
+                                />
+                            </div>
+                            <div className="form-row two-col">
+                                <div className="form-group">
+                                    <label>Khu vực</label>
+                                    <input
+                                        type="text"
+                                        value={quickSupplierData.area}
+                                        onChange={(e) => setQuickSupplierData(prev => ({ ...prev, area: e.target.value }))}
+                                        placeholder="Chọn Tỉnh/Thành phố"
+                                        className="form-input"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Phường/Xã</label>
+                                    <input
+                                        type="text"
+                                        value={quickSupplierData.ward}
+                                        onChange={(e) => setQuickSupplierData(prev => ({ ...prev, ward: e.target.value }))}
+                                        placeholder="Chọn Phường/Xã"
+                                        className="form-input"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Nhóm NCC Section */}
+                    <div className="form-section">
+                        <div className="section-header">
+                            <span>Nhóm nhà cung cấp, ghi chú</span>
+                            <span className="section-toggle">▲</span>
+                        </div>
+                        <div className="section-content">
+                            <div className="form-group">
+                                <label>Nhóm nhà cung cấp</label>
+                                <input
+                                    type="text"
+                                    value={quickSupplierData.supplierGroup}
+                                    onChange={(e) => setQuickSupplierData(prev => ({ ...prev, supplierGroup: e.target.value }))}
+                                    placeholder="Chọn nhóm nhà cung cấp"
+                                    className="form-input"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Ghi chú</label>
+                                <textarea
+                                    value={quickSupplierData.notes}
+                                    onChange={(e) => setQuickSupplierData(prev => ({ ...prev, notes: e.target.value }))}
+                                    placeholder="Nhập ghi chú"
+                                    className="form-textarea"
+                                    rows={3}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Thông tin xuất hóa đơn Section */}
+                    <div className="form-section">
+                        <div className="section-header">
+                            <span>Thông tin xuất hóa đơn</span>
+                            <span className="section-toggle">▲</span>
+                        </div>
+                        <div className="section-content">
+                            <div className="form-row two-col">
+                                <div className="form-group">
+                                    <label>Tên công ty</label>
+                                    <input
+                                        type="text"
+                                        value={quickSupplierData.company}
+                                        onChange={(e) => setQuickSupplierData(prev => ({ ...prev, company: e.target.value }))}
+                                        placeholder="Nhập tên công ty"
+                                        className="form-input"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Mã số thuế</label>
+                                    <input
+                                        type="text"
+                                        value={quickSupplierData.taxNumber}
+                                        onChange={(e) => setQuickSupplierData(prev => ({ ...prev, taxNumber: e.target.value }))}
+                                        placeholder="Nhập mã số thuế"
+                                        className="form-input"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="form-actions">
+                        <button
+                            type="button"
+                            onClick={closeQuickSupplierModal}
+                            className="btn btn-secondary"
+                        >
+                            Bỏ qua
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleQuickSaveSupplier}
+                            className="btn btn-primary"
+                            disabled={savingSupplier}
+                        >
+                            {savingSupplier ? 'Đang lưu...' : 'Lưu'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Quick Add Importer Modal */}
+            <Modal
+                isOpen={isQuickImporterOpen}
+                onClose={closeQuickImporterModal}
+                title="Thêm người nhập"
+            >
+                <div className="quick-importer-form">
+                    {/* Basic Info */}
+                    <div className="form-row two-col">
+                        <div className="form-group">
+                            <label>Họ và tên <span className="required">*</span></label>
+                            <input
+                                type="text"
+                                value={quickImporterData.fullName}
+                                onChange={(e) => setQuickImporterData(prev => ({ ...prev, fullName: e.target.value }))}
+                                placeholder="Nhập họ tên"
+                                className="form-input required-input"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Tên đăng nhập</label>
+                            <input
+                                type="text"
+                                value={quickImporterData.username}
+                                onChange={(e) => setQuickImporterData(prev => ({ ...prev, username: e.target.value }))}
+                                placeholder="Tự động tạo"
+                                className="form-input"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="form-row two-col">
+                        <div className="form-group">
+                            <label>Điện thoại</label>
+                            <input
+                                type="text"
+                                value={quickImporterData.phone}
+                                onChange={(e) => setQuickImporterData(prev => ({ ...prev, phone: e.target.value }))}
+                                placeholder="Nhập số điện thoại"
+                                className="form-input"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Email</label>
+                            <input
+                                type="email"
+                                value={quickImporterData.email}
+                                onChange={(e) => setQuickImporterData(prev => ({ ...prev, email: e.target.value }))}
+                                placeholder="Nhập email"
+                                className="form-input"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="form-actions">
+                        <button
+                            type="button"
+                            onClick={closeQuickImporterModal}
+                            className="btn btn-secondary"
+                        >
+                            Bỏ qua
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleQuickSaveImporter}
+                            className="btn btn-primary"
+                            disabled={savingImporter}
+                        >
+                            {savingImporter ? 'Đang lưu...' : 'Lưu'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Quick Add Store/Company Modal */}
+            <Modal
+                isOpen={isQuickStoreOpen}
+                onClose={closeQuickStoreModal}
+                title="Thêm công ty/cửa hàng"
+            >
+                <div className="quick-store-form">
+                    {/* Basic Info */}
+                    <div className="form-row two-col">
+                        <div className="form-group">
+                            <label>Tên công ty/cửa hàng <span className="required">*</span></label>
+                            <input
+                                type="text"
+                                value={quickStoreData.name}
+                                onChange={(e) => setQuickStoreData(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="Nhập tên"
+                                className="form-input required-input"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Mã viết tắt</label>
+                            <input
+                                type="text"
+                                value={quickStoreData.code}
+                                onChange={(e) => setQuickStoreData(prev => ({ ...prev, code: e.target.value }))}
+                                placeholder="Tự động tạo"
+                                className="form-input"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label>Địa chỉ</label>
+                        <input
+                            type="text"
+                            value={quickStoreData.address}
+                            onChange={(e) => setQuickStoreData(prev => ({ ...prev, address: e.target.value }))}
+                            placeholder="Nhập địa chỉ"
+                            className="form-input"
+                        />
+                    </div>
+
+                    <div className="form-row two-col">
+                        <div className="form-group">
+                            <label>Điện thoại</label>
+                            <input
+                                type="text"
+                                value={quickStoreData.phone}
+                                onChange={(e) => setQuickStoreData(prev => ({ ...prev, phone: e.target.value }))}
+                                placeholder="Nhập số điện thoại"
+                                className="form-input"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Email</label>
+                            <input
+                                type="email"
+                                value={quickStoreData.email}
+                                onChange={(e) => setQuickStoreData(prev => ({ ...prev, email: e.target.value }))}
+                                placeholder="Nhập email"
+                                className="form-input"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="form-actions">
+                        <button
+                            type="button"
+                            onClick={closeQuickStoreModal}
+                            className="btn btn-secondary"
+                        >
+                            Bỏ qua
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleQuickSaveStore}
+                            className="btn btn-primary"
+                            disabled={savingStore}
+                        >
+                            {savingStore ? 'Đang lưu...' : 'Lưu'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Quick Add Product Modal */}
+            <Modal
+                isOpen={isQuickProductOpen}
+                onClose={closeQuickProductModal}
+                title="Tạo hàng hóa"
+                size="lg"
+            >
+                <div className="quick-product-modal">
+                    {/* Tabs */}
+                    <div className="product-tabs">
+                        <button
+                            type="button"
+                            className={`product-tab ${productTab === 'info' ? 'active' : ''}`}
+                            onClick={() => setProductTab('info')}
+                        >
+                            Thông tin
+                        </button>
+                        <button
+                            type="button"
+                            className={`product-tab ${productTab === 'description' ? 'active' : ''}`}
+                            onClick={() => setProductTab('description')}
+                        >
+                            Mô tả
+                        </button>
+                    </div>
+
+                    {/* Tab Content */}
+                    {productTab === 'info' && (
+                        <div className="product-tab-content">
+                            {/* Row 1: SKU and Barcode */}
+                            <div className="form-row two-col">
+                                <div className="form-group">
+                                    <input
+                                        type="text"
+                                        value={quickProductData.sku}
+                                        onChange={(e) => setQuickProductData(prev => ({ ...prev, sku: e.target.value }))}
+                                        placeholder="Tự động"
+                                        className="form-input"
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <input
+                                        type="text"
+                                        value={quickProductData.barcode}
+                                        onChange={(e) => setQuickProductData(prev => ({ ...prev, barcode: e.target.value }))}
+                                        placeholder="Nhập mã vạch"
+                                        className="form-input"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Row 2: Name */}
+                            <div className="form-group">
+                                <label>Tên hàng</label>
+                                <input
+                                    type="text"
+                                    value={quickProductData.name}
+                                    onChange={(e) => {
+                                        const newName = e.target.value;
+                                        setQuickProductData(prev => ({
+                                            ...prev,
+                                            name: newName,
+                                            // Auto-gen SKU if sku is empty or was auto-generated
+                                            sku: !prev.sku || prev.sku.match(/^[A-Z]{2,6}\d{3}$/) ? generateSKU(newName) : prev.sku
+                                        }));
+                                    }}
+                                    placeholder="Bắt buộc"
+                                    className="form-input required-input"
+                                />
+                            </div>
+
+                            {/* Row 3: Category and Brand */}
+                            <div className="form-row two-col">
+                                <div className="form-group">
+                                    <div className="label-row">
+                                        <label>Nhóm hàng</label>
+                                        <span className="link-text">Tạo mới</span>
+                                    </div>
+                                    <select
+                                        value={quickProductData.categoryId}
+                                        onChange={(e) => setQuickProductData(prev => ({ ...prev, categoryId: e.target.value }))}
+                                        className="form-input"
+                                    >
+                                        <option value="">Chọn nhóm hàng (Bắt buộc)</option>
+                                        <option value="vpp">Văn phòng phẩm</option>
+                                        <option value="dctb">Dụng cụ thiết bị</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <div className="label-row">
+                                        <label>Thương hiệu</label>
+                                        <span className="link-text">Tạo mới</span>
+                                    </div>
+                                    <select
+                                        value={quickProductData.brandId}
+                                        onChange={(e) => setQuickProductData(prev => ({ ...prev, brandId: e.target.value }))}
+                                        className="form-input"
+                                    >
+                                        <option value="">Chọn thương hiệu</option>
+                                        <option value="thienlong">Thiên Long</option>
+                                        <option value="hct">HCT</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Section: Giá bán */}
+                            <div className="product-section">
+                                <div className="section-header">
+                                    <h4>Giá bán</h4>
+                                </div>
+                                <div className="form-row two-col">
+                                    <div className="form-group">
+                                        <div className="label-row">
+                                            <label>Giá bán</label>
+                                            <span
+                                                className="link-text"
+                                                onClick={() => setIsPriceListPopupOpen(true)}
+                                                style={{ cursor: 'pointer' }}
+                                            >
+                                                👁 Thiết lập giá
+                                            </span>
+                                        </div>
+                                        <input
+                                            type="number"
+                                            value={quickProductData.price}
+                                            onChange={(e) => setQuickProductData(prev => ({ ...prev, price: Number(e.target.value) }))}
+                                            className="form-input"
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Giá vốn</label>
+                                        <input
+                                            type="number"
+                                            value={quickProductData.costPrice}
+                                            onChange={(e) => setQuickProductData(prev => ({ ...prev, costPrice: Number(e.target.value) }))}
+                                            className="form-input"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section: Tồn kho */}
+                            <div className="product-section">
+                                <div className="section-header">
+                                    <h4>Tồn kho</h4>
+                                </div>
+                                <p className="section-desc">Quản lý số lượng tồn kho và định mức tồn. Khi tồn kho chạm đến định mức, bạn sẽ nhận được cảnh báo từ KiotViet.</p>
+                                <div className="form-row two-col">
+                                    <div className="form-group">
+                                        <label>Định mức tồn thấp nhất</label>
+                                        <input
+                                            type="number"
+                                            value={quickProductData.minStock}
+                                            onChange={(e) => setQuickProductData(prev => ({ ...prev, minStock: Number(e.target.value) }))}
+                                            className="form-input"
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Định mức tồn cao nhất</label>
+                                        <input
+                                            type="number"
+                                            value={quickProductData.maxStock}
+                                            onChange={(e) => setQuickProductData(prev => ({ ...prev, maxStock: Number(e.target.value) }))}
+                                            className="form-input"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section: Vị trí, trọng lượng */}
+                            <div className="product-section">
+                                <div className="section-header">
+                                    <h4>Vị trí, trọng lượng</h4>
+                                </div>
+                                <p className="section-desc">Quản lý việc sắp xếp kho, vị trí bán hàng hoặc trọng lượng hàng hóa</p>
+                                <div className="form-row two-col">
+                                    <div className="form-group">
+                                        <div className="label-row">
+                                            <label>Vị trí</label>
+                                            <span className="link-text">Tạo mới</span>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={quickProductData.location}
+                                            onChange={(e) => setQuickProductData(prev => ({ ...prev, location: e.target.value }))}
+                                            placeholder="Chọn vị trí"
+                                            className="form-input"
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label>Trọng lượng</label>
+                                        <div className="input-with-suffix">
+                                            <input
+                                                type="number"
+                                                value={quickProductData.weight}
+                                                onChange={(e) => setQuickProductData(prev => ({ ...prev, weight: Number(e.target.value) }))}
+                                                className="form-input"
+                                            />
+                                            <span className="input-suffix">g</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {productTab === 'description' && (
+                        <div className="product-tab-content">
+                            <div className="form-group">
+                                <label>Mô tả</label>
+                                <textarea
+                                    value={quickProductData.description}
+                                    onChange={(e) => setQuickProductData(prev => ({ ...prev, description: e.target.value }))}
+                                    placeholder="Nhập mô tả sản phẩm..."
+                                    className="form-textarea"
+                                    rows={4}
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label>Mẫu ghi chú (hóa đơn, đặt hàng)</label>
+                                <textarea
+                                    value={quickProductData.notes}
+                                    onChange={(e) => setQuickProductData(prev => ({ ...prev, notes: e.target.value }))}
+                                    placeholder="Nhập mẫu ghi chú..."
+                                    className="form-textarea"
+                                    rows={4}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Footer */}
+                    <div className="product-modal-footer">
+                        <div className="footer-left">
+                            <label className="checkbox-label">
+                                <input
+                                    type="checkbox"
+                                    checked={quickProductData.sellDirectly}
+                                    onChange={(e) => setQuickProductData(prev => ({ ...prev, sellDirectly: e.target.checked }))}
+                                />
+                                <span>Bán trực tiếp</span>
+                            </label>
+                        </div>
+                        <div className="footer-right">
+                            <button
+                                type="button"
+                                onClick={closeQuickProductModal}
+                                className="btn btn-secondary"
+                            >
+                                Bỏ qua
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleQuickSaveProduct}
+                                className="btn btn-primary"
+                                disabled={savingProduct}
+                            >
+                                {savingProduct ? 'Đang lưu...' : 'Lưu'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Price List Popup */}
+            {isPriceListPopupOpen && (
+                <div className="price-list-popup-overlay" onClick={() => setIsPriceListPopupOpen(false)}>
+                    <div className="price-list-popup" onClick={(e) => e.stopPropagation()}>
+                        <div className="price-list-popup-header">
+                            <div>
+                                <h3>Chọn bảng giá</h3>
+                                <p className="popup-subtitle">Có {priceLists.length} bảng giá đang hoạt động</p>
+                            </div>
+                            <button
+                                className="popup-close-btn"
+                                onClick={() => setIsPriceListPopupOpen(false)}
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div className="price-list-popup-body">
+                            <table className="price-list-table">
+                                <thead>
+                                    <tr>
+                                        <th>Tên bảng giá</th>
+                                        <th style={{ width: '150px' }}>Giá bán</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {priceLists.map((pl) => (
+                                        <tr key={pl.id}>
+                                            <td>{pl.name}</td>
+                                            <td>
+                                                <input
+                                                    type="number"
+                                                    value={priceListPrices[pl.id] || ''}
+                                                    onChange={(e) => setPriceListPrices(prev => ({
+                                                        ...prev,
+                                                        [pl.id]: Number(e.target.value)
+                                                    }))}
+                                                    className="price-input-field"
+                                                    placeholder="0"
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="price-list-popup-footer">
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => setIsPriceListPopupOpen(false)}
+                            >
+                                Bỏ qua
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => {
+                                    // Apply first price list price - as main price
+                                    const firstPriceListPrice = Object.values(priceListPrices)[0];
+                                    if (firstPriceListPrice) {
+                                        setQuickProductData(prev => ({ ...prev, price: firstPriceListPrice }));
+                                    }
+                                    setIsPriceListPopupOpen(false);
+                                }}
+                            >
+                                Xong
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

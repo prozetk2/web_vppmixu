@@ -391,6 +391,8 @@ export default function PriceListsPage() {
                         cell.alignment = { horizontal: 'center', vertical: 'middle' };
                     } else if (colNumber >= 5) {
                         cell.alignment = { horizontal: 'right', vertical: 'middle' };
+                        // Thêm định dạng số với dấu phân cách hàng nghìn
+                        cell.numFmt = '#,##0';
                     } else {
                         cell.alignment = { vertical: 'middle' };
                     }
@@ -702,9 +704,14 @@ export default function PriceListsPage() {
                                         <td className="col-last-cost">{formatCurrency(product.defaultCost)}</td>
                                         <td className="col-price">
                                             <input
-                                                type="number"
-                                                value={productPrices.get(product.id) || ''}
-                                                onChange={(e) => updateProductPrice(product.id, parseFloat(e.target.value) || 0)}
+                                                type="text"
+                                                value={productPrices.get(product.id) ? formatCurrency(productPrices.get(product.id)!) : ''}
+                                                onChange={(e) => {
+                                                    // Loại bỏ tất cả ký tự không phải số
+                                                    const rawValue = e.target.value.replace(/[^0-9]/g, '');
+                                                    const numValue = parseInt(rawValue, 10) || 0;
+                                                    updateProductPrice(product.id, numValue);
+                                                }}
                                                 placeholder="0"
                                                 className="price-input"
                                             />

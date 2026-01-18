@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { invoicesAPI, salesAPI } from '../../services/api';
+import { invoicesAPI, salesAPI, settingsAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import {
@@ -596,11 +596,16 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
 
 
 
-    // Print invoice
+    // Print invoice - Template Đặng Thị Việt Hồng (KiotViet style)
     const handlePrintInvoice = async (invoice: Invoice) => {
         try {
-            const response = await invoicesAPI.getOne(invoice.id);
-            const detail = response.data.data || response.data;
+            // Fetch invoice detail and settings in parallel
+            const [invoiceResponse, settingsResponse] = await Promise.all([
+                invoicesAPI.getOne(invoice.id),
+                settingsAPI.get()
+            ]);
+            const detail = invoiceResponse.data.data || invoiceResponse.data;
+            const settings = settingsResponse.data || {};
 
             // Create print window
             const printWindow = window.open('', '_blank');
@@ -610,60 +615,274 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
             }
 
             const items = detail.items || [];
-            const itemRows = items.map((item: InvoiceItem) => `
+            const itemRows = items.length > 0 ? items.map((item: InvoiceItem, index: number) => `
                 <tr>
-                    <td>${item.productCode || '-'}</td>
+                    <td class="center">${index + 1}</td>
                     <td>${item.productName || '-'}</td>
-                    <td style="text-align:right">${item.quantity}</td>
-                    <td style="text-align:right">${formatCurrency(Number(item.unitPrice))}</td>
-                    <td style="text-align:right">${formatCurrency(Number(item.totalPrice))}</td>
+                    <td class="center">${item.unit || 'Cái'}</td>
+                    <td class="center">${item.quantity}</td>
+                    <td class="right">${formatCurrency(Number(item.unitPrice))}</td>
+                    <td class="right">${formatCurrency(Number(item.totalPrice))}</td>
                 </tr>
-            `).join('');
+            `).join('') : '<tr><td colspan="6" class="center" style="padding:20px;color:#999;">Không có sản phẩm</td></tr>';
+
+            const now = new Date();
+            const printTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear().toString().slice(-2)}`;
+            const invoiceDate = new Date(invoice.createdAt);
+            const invoiceDateStr = `${invoiceDate.getDate().toString().padStart(2, '0')}/${(invoiceDate.getMonth() + 1).toString().padStart(2, '0')}/${invoiceDate.getFullYear()} ${invoiceDate.getHours().toString().padStart(2, '0')}:${invoiceDate.getMinutes().toString().padStart(2, '0')}`;
+            const totalDue = Number(detail.amountDue) || (Number(detail.totalAmount) - Number(detail.discountAmount));
+
+            // Use settings or defaults
+            const storeName = settings.companyName || 'CỬA HÀNG ĐẶNG THỊ VIỆT HỒNG';
+            const storeAddress = settings.companyAddress || '119 Nguyễn Hữu Thọ Q. Hải Châu Tp. Đà Nẵng';
+            const storePhone = settings.companyPhone || '0236. 6563583 - 0932.542.168';
+            const storeEmail = settings.companyEmail || 'Mixuhoadon@gmail.com';
+            const storeWebsite = settings.companyWebsite || 'Mixuoffice.com';
 
             printWindow.document.write(`
+                <!DOCTYPE html>
                 <html>
                 <head>
+                    <meta charset="UTF-8">
                     <title>Hóa đơn ${invoice.invoiceNumber}</title>
+                    <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet">
                     <style>
-                        body { font-family: Arial, sans-serif; padding: 20px; }
-                        h1 { text-align: center; }
-                        .info { margin-bottom: 20px; }
-                        .info p { margin: 5px 0; }
-                        table { width: 100%; border-collapse: collapse; }
-                        th, td { border: 1px solid #ddd; padding: 8px; }
-                        th { background: #f5f5f5; }
-                        .total { text-align: right; font-size: 18px; margin-top: 20px; }
+                        @media print {
+                            @page { margin: 10mm; size: A4; }
+                            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        }
+                        * { box-sizing: border-box; margin: 0; padding: 0; }
+                        body { 
+                            font-family: 'Times New Roman', Times, serif; 
+                            font-size: 13px;
+                            line-height: 1.4;
+                            padding: 15px 20px;
+                            color: #000;
+                        }
+                        
+                        /* Top bar */
+                        .top-bar {
+                            display: flex;
+                            justify-content: space-between;
+                            font-size: 10px;
+                            color: #666;
+                            margin-bottom: 10px;
+                        }
+                        
+                        /* Header - Centered */
+                        .header-section {
+                            text-align: center;
+                            margin-bottom: 5px;
+                        }
+                        .store-name {
+                            color: #c00000;
+                            font-size: 20px;
+                            font-weight: bold;
+                            margin-bottom: 5px;
+                        }
+                        .store-info {
+                            font-size: 13px;
+                            line-height: 1.5;
+                        }
+                        .store-info span {
+                            color: #c00000;
+                            font-weight: bold;
+                        }
+                        
+                        /* Invoice Title */
+                        .invoice-title {
+                            text-align: center;
+                            font-size: 20px;
+                            font-weight: bold;
+                            margin: 10px 0;
+                        }
+                        
+                        /* Order info - Two columns */
+                        .order-section {
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-start;
+                            margin-bottom: 15px;
+                            padding-bottom: 10px;
+                            border-bottom: 1px solid #000;
+                        }
+                        .order-left {
+                            font-size: 13px;
+                        }
+                        .order-right {
+                            text-align: right;
+                        }
+                        .barcode {
+                            font-family: 'Libre Barcode 39', cursive;
+                            font-size: 48px;
+                            line-height: 1;
+                        }
+                        .order-code {
+                            font-weight: bold;
+                            text-decoration: underline;
+                            font-size: 13px;
+                        }
+                        
+                        /* Customer info - Left aligned */
+                        .customer-section {
+                            margin-bottom: 15px;
+                            font-size: 13px;
+                        }
+                        .customer-section p {
+                            margin: 3px 0;
+                        }
+                        
+                        /* Table */
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-bottom: 15px;
+                        }
+                        th, td {
+                            border: 1px solid #000;
+                            padding: 6px 8px;
+                            font-size: 13px;
+                        }
+                        th {
+                            background: #f5f5f5;
+                            font-weight: bold;
+                            text-align: center;
+                        }
+                        td.center { text-align: center; }
+                        td.right { text-align: right; }
+                        .col-stt { width: 6%; }
+                        .col-name { width: 36%; }
+                        .col-unit { width: 10%; }
+                        .col-qty { width: 8%; }
+                        .col-price { width: 18%; }
+                        .col-total { width: 22%; }
+                        
+                        /* Total */
+                        .total-section {
+                            text-align: right;
+                            margin: 15px 0;
+                            font-size: 14px;
+                        }
+                        .total-section strong {
+                            color: #c00000;
+                        }
+                        
+                        /* Signature */
+                        .signature-section {
+                            display: flex;
+                            justify-content: space-between;
+                            margin-top: 50px;
+                            text-align: center;
+                        }
+                        .signature-box {
+                            width: 30%;
+                        }
+                        .signature-title {
+                            font-weight: bold;
+                            font-size: 13px;
+                        }
+                        
+                        /* Footer */
+                        .footer-section {
+                            position: fixed;
+                            bottom: 10px;
+                            left: 20px;
+                            right: 20px;
+                            display: flex;
+                            justify-content: space-between;
+                            font-size: 10px;
+                            color: #666;
+                        }
                     </style>
                 </head>
                 <body>
-                    <h1>HÓA ĐƠN BÁN HÀNG</h1>
-                    <div class="info">
-                        <p><strong>Mã HĐ:</strong> ${invoice.invoiceNumber}</p>
-                        <p><strong>Khách hàng:</strong> ${invoice.customerName || 'Khách lẻ'}</p>
-                        <p><strong>Ngày:</strong> ${formatDate(invoice.createdAt)}</p>
+                    <!-- Top bar: time and branch -->
+                    <div class="top-bar">
+                        <span>${printTime}</span>
+                        <span>Chi nhánh trung tâm - Bán hàng</span>
                     </div>
+                    
+                    <!-- Header: Store info (CENTERED) -->
+                    <div class="header-section">
+                        <div class="store-name">${storeName}</div>
+                        <div class="store-info">
+                            <span>A</span> - ${storeAddress}.<br>
+                            <span>T</span> - ${storePhone}.<br>
+                            <span>W</span> - ${storeWebsite}- <span>E</span> - ${storeEmail}.
+                        </div>
+                    </div>
+                    
+                    <!-- Invoice Title (CENTERED) -->
+                    <div class="invoice-title">HÓA ĐƠN BÁN HÀNG</div>
+                    
+                    <!-- Order Section: Two columns -->
+                    <div class="order-section">
+                        <div class="order-left">
+                            Mã đơn hàng: <strong>${invoice.invoiceNumber}</strong><br>
+                            ${invoiceDateStr}
+                        </div>
+                        <div class="order-right">
+                            <div class="barcode">*${invoice.invoiceNumber}*</div>
+                            <div class="order-code">${invoice.invoiceNumber}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Customer info (LEFT aligned) -->
+                    <div class="customer-section">
+                        <p>Khách hàng: <strong>${invoice.customerName || 'Khách lẻ'}</strong></p>
+                        <p>Số điện thoại: ${invoice.customerPhone || ''}</p>
+                        <p>Địa chỉ: ${invoice.customerAddress || ''}</p>
+                    </div>
+                    
+                    <!-- Products table -->
                     <table>
                         <thead>
                             <tr>
-                                <th>Mã hàng</th>
-                                <th>Tên hàng</th>
-                                <th>SL</th>
-                                <th>Đơn giá</th>
-                                <th>Thành tiền</th>
+                                <th class="col-stt">STT</th>
+                                <th class="col-name">Tên hàng</th>
+                                <th class="col-unit">ĐVT</th>
+                                <th class="col-qty">SL</th>
+                                <th class="col-price">Đơn giá</th>
+                                <th class="col-total">Thành tiền</th>
                             </tr>
                         </thead>
-                        <tbody>${itemRows}</tbody>
+                        <tbody>
+                            ${itemRows}
+                        </tbody>
                     </table>
-                    <div class="total">
-                        <p>Tổng tiền: <strong>${formatCurrency(Number(detail.totalAmount))}đ</strong></p>
-                        <p>Giảm giá: ${formatCurrency(Number(detail.discountAmount))}đ</p>
-                        <p>Khách trả: <strong>${formatCurrency(Number(detail.amountPaid))}đ</strong></p>
+                    
+                    <!-- Total -->
+                    <div class="total-section">
+                        Số tiền cần phải thanh toán: <strong>${formatCurrency(totalDue)}</strong>
+                    </div>
+                    
+                    <!-- Signature area -->
+                    <div class="signature-section">
+                        <div class="signature-box">
+                            <div class="signature-title">Người mua hàng</div>
+                        </div>
+                        <div class="signature-box">
+                            <div class="signature-title">Đã thanh toán</div>
+                        </div>
+                        <div class="signature-box">
+                            <div class="signature-title">Người bán hàng</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Footer -->
+                    <div class="footer-section">
+                        <span>https://vppmixu.kiotviet.vn/sale#/</span>
+                        <span>1/1</span>
                     </div>
                 </body>
                 </html>
             `);
             printWindow.document.close();
-            printWindow.print();
+
+            // Wait for barcode font to load then print
+            setTimeout(() => {
+                printWindow.print();
+            }, 800);
         } catch (error) {
             toast.error('Không thể in hóa đơn');
         }
@@ -682,7 +901,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
 
         try {
             await salesAPI.returnOrder(invoice.id, `Trả hàng từ danh sách hóa đơn`);
-            toast.success(`Trả hàng thành công: ${invoice.invoiceNumber}`);
+            toast.success(`Trả hàng thành công: ${invoice.invoiceNumber} `);
             fetchInvoices();
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Không thể trả hàng');
@@ -710,7 +929,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                 <div className="header-actions">
                     <div className="header-actions">
                         <button
-                            className={`btn-secondary ${showFilterPanel ? 'active' : ''}`}
+                            className={`btn - secondary ${showFilterPanel ? 'active' : ''} `}
                             onClick={() => setShowFilterPanel(!showFilterPanel)}
                         >
                             <MdFilterList />
@@ -949,7 +1168,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                     {invoices.map((invoice) => (
                                         <React.Fragment key={invoice.id}>
                                             <tr
-                                                className={`invoice-row ${expandedId === invoice.id ? 'expanded' : ''}`}
+                                                className={`invoice - row ${expandedId === invoice.id ? 'expanded' : ''} `}
                                                 onClick={() => toggleExpand(invoice.id)}
                                             >
                                                 <td>
@@ -1027,7 +1246,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                                                     <a href="#" className="invoice-link">
                                                                         {expandedInvoiceDetail.invoiceNumber}
                                                                     </a>
-                                                                    <span className={`status-badge ${STATUS_CLASSES[expandedInvoiceDetail.status]}`}>
+                                                                    <span className={`status - badge ${STATUS_CLASSES[expandedInvoiceDetail.status]} `}>
                                                                         {STATUS_LABELS[expandedInvoiceDetail.status]}
                                                                     </span>
                                                                 </div>
@@ -1256,7 +1475,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                     setShowDetailModal(false);
                     setSelectedInvoice(null);
                 }}
-                title={`Chi tiết hóa đơn ${selectedInvoice?.invoiceNumber || ''}`}
+                title={`Chi tiết hóa đơn ${selectedInvoice?.invoiceNumber || ''} `}
             >
                 {selectedInvoice && (
                     <div className="invoice-detail">

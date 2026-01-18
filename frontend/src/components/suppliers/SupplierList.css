@@ -91,6 +91,25 @@
     cursor: not-allowed;
 }
 
+.btn-export {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #eff6ff;
+    color: #2563eb;
+    border: 1px solid #2563eb;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-export:hover {
+    background: #2563eb;
+    color: white;
+}
+
 .import-note {
     padding: 0.75rem 1.5rem;
     font-size: 0.875rem;
@@ -358,45 +377,291 @@
     border-color: #3b82f6;
 }
 
-.filter-actions {
-    display: flex;
-    gap: 0.5rem;
-    padding-top: 0.5rem;
+/* ========================================
+   SIDEBAR - KiotViet Style
+   ======================================== */
+
+/* Sidebar Container */
+.supplier-sidebar {
+    width: 260px;
+    padding: 0;
+    border-right: 1px solid #e5e7eb;
+    background: #fff;
+    flex-shrink: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: calc(100vh - 180px);
+    position: relative;
+    transition: width 0.3s ease;
 }
 
-.btn-apply {
+.supplier-sidebar.collapsed {
+    width: 0;
+    padding: 0;
+    overflow: hidden;
+    border-right: none;
+}
+
+/* Sidebar Toggle Button */
+.sidebar-toggle {
+    position: absolute;
+    top: 50%;
+    right: -12px;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 48px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    font-size: 14px;
+    z-index: 10;
+    transition: all 0.2s;
+}
+
+.sidebar-toggle:hover {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.supplier-sidebar.collapsed .sidebar-toggle {
+    right: -24px;
+}
+
+/* Filter Group */
+.filter-group {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.filter-group:last-of-type {
+    border-bottom: none;
+}
+
+.filter-group .filter-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    font-size: 13px;
+    color: #1f2937;
+    margin-bottom: 10px;
+}
+
+.create-link {
+    font-size: 12px;
+    font-weight: 400;
+    color: #2563eb;
+    text-decoration: none;
+}
+
+.create-link:hover {
+    text-decoration: underline;
+}
+
+/* Select Dropdown */
+.filter-select-sidebar {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #374151;
+    background: #fff;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.filter-select-sidebar:hover {
+    border-color: #b3b3b3;
+}
+
+.filter-select-sidebar:focus {
+    outline: none;
+    border-color: #2563eb;
+}
+
+/* Radio Group Vertical */
+.radio-group-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.radio-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #374151;
+    cursor: pointer;
+    padding: 8px 0;
+    background: transparent;
+    border: none;
+    transition: color 0.15s;
+}
+
+.radio-item input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: #2563eb;
+}
+
+.radio-item span {
+    flex: 1;
+}
+
+.radio-item .arrow-icon,
+.radio-item .calendar-icon {
+    color: #9ca3af;
+    font-size: 16px;
+}
+
+.radio-item:hover {
+    color: #2563eb;
+}
+
+/* Date Range Inputs */
+.date-range-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.filter-date-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.filter-date-input:focus {
+    outline: none;
+    border-color: #2563eb;
+}
+
+/* Pill Group (Status Buttons) */
+.pill-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.pill-btn {
+    padding: 6px 12px;
+    border: 1px solid #d9d9d9;
+    background: #fff;
+    color: #6b7280;
+    border-radius: 16px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pill-btn:hover {
+    border-color: #2563eb;
+    color: #2563eb;
+}
+
+.pill-btn.active {
+    background: #2563eb;
+    color: white;
+    border-color: #2563eb;
+}
+
+/* Range Inputs */
+.range-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.range-input-group {
+    display: flex;
+    align-items: center;
+    background: #f5f5f5;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.range-prefix {
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #6b7280;
+    background: #f5f5f5;
+    white-space: nowrap;
+}
+
+.range-input {
+    flex: 1;
+    padding: 8px 10px;
+    border: none;
+    background: #fff;
+    font-size: 13px;
+    border: 1px solid #d9d9d9;
+    border-left: none;
+    border-radius: 0 4px 4px 0;
+}
+
+.range-input:focus {
+    outline: none;
+    border-color: #2563eb;
+}
+
+.range-input::placeholder {
+    color: #9ca3af;
+}
+
+/* Sidebar Actions */
+.sidebar-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid #e5e7eb;
+    background: #fafafa;
+}
+
+.btn-apply-filter {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.25rem;
-    padding: 0.5rem;
+    gap: 4px;
+    padding: 8px 12px;
     background: #3b82f6;
     color: white;
     border: none;
     border-radius: 6px;
-    font-size: 0.85rem;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
 }
 
-.btn-apply:hover {
+.btn-apply-filter:hover {
     background: #2563eb;
 }
 
-.btn-clear {
-    padding: 0.5rem 0.75rem;
+.btn-clear-filter {
+    padding: 8px 12px;
     border: 1px solid #d1d5db;
     background: white;
     color: #6b7280;
     border-radius: 6px;
-    font-size: 0.85rem;
+    font-size: 13px;
     cursor: pointer;
     transition: all 0.2s;
 }
 
-.btn-clear:hover {
+.btn-clear-filter:hover {
     border-color: #9ca3af;
 }
 

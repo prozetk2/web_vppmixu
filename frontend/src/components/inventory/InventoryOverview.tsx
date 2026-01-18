@@ -54,7 +54,7 @@ export default function InventoryOverview() {
     const [loading, setLoading] = useState(false);
     const [pagination, setPagination] = useState<PaginationMeta>({
         page: 1,
-        limit: 50,
+        limit: 20,
         total: 0,
     });
 
@@ -127,15 +127,21 @@ export default function InventoryOverview() {
                 limit: pagination.limit,
             });
 
-            const responseData = response.data?.data || response.data;
-            // responseData is { data: [...], totals: {...}, meta: {...} } OR just the raw data
-            const reportItems = responseData.data || responseData;
+            // Response structure: { data: [...], totals: {...}, meta: { page, limit, total } }
+            // response.data is the entire response object from backend
+            const apiResponse = response.data?.data ? response.data : response.data;
+
+            // Get the report items array
+            const reportItems = apiResponse?.data || [];
             setReportData(Array.isArray(reportItems) ? reportItems : []);
-            setTotals(responseData.totals || null);
-            if (responseData.meta) {
+            setTotals(apiResponse?.totals || null);
+
+            // Get pagination meta
+            if (apiResponse?.meta) {
+                console.log('[Frontend] Received meta:', apiResponse.meta);
                 setPagination((prev) => ({
                     ...prev,
-                    total: responseData.meta.total,
+                    total: apiResponse.meta.total,
                 }));
             }
         } catch (error) {
@@ -739,10 +745,10 @@ export default function InventoryOverview() {
                                 onChange={(e) => setPagination(prev => ({ ...prev, limit: Number(e.target.value), page: 1 }))}
                                 className="page-size-select"
                             >
+                                <option value={15}>15</option>
                                 <option value={20}>20</option>
                                 <option value={50}>50</option>
                                 <option value={100}>100</option>
-                                <option value={200}>200</option>
                             </select>
                             <span>/ trang</span>
                         </div>

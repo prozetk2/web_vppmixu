@@ -6,7 +6,6 @@ import XLSX from 'xlsx-js-style';
 import {
     MdLocalShipping,
     MdSearch,
-    MdFilterList,
     MdDownload,
     MdAdd,
     MdEdit,
@@ -17,7 +16,12 @@ import {
     MdBlock,
     MdNotes,
     MdExpandMore,
-    MdExpandLess
+    MdExpandLess,
+    MdFileUpload,
+    MdChevronLeft,
+    MdChevronRight,
+    MdKeyboardArrowRight,
+    MdCalendarToday
 } from 'react-icons/md';
 import './SupplierList.css';
 
@@ -101,7 +105,7 @@ export default function SupplierList() {
     const [formData, setFormData] = useState<FormData>(createEmptyFormData());
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
-    const [showFilters, setShowFilters] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     // Expandable row state
     const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(null);
@@ -880,6 +884,87 @@ export default function SupplierList() {
         return true;
     });
 
+    // === EXPORT ALL SUPPLIERS FUNCTIONALITY ===
+    const handleExportSuppliers = () => {
+        if (filteredSuppliers.length === 0) {
+            toast.error('Không có nhà cung cấp nào để xuất');
+            return;
+        }
+
+        try {
+            // Chuẩn bị dữ liệu
+            const exportData = filteredSuppliers.map((s) => ({
+                'Mã nhà cung cấp': s.code || '',
+                'Tên nhà cung cấp': s.name || '',
+                'Email': s.email || '',
+                'Điện thoại': s.phone || '',
+                'Địa chỉ': s.address || '',
+                'Khu vực': s.area || '',
+                'Phường/Xã': s.ward || '',
+                'Tổng mua': s.totalPurchase || 0,
+                'Nợ cần trả hiện tại': s.currentDebt || 0,
+                'Mã số thuế': s.taxNumber || '',
+                'Ghi chú': s.notes || '',
+                'Nhóm nhà cung cấp': s.supplierGroup || '',
+                'Trạng thái': s.active !== false ? 'Đang giao dịch' : 'Ngừng giao dịch',
+                'Tổng mua trừ trả hàng': s.totalPurchaseAfterReturn || 0,
+                'Công ty': s.company || '',
+                'Người tạo': s.creator || '',
+                'Ngày tạo': s.createdAt ? formatDateTime(s.createdAt) : '',
+            }));
+
+            // Tạo workbook
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+            // Đặt độ rộng cột
+            worksheet['!cols'] = [
+                { wch: 15 },  // Mã nhà cung cấp
+                { wch: 30 },  // Tên nhà cung cấp
+                { wch: 25 },  // Email
+                { wch: 15 },  // Điện thoại
+                { wch: 40 },  // Địa chỉ
+                { wch: 15 },  // Khu vực
+                { wch: 15 },  // Phường/Xã
+                { wch: 18 },  // Tổng mua (H)
+                { wch: 20 },  // Nợ cần trả hiện tại (I)
+                { wch: 15 },  // Mã số thuế
+                { wch: 25 },  // Ghi chú
+                { wch: 18 },  // Nhóm nhà cung cấp
+                { wch: 15 },  // Trạng thái
+                { wch: 20 },  // Tổng mua trừ trả hàng (N)
+                { wch: 20 },  // Công ty
+                { wch: 15 },  // Người tạo
+                { wch: 18 },  // Ngày tạo
+            ];
+
+            // Áp dụng định dạng số với dấu phân cách hàng nghìn cho các cột tiền
+            // Các cột cần format: H (Tổng mua), I (Nợ cần trả), N (Tổng mua trừ trả hàng)
+            const numericColumns = ['H', 'I', 'N']; // Tổng mua, Nợ cần trả, Tổng mua trừ TH
+            const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+
+            for (let R = range.s.r + 1; R <= range.e.r; R++) { // Bỏ qua header row
+                numericColumns.forEach(col => {
+                    const cellAddress = col + (R + 1);
+                    const cell = worksheet[cellAddress];
+                    if (cell && typeof cell.v === 'number') {
+                        cell.z = '#,##0'; // Format số với dấu phân cách hàng nghìn
+                    }
+                });
+            }
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Danh sách nhà cung cấp');
+
+            // Xuất file
+            const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            XLSX.writeFile(workbook, `DanhSachNhaCungCap_${date}.xlsx`);
+            toast.success(`Xuất thành công ${filteredSuppliers.length} nhà cung cấp`);
+        } catch (error) {
+            console.error('Export error:', error);
+            toast.error('Lỗi khi xuất file');
+        }
+    };
+
     return (
         <div className="supplier-page">
             <Toast toasts={toast.toasts} onRemove={toast.removeToast} />
@@ -910,12 +995,6 @@ export default function SupplierList() {
 
                 {/* Actions - Right aligned */}
                 <div className="header-actions">
-                    <button
-                        className={`btn-filter-toggle ${showFilters ? 'active' : ''}`}
-                        onClick={() => setShowFilters(!showFilters)}
-                    >
-                        <MdFilterList />
-                    </button>
                     <input
                         type="file"
                         ref={fileInputRef}
@@ -925,6 +1004,9 @@ export default function SupplierList() {
                     />
                     <button onClick={handleImportClick} className="btn-import" disabled={importing}>
                         {importing ? <><MdHourglassEmpty /> Đang import...</> : <><MdDownload /> Import file</>}
+                    </button>
+                    <button onClick={handleExportSuppliers} className="btn-export">
+                        <MdFileUpload /> Xuất file
                     </button>
                     <button onClick={openAddModal} className="btn-add">
                         <MdAdd /> Nhà cung cấp
@@ -939,143 +1021,154 @@ export default function SupplierList() {
             )}
 
             <div className="supplier-content">
-                {/* Filter Panel */}
-                {showFilters && (
-                    <div className="filter-panel">
-                        <div className="filter-section">
-                            <h4>Nhóm nhà cung cấp</h4>
-                            <select
-                                value=""
-                                onChange={(e) => setFilters({ ...filters, supplierGroup: e.target.value } as any)}
-                                className="filter-select-full"
+                {/* Sidebar Filters */}
+                <div className={`supplier-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+                    <button
+                        className="sidebar-toggle"
+                        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                        title={sidebarCollapsed ? 'Mở rộng' : 'Thu gọn'}
+                    >
+                        {sidebarCollapsed ? <MdChevronRight /> : <MdChevronLeft />}
+                    </button>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Nhóm nhà cung cấp <a href="#" className="create-link">Tạo mới</a></label>
+                        <select
+                            value=""
+                            onChange={(e) => setFilters({ ...filters, supplierGroup: e.target.value } as any)}
+                            className="filter-select-sidebar"
+                        >
+                            <option value="">Tất cả các nhóm</option>
+                        </select>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Ngày tạo</label>
+                        <div className="radio-group-vertical">
+                            <label className="radio-item">
+                                <input
+                                    type="radio"
+                                    name="timeFilter"
+                                    checked={filters.timeFilter === 'all'}
+                                    onChange={() => setFilters({ ...filters, timeFilter: 'all' })}
+                                />
+                                <span>Toàn thời gian</span>
+                                <MdKeyboardArrowRight className="arrow-icon" />
+                            </label>
+                            <label className="radio-item">
+                                <input
+                                    type="radio"
+                                    name="timeFilter"
+                                    checked={filters.timeFilter === 'custom'}
+                                    onChange={() => setFilters({ ...filters, timeFilter: 'custom' })}
+                                />
+                                <span>Tùy chỉnh</span>
+                                <MdCalendarToday className="calendar-icon" />
+                            </label>
+                        </div>
+                        {filters.timeFilter === 'custom' && (
+                            <div className="date-range-inputs">
+                                <input
+                                    type="date"
+                                    value={filters.dateFrom}
+                                    onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
+                                    className="filter-date-input"
+                                />
+                                <input
+                                    type="date"
+                                    value={filters.dateTo}
+                                    onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                                    className="filter-date-input"
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Trạng thái</label>
+                        <div className="pill-group">
+                            <button
+                                className={`pill-btn ${filters.status === 'all' ? 'active' : ''}`}
+                                onClick={() => setFilters({ ...filters, status: 'all' })}
                             >
-                                <option value="">Tất cả các nhóm</option>
-                            </select>
-                        </div>
-
-                        <div className="filter-section">
-                            <h4>Tổng mua</h4>
-                            <p className="filter-label">Giá trị</p>
-                            <div className="filter-range">
-                                <div className="filter-input-group">
-                                    <span className="filter-prefix">Từ</span>
-                                    <input
-                                        type="text"
-                                        placeholder="Nhập giá trị"
-                                        value={filters.totalPurchaseFrom}
-                                        onChange={(e) => setFilters({ ...filters, totalPurchaseFrom: e.target.value })}
-                                    />
-                                </div>
-                                <div className="filter-input-group">
-                                    <span className="filter-prefix">Tới</span>
-                                    <input
-                                        type="text"
-                                        placeholder="Nhập giá trị"
-                                        value={filters.totalPurchaseTo}
-                                        onChange={(e) => setFilters({ ...filters, totalPurchaseTo: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="filter-section">
-                            <h4>Thời gian</h4>
-                            <div className="filter-radio-group">
-                                <label className={`filter-radio ${filters.timeFilter === 'all' ? 'selected' : ''}`}>
-                                    <input
-                                        type="radio"
-                                        name="timeFilter"
-                                        checked={filters.timeFilter === 'all'}
-                                        onChange={() => setFilters({ ...filters, timeFilter: 'all' })}
-                                    />
-                                    <span className="radio-dot"></span>
-                                    Toàn thời gian
-                                </label>
-                                <label className={`filter-radio ${filters.timeFilter === 'custom' ? 'selected' : ''}`}>
-                                    <input
-                                        type="radio"
-                                        name="timeFilter"
-                                        checked={filters.timeFilter === 'custom'}
-                                        onChange={() => setFilters({ ...filters, timeFilter: 'custom' })}
-                                    />
-                                    <span className="radio-dot"></span>
-                                    Tùy chỉnh
-                                </label>
-                            </div>
-                            {filters.timeFilter === 'custom' && (
-                                <div className="filter-date-range">
-                                    <input
-                                        type="date"
-                                        value={filters.dateFrom}
-                                        onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-                                    />
-                                    <input
-                                        type="date"
-                                        value={filters.dateTo}
-                                        onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-                                    />
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="filter-section">
-                            <h4>Nợ hiện tại</h4>
-                            <div className="filter-range">
-                                <div className="filter-input-group">
-                                    <span className="filter-prefix">Từ</span>
-                                    <input
-                                        type="text"
-                                        placeholder="Nhập giá trị"
-                                        value={filters.currentDebtFrom}
-                                        onChange={(e) => setFilters({ ...filters, currentDebtFrom: e.target.value })}
-                                    />
-                                </div>
-                                <div className="filter-input-group">
-                                    <span className="filter-prefix">Tới</span>
-                                    <input
-                                        type="text"
-                                        placeholder="Nhập giá trị"
-                                        value={filters.currentDebtTo}
-                                        onChange={(e) => setFilters({ ...filters, currentDebtTo: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="filter-section">
-                            <h4>Trạng thái</h4>
-                            <div className="status-toggle-group">
-                                <button
-                                    className={`status-btn ${filters.status === 'all' ? 'active' : ''}`}
-                                    onClick={() => setFilters({ ...filters, status: 'all' })}
-                                >
-                                    Tất cả
-                                </button>
-                                <button
-                                    className={`status-btn ${filters.status === 'active' ? 'active' : ''}`}
-                                    onClick={() => setFilters({ ...filters, status: 'active' })}
-                                >
-                                    Đang hoạt động
-                                </button>
-                                <button
-                                    className={`status-btn ${filters.status === 'inactive' ? 'active' : ''}`}
-                                    onClick={() => setFilters({ ...filters, status: 'inactive' })}
-                                >
-                                    Ngừng hoạt động
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="filter-actions">
-                            <button className="btn-apply" onClick={handleSearch}>
-                                <MdCheck /> Áp dụng
+                                Tất cả
                             </button>
-                            <button className="btn-clear" onClick={handleClearFilters}>
-                                Xóa bộ lọc
+                            <button
+                                className={`pill-btn ${filters.status === 'active' ? 'active' : ''}`}
+                                onClick={() => setFilters({ ...filters, status: 'active' })}
+                            >
+                                Đang giao dịch
+                            </button>
+                            <button
+                                className={`pill-btn ${filters.status === 'inactive' ? 'active' : ''}`}
+                                onClick={() => setFilters({ ...filters, status: 'inactive' })}
+                            >
+                                Ngừng giao dịch
                             </button>
                         </div>
                     </div>
-                )}
+
+                    <div className="filter-group">
+                        <label className="filter-label">Tổng mua</label>
+                        <div className="range-inputs">
+                            <div className="range-input-group">
+                                <span className="range-prefix">Từ</span>
+                                <input
+                                    type="text"
+                                    placeholder="Nhập giá trị"
+                                    value={filters.totalPurchaseFrom}
+                                    onChange={(e) => setFilters({ ...filters, totalPurchaseFrom: e.target.value })}
+                                    className="range-input"
+                                />
+                            </div>
+                            <div className="range-input-group">
+                                <span className="range-prefix">Tới</span>
+                                <input
+                                    type="text"
+                                    placeholder="Nhập giá trị"
+                                    value={filters.totalPurchaseTo}
+                                    onChange={(e) => setFilters({ ...filters, totalPurchaseTo: e.target.value })}
+                                    className="range-input"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="filter-group">
+                        <label className="filter-label">Nợ cần trả</label>
+                        <div className="range-inputs">
+                            <div className="range-input-group">
+                                <span className="range-prefix">Từ</span>
+                                <input
+                                    type="text"
+                                    placeholder="Nhập giá trị"
+                                    value={filters.currentDebtFrom}
+                                    onChange={(e) => setFilters({ ...filters, currentDebtFrom: e.target.value })}
+                                    className="range-input"
+                                />
+                            </div>
+                            <div className="range-input-group">
+                                <span className="range-prefix">Tới</span>
+                                <input
+                                    type="text"
+                                    placeholder="Nhập giá trị"
+                                    value={filters.currentDebtTo}
+                                    onChange={(e) => setFilters({ ...filters, currentDebtTo: e.target.value })}
+                                    className="range-input"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="sidebar-actions">
+                        <button className="btn-apply-filter" onClick={handleSearch}>
+                            <MdCheck /> Áp dụng
+                        </button>
+                        <button className="btn-clear-filter" onClick={handleClearFilters}>
+                            Xóa bộ lọc
+                        </button>
+                    </div>
+                </div>
 
                 {/* Table */}
                 <div className="supplier-table-container">
