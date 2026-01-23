@@ -84,34 +84,61 @@ export class PurchasesService {
             });
         }
 
-        // Create purchase order
+        // Determine initial status and amountPaid based on prepayment
+        const prepaymentAmount = dto.prepaymentAmount || 0;
+        let initialStatus = 'PENDING';
+        if (prepaymentAmount >= totalAmount) {
+            initialStatus = 'PAID';
+        } else if (prepaymentAmount > 0) {
+            initialStatus = 'PARTIAL';
+        }
+
+        // Create purchase order with transaction to handle prepayment
         const orderNumber = await this.generateOrderNumber();
-        const order = await this.prisma.purchaseOrder.create({
-            data: {
-                orderNumber,
-                supplierId: BigInt(dto.supplierId),
-                warehouseId: dto.warehouseId ? BigInt(dto.warehouseId) : null,
-                status: 'PENDING',
-                totalAmount,
-                note: dto.note,
-                purchaseItems: {
-                    create: purchaseItems,
+
+        return this.prisma.$transaction(async (tx) => {
+            const order = await tx.purchaseOrder.create({
+                data: {
+                    orderNumber,
+                    supplierId: BigInt(dto.supplierId),
+                    warehouseId: dto.warehouseId ? BigInt(dto.warehouseId) : null,
+                    status: initialStatus,
+                    totalAmount,
+                    amountPaid: prepaymentAmount,
+                    amountDue: totalAmount - prepaymentAmount,
+                    note: dto.note,
+                    purchaseItems: {
+                        create: purchaseItems,
+                    },
                 },
-            },
-            include: {
-                supplier: true,
-                warehouse: true,
-                purchaseItems: {
-                    include: {
-                        variant: {
-                            include: { product: true },
+                include: {
+                    supplier: true,
+                    warehouse: true,
+                    purchaseItems: {
+                        include: {
+                            variant: {
+                                include: { product: true },
+                            },
                         },
                     },
                 },
-            },
-        });
+            });
 
-        return order;
+            // If prepayment exists, create SupplierPayment record
+            if (prepaymentAmount > 0) {
+                await tx.supplierPayment.create({
+                    data: {
+                        supplierId: BigInt(dto.supplierId),
+                        amount: prepaymentAmount,
+                        method: dto.paymentMethod || 'CASH',
+                        note: `Thanh toán trước cho ${orderNumber}`,
+                        code: `PC${Date.now()}`,
+                    }
+                });
+            }
+
+            return order;
+        });
     }
 
     async findAll(query: PurchaseQueryDto) {

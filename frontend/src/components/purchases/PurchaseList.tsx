@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { purchasesAPI, suppliersAPI, productsAPI, warehousesAPI, priceListsAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
+import CurrencyInput from '../shared/CurrencyInput';
 import { MdDownload, MdInventory, MdCheck, MdClose, MdEdit, MdVisibility, MdSearch, MdDelete, MdFileDownload, MdAdd, MdInventory2, MdStar, MdStarBorder, MdSettings, MdHelp, MdChevronLeft, MdChevronRight } from 'react-icons/md';
 import './PurchaseList.css';
 
@@ -58,6 +59,8 @@ const STATUS_LABELS: Record<string, string> = {
     PENDING: 'Phiếu tạm',
     CONFIRMED: 'Đã nhập hàng',
     CANCELLED: 'Đã hủy',
+    PAID: 'Đã thanh toán',
+    PARTIAL: 'Thanh toán 1 phần',
 };
 
 export default function PurchaseList() {
@@ -104,6 +107,8 @@ export default function PurchaseList() {
         supplierId: '',
         warehouseId: '',
         note: '',
+        prepaymentAmount: 0,
+        paymentMethod: 'CASH',
     });
     const [items, setItems] = useState<FormItem[]>([{ productId: '', productSearch: '', quantity: 1, unitCost: 0 }]);
     const [submitting, setSubmitting] = useState(false);
@@ -296,7 +301,7 @@ export default function PurchaseList() {
 
     const openCreateModal = () => {
         setEditingId(null);
-        setFormData({ supplierId: '', warehouseId: '', note: '' });
+        setFormData({ supplierId: '', warehouseId: '', note: '', prepaymentAmount: 0, paymentMethod: 'CASH' });
         setItems([{ productId: '', productSearch: '', quantity: 1, unitCost: 0 }]);
         setIsModalOpen(true);
     };
@@ -307,6 +312,8 @@ export default function PurchaseList() {
             supplierId: purchase.supplier?.id || '',
             warehouseId: '',
             note: purchase.note || '',
+            prepaymentAmount: 0,
+            paymentMethod: 'CASH',
         });
         setItems(purchase.purchaseItems.map(item => {
             const product = products.find(p =>
@@ -382,6 +389,8 @@ export default function PurchaseList() {
                 warehouseId: formData.warehouseId || undefined,
                 items: validItems,
                 note: formData.note || undefined,
+                prepaymentAmount: formData.prepaymentAmount || undefined,
+                paymentMethod: formData.prepaymentAmount > 0 ? formData.paymentMethod : undefined,
             };
 
             if (editingId) {
@@ -1269,11 +1278,9 @@ export default function PurchaseList() {
                                                     />
                                                 </td>
                                                 <td className="col-price">
-                                                    <input
-                                                        type="number"
-                                                        min="0"
+                                                    <CurrencyInput
                                                         value={item.unitCost}
-                                                        onChange={(e) => updateItem(idx, 'unitCost', e.target.value)}
+                                                        onChange={(val) => updateItem(idx, 'unitCost', val)}
                                                         className="inline-input price-input"
                                                     />
                                                 </td>
@@ -1453,6 +1460,44 @@ export default function PurchaseList() {
                             <div className="info-row highlight">
                                 <span className="info-label">Cần trả nhà cung cấp</span>
                                 <span className="info-amount total-pay">{formatCurrency(totalAmount)}</span>
+                            </div>
+
+                            {/* Prepayment Section */}
+                            <div className="prepayment-section" style={{ marginTop: '16px', padding: '12px', background: '#f8f9fa', borderRadius: '8px' }}>
+                                <div className="info-row" style={{ marginBottom: '10px' }}>
+                                    <span className="info-label" style={{ fontWeight: 600 }}>💰 Thanh toán trước</span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ fontSize: '12px', color: '#666', display: 'block', marginBottom: '4px' }}>Số tiền thanh toán</label>
+                                        <CurrencyInput
+                                            value={formData.prepaymentAmount}
+                                            onChange={(val) => setFormData({ ...formData, prepaymentAmount: val })}
+                                            placeholder="0"
+                                            style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                                        />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ fontSize: '12px', color: '#666', display: 'block', marginBottom: '4px' }}>Phương thức</label>
+                                        <select
+                                            value={formData.paymentMethod}
+                                            onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                                            style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                                        >
+                                            <option value="CASH">Tiền mặt</option>
+                                            <option value="TRANSFER">Chuyển khoản</option>
+                                            <option value="CARD">Thẻ</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                {formData.prepaymentAmount > 0 && (
+                                    <div style={{ marginTop: '8px', fontSize: '13px', color: formData.prepaymentAmount >= totalAmount ? '#28a745' : '#856404' }}>
+                                        {formData.prepaymentAmount >= totalAmount
+                                            ? '✅ Thanh toán đủ - Trạng thái: Đã thanh toán'
+                                            : `⏳ Còn nợ: ${formatCurrency(totalAmount - formData.prepaymentAmount)}`
+                                        }
+                                    </div>
+                                )}
                             </div>
 
                             <div className="note-section">

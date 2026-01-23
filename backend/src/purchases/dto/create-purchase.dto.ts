@@ -30,4 +30,13 @@ export class CreatePurchaseDto {
     @IsOptional()
     @IsString()
     note?: string;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    prepaymentAmount?: number;
+
+    @IsOptional()
+    @IsString()
+    paymentMethod?: string; // CASH, TRANSFER, etc.
 }
