@@ -7,6 +7,7 @@ export interface AppSettings {
     companyAddress: string;
     companyPhone: string;
     companyEmail: string;
+    companyWebsite: string;
     taxNumber: string;
     taxRate: number;        // VAT percentage
     invoicePrefix: string;
@@ -17,10 +18,11 @@ export interface AppSettings {
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-    companyName: 'Công ty TNHH VPP Mixu',
-    companyAddress: '',
-    companyPhone: '',
-    companyEmail: '',
+    companyName: 'CỬA HÀNG ĐẶNG THỊ VIỆT HỒNG',
+    companyAddress: '119 Nguyễn Hữu Thọ Q. Hải Châu Tp. Đà Nẵng',
+    companyPhone: '0236. 6563583 - 0932.542.168',
+    companyEmail: 'Mixuhoadon@gmail.com',
+    companyWebsite: 'Mixuoffice.com',
     taxNumber: '',
     taxRate: 10,
     invoicePrefix: 'HD',
@@ -53,6 +55,7 @@ export class SettingsService {
             companyAddress: settings.companyAddress ?? store.address ?? DEFAULT_SETTINGS.companyAddress,
             companyPhone: settings.companyPhone ?? store.phone ?? DEFAULT_SETTINGS.companyPhone,
             companyEmail: settings.companyEmail ?? store.email ?? DEFAULT_SETTINGS.companyEmail,
+            companyWebsite: settings.companyWebsite ?? DEFAULT_SETTINGS.companyWebsite,
             taxNumber: settings.taxNumber ?? store.taxNumber ?? DEFAULT_SETTINGS.taxNumber,
             taxRate: settings.taxRate ?? DEFAULT_SETTINGS.taxRate,
             invoicePrefix: settings.invoicePrefix ?? DEFAULT_SETTINGS.invoicePrefix,
@@ -94,6 +97,7 @@ export class SettingsService {
             if (dto.companyAddress !== undefined) newSettings.companyAddress = dto.companyAddress;
             if (dto.companyPhone !== undefined) newSettings.companyPhone = dto.companyPhone;
             if (dto.companyEmail !== undefined) newSettings.companyEmail = dto.companyEmail;
+            if (dto.companyWebsite !== undefined) newSettings.companyWebsite = dto.companyWebsite;
             if (dto.taxNumber !== undefined) newSettings.taxNumber = dto.taxNumber;
             if (dto.taxRate !== undefined) newSettings.taxRate = dto.taxRate;
             if (dto.invoicePrefix !== undefined) newSettings.invoicePrefix = dto.invoicePrefix;

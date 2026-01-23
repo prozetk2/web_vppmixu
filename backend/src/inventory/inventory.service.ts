@@ -308,15 +308,30 @@ export class InventoryService {
      * Shows: Đầu kỳ, Nhập kho, Xuất kho, Cuối kỳ
      */
     async getInventoryReport(query: InventoryReportDto) {
-        const { fromDate, toDate, warehouseId, storeId, search, page = 1, limit = 50 } = query;
+        const { fromDate, toDate, warehouseId, storeId, search, page = 1, limit = 20 } = query;
 
         // Default date range: current month
         const now = new Date();
         const periodStart = fromDate ? new Date(fromDate) : new Date(now.getFullYear(), now.getMonth(), 1);
         const periodEnd = toDate ? new Date(toDate) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-        // Get all products with their variants
-        const productsQuery: any = {
+        // Build where clause for products
+        const productWhere: any = {};
+        if (search) {
+            productWhere.OR = [
+                { name: { contains: search, mode: 'insensitive' } },
+                { sku: { contains: search, mode: 'insensitive' } },
+            ];
+        }
+
+        // Get total count first (for pagination)
+        const totalProducts = await this.prisma.product.count({ where: productWhere });
+        console.log('[Inventory Report] Query params:', { page, limit, search, warehouseId });
+        console.log('[Inventory Report] Total products in database:', totalProducts);
+
+        // Get paginated products with their variants
+        const products: any[] = await this.prisma.product.findMany({
+            where: productWhere,
             include: {
                 variants: {
                     include: {
@@ -326,18 +341,10 @@ export class InventoryService {
                     },
                 },
             },
-        };
-
-        if (search) {
-            productsQuery.where = {
-                OR: [
-                    { name: { contains: search, mode: 'insensitive' } },
-                    { sku: { contains: search, mode: 'insensitive' } },
-                ],
-            };
-        }
-
-        const products: any[] = await this.prisma.product.findMany(productsQuery);
+            skip: (page - 1) * limit,
+            take: limit,
+            orderBy: { name: 'asc' },
+        });
 
         // Get all stock movements in period
         // Need to use AND to properly combine date filter with warehouse OR
@@ -458,11 +465,10 @@ export class InventoryService {
         // NO FILTER - Show ALL products including zero stock
         // const activeProducts = reportData.filter(...);  // REMOVED
 
-        // Pagination
-        const total = reportData.length;
-        const paginatedData = reportData.slice((page - 1) * limit, page * limit);
+        // Pagination is already done at database level, just return reportData directly
+        // Total comes from the count query done earlier
 
-        // Calculate totals
+        // Calculate totals for current page only (note: for accurate global totals, would need separate query)
         const totals = reportData.reduce(
             (acc, p) => ({
                 beginningQty: acc.beginningQty + p.beginningQty,
@@ -487,9 +493,9 @@ export class InventoryService {
         );
 
         return {
-            data: paginatedData,
+            data: reportData,
             totals,
-            meta: { page, limit, total },
+            meta: { page, limit, total: totalProducts },
             period: {
                 from: periodStart.toISOString(),
                 to: periodEnd.toISOString(),

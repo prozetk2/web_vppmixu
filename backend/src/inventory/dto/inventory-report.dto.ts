@@ -32,5 +32,5 @@ export class InventoryReportDto {
     @Type(() => Number)
     @IsInt()
     @Min(1)
-    limit?: number = 50;
+    limit?: number = 20;
 }

@@ -22,11 +22,11 @@
 - [x] **Báo cáo Doanh thu** - Revenue report với Lợi nhuận gộp ✨ DONE 28/12
 
 ### ⏳ Đang làm
-- [ ] **Top 10 hàng bán chạy** - Cần import data InvoiceItem
-- [ ] **Xuất Excel chi tiết** - Phụ thuộc InvoiceItem data
+- [X] **Top 10 hàng bán chạy** - Cần import data InvoiceItem
+- [X] **Xuất Excel chi tiết** - Phụ thuộc InvoiceItem data
 
 ### 📝 Chờ làm
-- [ ] Settings
+- [X] Settings
 
 ---
 

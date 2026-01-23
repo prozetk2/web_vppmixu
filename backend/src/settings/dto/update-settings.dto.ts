@@ -44,4 +44,8 @@ export class UpdateSettingsDto {
     @IsOptional()
     @IsString()
     logo?: string;
+
+    @IsOptional()
+    @IsString()
+    companyWebsite?: string;
 }
