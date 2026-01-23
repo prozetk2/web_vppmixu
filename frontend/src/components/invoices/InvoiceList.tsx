@@ -1217,10 +1217,31 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                                     )}
                                                     <button
                                                         className="btn-icon edit"
-                                                        title="Sửa"
-                                                        onClick={() => {
-                                                            setSelectedInvoice(invoice);
-                                                            setShowEditModal(true);
+                                                        title="Sửa tại trang Bán hàng"
+                                                        onClick={async () => {
+                                                            if (onEditInPOS) {
+                                                                try {
+                                                                    // Fetch full invoice detail
+                                                                    const response = await invoicesAPI.getOne(invoice.id);
+                                                                    const detail = response.data.data || response.data;
+                                                                    onEditInPOS({
+                                                                        invoiceId: detail.id,
+                                                                        invoiceNumber: detail.invoiceNumber,
+                                                                        items: detail.items || [],
+                                                                        customerId: detail.customerCode,
+                                                                        customerName: detail.customerName,
+                                                                        discountAmount: detail.discountAmount || 0,
+                                                                        totalAmount: detail.totalAmount,
+                                                                        status: detail.status,
+                                                                    });
+                                                                } catch (error) {
+                                                                    console.error('Failed to fetch invoice detail:', error);
+                                                                    toast.error('Không thể tải chi tiết hóa đơn');
+                                                                }
+                                                            } else {
+                                                                setSelectedInvoice(invoice);
+                                                                setShowEditModal(true);
+                                                            }
                                                         }}
                                                     >
                                                         <MdEdit />

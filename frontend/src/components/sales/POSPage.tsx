@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { productsAPI, customersAPI, warehousesAPI, salesAPI, inventoryAPI, priceListsAPI, storesAPI } from '../../services/api';
+import { productsAPI, customersAPI, warehousesAPI, salesAPI, inventoryAPI, priceListsAPI, storesAPI, invoicesAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
 import { MdShoppingCart, MdClose, MdCheckCircle, MdAttachMoney, MdAccountBalance, MdCreditCard, MdQrCodeScanner, MdPrint, MdAssignmentReturn, MdSearch, MdAdd, MdReceipt, MdFlashOn, MdFlashOff, MdPerson, MdStorefront, MdMoreHoriz, MdExpandMore, MdSettings } from 'react-icons/md';
 import { FaFacebook, FaInstagram } from 'react-icons/fa';
@@ -49,6 +49,7 @@ interface Invoice {
     paymentMethod: PaymentMethod;
     customerPayment: number;
     createdAt: Date;
+    editingInvoiceId?: string; // Original invoice ID when editing
 }
 
 type PaymentMethod = 'CASH' | 'TRANSFER' | 'CARD';
@@ -550,13 +551,19 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
 
     // Refetch products when price list changes
     // Refetch products when price list changes and update cart prices
+    // But skip invoices that are being edited (preserve original prices)
     useEffect(() => {
         const updatePrices = async () => {
             if (selectedPriceList) {
                 const newProducts = await fetchData();
 
-                // Update prices in all invoices
+                // Update prices in all invoices EXCEPT those being edited
                 setInvoices(prevInvoices => prevInvoices.map(inv => {
+                    // Skip price update for invoices being edited - preserve original prices
+                    if (inv.editingInvoiceId) {
+                        return inv;
+                    }
+
                     const newCart = inv.cart.map(item => {
                         const updatedProduct = newProducts.find((p: Product) => p.id === item.product.id);
                         if (updatedProduct) {
@@ -574,10 +581,6 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
 
                     return { ...inv, cart: newCart };
                 }));
-
-                // Update prices in active invoice if cart was updated via setInvoices logic
-                // Actually the setInvoices above covers all invoices including active one.
-                // But we might want to show a toast or something.
             }
         };
 
@@ -586,38 +589,93 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
 
     // Load edit data from InvoiceList when editing an invoice
     useEffect(() => {
-        if (editData && editData.items && products.length > 0) {
+        if (editData && editData.items && editData.items.length > 0 && products.length > 0) {
+            console.log('=== Loading edit data ===');
+            console.log('Edit data:', editData);
+            console.log('Products available:', products.length);
+
             // Convert invoice items to cart format
-            const cartItems: CartItem[] = editData.items.map((item: any) => {
-                // Find product by code or name
-                const product = products.find(
-                    p => p.sku === item.productCode || p.name === item.productName
-                );
+            const cartItems: CartItem[] = [];
+            const notFoundItems: string[] = [];
 
-                return {
-                    product: product || {
-                        id: item.productCode || 'unknown',
-                        name: item.productName || 'Sản phẩm không xác định',
-                        sku: item.productCode || '',
-                        defaultPrice: item.unitPrice || 0,
-                    },
-                    quantity: item.quantity || 1,
-                    unitPrice: item.unitPrice || item.salePrice || 0,
-                };
+            editData.items.forEach((item: any) => {
+                console.log('Processing item:', item);
+
+                // Try multiple ways to find the product
+                let product = products.find(p => p.sku === item.productCode);
+                if (!product) {
+                    product = products.find(p => p.name === item.productName);
+                }
+                if (!product) {
+                    product = products.find(p => p.name.toLowerCase().includes((item.productName || '').toLowerCase().substring(0, 10)));
+                }
+                if (!product && item.productCode) {
+                    product = products.find(p => (p.sku || '').toLowerCase() === item.productCode.toLowerCase());
+                }
+
+                console.log('Found product:', product);
+
+                if (product) {
+                    cartItems.push({
+                        product: product,
+                        quantity: Number(item.quantity) || 1,
+                        unitPrice: Number(item.unitPrice) || Number(item.salePrice) || product.defaultPrice || 0,
+                    });
+                } else {
+                    // If product not found, still add it but use a valid pattern
+                    // We'll search for first available product with similar name
+                    notFoundItems.push(item.productName || item.productCode || 'Unknown');
+                }
             });
 
-            // Update active invoice with edit data
-            updateActiveInvoice({
-                cart: cartItems,
-                discountAmount: editData.discountAmount || 0,
-            });
+            console.log('Cart items created:', cartItems);
+            console.log('Not found items:', notFoundItems);
 
-            // Set customer if available
-            if (editData.customerId) {
-                updateActiveInvoice({ customerId: editData.customerId });
+            if (notFoundItems.length > 0) {
+                toast.error(`Không tìm thấy ${notFoundItems.length} sản phẩm: ${notFoundItems.slice(0, 3).join(', ')}${notFoundItems.length > 3 ? '...' : ''}`);
             }
 
-            toast.success(`Đang sửa hóa đơn: ${editData.invoiceNumber}`);
+            if (cartItems.length > 0) {
+                // Find customer by name if available
+                let customerIdToUse = '';
+                if (editData.customerName) {
+                    const customer = customers.find(c => c.name === editData.customerName);
+                    if (customer) {
+                        customerIdToUse = customer.id;
+                    }
+                }
+                if (!customerIdToUse && editData.customerId) {
+                    customerIdToUse = editData.customerId;
+                }
+
+                // Create a new invoice tab for editing - store original invoice ID
+                const editInvoice: Invoice = {
+                    id: generateId(),
+                    name: `Sửa: ${editData.invoiceNumber}`,
+                    cart: cartItems,
+                    customerId: customerIdToUse,
+                    discountPercent: 0,
+                    discountAmount: Number(editData.discountAmount) || 0,
+                    paymentMethod: 'CASH',
+                    customerPayment: Number(editData.totalAmount) || 0,
+                    createdAt: new Date(),
+                    editingInvoiceId: editData.invoiceId?.toString(), // Store original invoice ID for update
+                };
+
+                // Add new invoice and switch to it
+                setInvoices(prev => [...prev, editInvoice]);
+                setActiveInvoiceId(editInvoice.id);
+                setInvoiceCounter(prev => prev + 1);
+
+                // Set customer search to show customer name
+                if (editData.customerName) {
+                    setCustomerSearch(editData.customerName);
+                }
+
+                toast.success(`Đã load hóa đơn: ${editData.invoiceNumber} với ${cartItems.length} sản phẩm`);
+            } else {
+                toast.error('Không thể load hóa đơn: Không tìm thấy sản phẩm nào trong hệ thống');
+            }
 
             // Clear edit data after loading
             onClearEdit?.();
@@ -814,34 +872,67 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
 
         setProcessing(true);
         try {
-            const requestBody = {
-                customerId: selectedCustomer || undefined,
-                warehouseId: selectedWarehouse || undefined,
-                storeId: selectedSeller || undefined, // Company/Store for this sale
-                discountAmount: calculatedDiscount,
-                items: cart.map((item) => ({
-                    productId: item.product.id,
-                    quantity: item.quantity,
-                    unitPrice: item.unitPrice,
-                })),
-                payment: {
-                    amount: total,
-                    method: paymentMethod,
-                },
-            };
+            const isEditing = !!activeInvoice?.editingInvoiceId;
 
-            console.log('Sending checkout request:', requestBody);
-            const response = await salesAPI.create(requestBody);
+            if (isEditing) {
+                // Update existing invoice
+                const updatePayload = {
+                    customerName: customers.find(c => c.id === selectedCustomer)?.name || '',
+                    customerPhone: customers.find(c => c.id === selectedCustomer)?.phone || '',
+                    totalAmount: total,
+                    discountAmount: calculatedDiscount,
+                    amountPaid: total,
+                    paymentMethod: paymentMethod,
+                    status: 'COMPLETED',
+                    cashAmount: paymentMethod === 'CASH' ? total : 0,
+                    cardAmount: paymentMethod === 'CARD' ? total : 0,
+                    transferAmount: paymentMethod === 'TRANSFER' ? total : 0,
+                    items: cart.map((item) => ({
+                        productCode: item.product.sku || '',
+                        productName: item.product.name,
+                        unit: 'Cái',
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                        discountAmount: 0,
+                        totalPrice: item.unitPrice * item.quantity,
+                    })),
+                };
 
-            setLastOrderNumber(response.data?.orderNumber || 'N/A');
+                console.log('Updating invoice:', activeInvoice.editingInvoiceId, updatePayload);
+                await invoicesAPI.update(activeInvoice.editingInvoiceId!, updatePayload);
 
-            // Quick sale: auto-print and skip success modal
-            if (saleMode === 'quick') {
-                // Print receipt immediately
-                window.print();
-                toast.success(`Đã thanh toán: ${response.data?.orderNumber || 'N/A'}`);
-            } else {
+                toast.success(`Đã cập nhật hóa đơn thành công!`);
                 setShowSuccess(true);
+            } else {
+                // Create new order
+                const requestBody = {
+                    customerId: selectedCustomer || undefined,
+                    warehouseId: selectedWarehouse || undefined,
+                    storeId: selectedSeller || undefined,
+                    discountAmount: calculatedDiscount,
+                    items: cart.map((item) => ({
+                        productId: item.product.id,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                    })),
+                    payment: {
+                        amount: total,
+                        method: paymentMethod,
+                    },
+                };
+
+                console.log('Sending checkout request:', requestBody);
+                const response = await salesAPI.create(requestBody);
+
+                setLastOrderNumber(response.data?.orderNumber || 'N/A');
+
+                // Quick sale: auto-print and skip success modal
+                if (saleMode === 'quick') {
+                    window.print();
+                    toast.success(`Đã thanh toán: ${response.data?.orderNumber || 'N/A'}`);
+                } else {
+                    setShowSuccess(true);
+                }
             }
 
             // Reset active invoice
@@ -850,6 +941,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 customerId: '',
                 discountPercent: 0,
                 discountAmount: 0,
+                editingInvoiceId: undefined,
             });
             fetchData(); // Refresh stock
         } catch (error: any) {
@@ -1600,11 +1692,11 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                             <MdPrint /> IN
                         </button>
                         <button
-                            className="btn-checkout"
+                            className={`btn-checkout ${activeInvoice?.editingInvoiceId ? 'editing' : ''}`}
                             onClick={handleCheckout}
                             disabled={cart.length === 0 || processing}
                         >
-                            {processing ? 'ĐANG XỬ LÝ...' : 'THANH TOÁN'}
+                            {processing ? 'ĐANG XỬ LÝ...' : (activeInvoice?.editingInvoiceId ? 'LƯU' : 'THANH TOÁN')}
                         </button>
                     </div>
                 </div>
