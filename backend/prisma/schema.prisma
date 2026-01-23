@@ -491,10 +491,29 @@ model Supplier {
   // Trạng thái
   active    Boolean  @default(true) // Trạng thái: true=Đang hoạt động, false=Ngừng hoạt động
 
-  purchaseOrders PurchaseOrder[]
-  products       Product[]
+  purchaseOrders  PurchaseOrder[]
+  payments        SupplierPayment[]
+  products        Product[]
 
   @@map("supplier")
+}
+
+model SupplierPayment {
+  id          BigInt   @id @default(autoincrement())
+  code        String?  @unique // Mã phiếu chi
+  supplierId  BigInt   @map("supplier_id")
+  amount      Decimal
+  method      String?  // CASH, TRANSFER
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  
+  // Optional: Link to specific PO if strict allocation is used, 
+  // but usually one payment pays for multiple orders or general debt.
+  // For now, keep it simple as general payment.
+
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+
+  @@map("supplier_payment")
 }
 
 model PurchaseOrder {
@@ -504,6 +523,8 @@ model PurchaseOrder {
   warehouseId   BigInt?   @map("warehouse_id")
   status        String    @default("PENDING")
   totalAmount   Decimal   @default(0) @map("total_amount")
+  amountPaid    Decimal   @default(0) @map("amount_paid")
+  amountDue     Decimal?  @map("amount_due")
   note          String?
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
   confirmedAt   DateTime? @map("confirmed_at") @db.Timestamptz

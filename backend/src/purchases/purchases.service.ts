@@ -343,6 +343,15 @@ export class PurchasesService {
                 });
             }
 
+            // 4. Update supplier debt (add totalAmount to currentDebt)
+            await tx.supplier.update({
+                where: { id: order.supplierId },
+                data: {
+                    currentDebt: { increment: Number(order.totalAmount) },
+                    totalPurchase: { increment: Number(order.totalAmount) }
+                }
+            });
+
             return this.findOne(id);
         });
     }

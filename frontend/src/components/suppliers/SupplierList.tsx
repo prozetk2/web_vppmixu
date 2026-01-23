@@ -73,13 +73,34 @@ interface FilterState {
     timeFilter: 'all' | 'custom';
 }
 
+interface PurchaseItem {
+    id: string;
+    productName?: string;
+    productSku?: string;
+    unit?: string;
+    quantity: number;
+    unitCost: number;
+    totalCost: number;
+}
+
 interface PurchaseOrder {
     id: string;
     orderNumber: string;
     createdAt: string;
     totalAmount: number;
+    amountPaid?: number;
     status: string;
     note?: string;
+    purchaseItems?: PurchaseItem[];
+}
+
+interface SupplierPayment {
+    id: string;
+    code?: string;
+    amount: number;
+    method?: string;
+    note?: string;
+    createdAt: string;
 }
 
 export default function SupplierList() {
@@ -109,7 +130,7 @@ export default function SupplierList() {
 
     // Expandable row state
     const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(null);
-    const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'history' | 'debt'>('info');
+    const [activeDetailTab, setActiveDetailTab] = useState<'info' | 'history' | 'debt' | 'payments'>('info');
 
     // Form collapsible sections
     const [formSections, setFormSections] = useState({
@@ -125,6 +146,8 @@ export default function SupplierList() {
     // Purchase history for expanded supplier
     const [supplierPurchases, setSupplierPurchases] = useState<PurchaseOrder[]>([]);
     const [loadingPurchases, setLoadingPurchases] = useState(false);
+    const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
+    const [loadingPayments, setLoadingPayments] = useState(false);
     const [debtFilter, setDebtFilter] = useState<'all' | 'pending' | 'paid'>('all');
 
     // Debt action modals
@@ -203,6 +226,12 @@ export default function SupplierList() {
     useEffect(() => {
         fetchSuppliers();
     }, [currentPage, itemsPerPage]);
+
+    useEffect(() => {
+        if (expandedSupplierId && activeDetailTab === 'payments') {
+            fetchPayments(expandedSupplierId);
+        }
+    }, [expandedSupplierId, activeDetailTab]);
 
     const fetchSuppliers = async () => {
         setLoading(true);
@@ -284,15 +313,52 @@ export default function SupplierList() {
                 id: p.id?.toString(),
                 orderNumber: p.orderNumber || `PN${p.id}`,
                 createdAt: p.createdAt,
-                totalAmount: parseFloat(p.totalAmount) || 0,
+                totalAmount: Number(p.totalAmount) || 0,
+                amountPaid: Number(p.amountPaid) || 0,
                 status: p.status,
-                note: p.note
+                note: p.note,
+                purchaseItems: (p.purchaseItems || []).map((item: any) => ({
+                    id: item.id?.toString(),
+                    productName: item.variant?.product?.name || '',
+                    productSku: item.variant?.product?.sku || '',
+                    unit: item.variant?.product?.unit || 'Cái',
+                    quantity: Number(item.quantity) || 0,
+                    unitCost: Number(item.unitCost) || 0,
+                    totalCost: Number(item.totalCost) || 0
+                }))
             })));
         } catch (error) {
             console.error('Failed to fetch supplier purchases:', error);
             setSupplierPurchases([]);
         } finally {
             setLoadingPurchases(false);
+        }
+    };
+
+    const fetchPayments = async (supplierId: string) => {
+        setLoadingPayments(true);
+        try {
+            const response = await suppliersAPI.getPayments(supplierId);
+            console.log('Payments API Response:', response);
+
+            // Handle potentially wrapped response or direct array
+            const paymentsData = response.data?.data || response.data;
+            const payments = Array.isArray(paymentsData) ? paymentsData : [];
+
+            setSupplierPayments(payments.map((p: any) => ({
+                id: p.id?.toString(),
+                code: p.code,
+                amount: Number(p.amount) || 0,
+                method: p.method,
+                note: p.note,
+                createdAt: p.createdAt
+            })));
+        } catch (error) {
+            console.error('Failed to fetch payments:', error);
+            toast.error('Không thể tải lịch sử thanh toán');
+            setSupplierPayments([]);
+        } finally {
+            setLoadingPayments(false);
         }
     };
 
@@ -476,16 +542,37 @@ export default function SupplierList() {
         // Add purchase data if available
         if (exportDebtFields.detailRows && supplierPurchases.length > 0) {
             supplierPurchases.forEach(p => {
-                const row: any[] = [formatDateTime(p.createdAt), p.orderNumber, 'Nhập hàng'];
-                if (exportDebtFields.dvt) row.push('');
-                if (exportDebtFields.soLuong) row.push('');
-                if (exportDebtFields.donGia) row.push('');
-                if (exportDebtFields.giamGia) row.push('');
-                if (exportDebtFields.vat) row.push('');
-                if (exportDebtFields.giaNhapTra) row.push('');
-                if (exportDebtFields.thanhTien) row.push(p.totalAmount);
-                row.push(p.totalAmount, 0);
-                data.push(row);
+                // If purchase has items, show each item as a row
+                if (p.purchaseItems && p.purchaseItems.length > 0) {
+                    p.purchaseItems.forEach((item, idx) => {
+                        const row: any[] = [
+                            idx === 0 ? formatDateTime(p.createdAt) : '',
+                            idx === 0 ? p.orderNumber : '',
+                            item.productName || 'Nhập hàng'
+                        ];
+                        if (exportDebtFields.dvt) row.push(item.unit || 'Cái');
+                        if (exportDebtFields.soLuong) row.push(item.quantity);
+                        if (exportDebtFields.donGia) row.push(formatCurrency(item.unitCost));
+                        if (exportDebtFields.giamGia) row.push(0);
+                        if (exportDebtFields.vat) row.push(0);
+                        if (exportDebtFields.giaNhapTra) row.push(formatCurrency(item.unitCost));
+                        if (exportDebtFields.thanhTien) row.push(formatCurrency(item.totalCost));
+                        row.push(idx === 0 ? p.totalAmount : '', 0);
+                        data.push(row);
+                    });
+                } else {
+                    // Fallback: show order summary if no items
+                    const row: any[] = [formatDateTime(p.createdAt), p.orderNumber, 'Nhập hàng'];
+                    if (exportDebtFields.dvt) row.push('');
+                    if (exportDebtFields.soLuong) row.push('');
+                    if (exportDebtFields.donGia) row.push('');
+                    if (exportDebtFields.giamGia) row.push('');
+                    if (exportDebtFields.vat) row.push('');
+                    if (exportDebtFields.giaNhapTra) row.push('');
+                    if (exportDebtFields.thanhTien) row.push(p.totalAmount);
+                    row.push(p.totalAmount, 0);
+                    data.push(row);
+                }
             });
         }
 
@@ -775,6 +862,38 @@ export default function SupplierList() {
         } finally {
             setImporting(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handlePaymentSubmit = async (print: boolean) => {
+        if (!selectedSupplierForDebt) return;
+
+        const amount = parseFloat(paymentForm.amount);
+        if (!amount || amount <= 0) {
+            toast.error('Vui lòng nhập số tiền hợp lệ');
+            return;
+        }
+
+        try {
+            await suppliersAPI.payDebt(selectedSupplierForDebt.id, {
+                amount,
+                paymentMethod: paymentForm.paymentMethod,
+                note: paymentForm.note,
+                allocateToPurchases: false, // UI doesn't support manual allocation yet
+                allocations: []
+            });
+
+            toast.success('Tạo phiếu chi thành công!');
+            setPaymentModalOpen(false);
+            fetchSuppliers();
+
+            if (print) {
+                // TODO: Implement print logic
+                console.log('Print receipt');
+            }
+        } catch (error: any) {
+            console.error('Payment error:', error);
+            toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi thanh toán');
         }
     };
 
@@ -1260,6 +1379,12 @@ export default function SupplierList() {
                                                                     >
                                                                         Nợ cần trả nhà cung cấp
                                                                     </button>
+                                                                    <button
+                                                                        className={`detail-tab ${activeDetailTab === 'payments' ? 'active' : ''}`}
+                                                                        onClick={(e) => { e.stopPropagation(); setActiveDetailTab('payments'); }}
+                                                                    >
+                                                                        Lịch sử thanh toán
+                                                                    </button>
                                                                 </div>
 
                                                                 {/* Tab Content */}
@@ -1413,7 +1538,7 @@ export default function SupplierList() {
                                                                                                         <td>{formatDateTime(purchase.createdAt)}</td>
                                                                                                         <td>Nhập hàng</td>
                                                                                                         <td className="text-right">{formatCurrency(purchase.totalAmount)}</td>
-                                                                                                        <td className="text-right debt-amount">{formatCurrency(purchase.totalAmount)}</td>
+                                                                                                        <td className="text-right debt-amount">{formatCurrency((purchase.totalAmount || 0) - (purchase.amountPaid || 0))}</td>
                                                                                                     </tr>
                                                                                                 ))}
                                                                                         </tbody>
@@ -1438,6 +1563,39 @@ export default function SupplierList() {
                                                                                         </div>
                                                                                     </div>
                                                                                 </>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
+
+                                                                    {activeDetailTab === 'payments' && (
+                                                                        <div className="payments-tab-content">
+                                                                            {loadingPayments ? (
+                                                                                <p className="empty-tab-message">Đang tải...</p>
+                                                                            ) : supplierPayments.length === 0 ? (
+                                                                                <p className="empty-tab-message">Chưa có lịch sử thanh toán</p>
+                                                                            ) : (
+                                                                                <table className="history-table">
+                                                                                    <thead>
+                                                                                        <tr>
+                                                                                            <th>Mã phiếu</th>
+                                                                                            <th>Thời gian</th>
+                                                                                            <th>Phương thức</th>
+                                                                                            <th>Ghi chú</th>
+                                                                                            <th className="text-right">Số tiền</th>
+                                                                                        </tr>
+                                                                                    </thead>
+                                                                                    <tbody>
+                                                                                        {supplierPayments.map(payment => (
+                                                                                            <tr key={payment.id}>
+                                                                                                <td className="purchase-code">{payment.code || '-'}</td>
+                                                                                                <td>{formatDateTime(payment.createdAt)}</td>
+                                                                                                <td>{payment.method === 'transfer' ? 'Chuyển khoản' : payment.method === 'card' ? 'Thẻ' : 'Tiền mặt'}</td>
+                                                                                                <td>{payment.note || '-'}</td>
+                                                                                                <td className="text-right">{formatCurrency(payment.amount)}</td>
+                                                                                            </tr>
+                                                                                        ))}
+                                                                                    </tbody>
+                                                                                </table>
                                                                             )}
                                                                         </div>
                                                                     )}
@@ -1766,7 +1924,7 @@ export default function SupplierList() {
                             Phân bổ vào phiếu nhập hàng
                         </label>
                     </div>
-                    {paymentForm.allocateToPurchases && supplierPurchases.length > 0 && (
+                    {paymentForm.allocateToPurchases && supplierPurchases.filter(p => (p.totalAmount - (p.amountPaid || 0)) > 0).length > 0 && (
                         <table className="allocation-table">
                             <thead>
                                 <tr>
@@ -1779,16 +1937,18 @@ export default function SupplierList() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {supplierPurchases.map(p => (
-                                    <tr key={p.id}>
-                                        <td className="purchase-code">{p.orderNumber}</td>
-                                        <td>{formatDateTime(p.createdAt)}</td>
-                                        <td className="text-right">{formatCurrency(p.totalAmount)}</td>
-                                        <td className="text-right">0</td>
-                                        <td className="text-right">{formatCurrency(p.totalAmount)}</td>
-                                        <td><input type="number" className="allocation-input" placeholder="0" /></td>
-                                    </tr>
-                                ))}
+                                {supplierPurchases
+                                    .filter(p => (p.totalAmount - (p.amountPaid || 0)) > 0)
+                                    .map(p => (
+                                        <tr key={p.id}>
+                                            <td className="purchase-code">{p.orderNumber}</td>
+                                            <td>{formatDateTime(p.createdAt)}</td>
+                                            <td className="text-right">{formatCurrency(p.totalAmount)}</td>
+                                            <td className="text-right">{formatCurrency(p.amountPaid || 0)}</td>
+                                            <td className="text-right">{formatCurrency(p.totalAmount - (p.amountPaid || 0))}</td>
+                                            <td><input type="number" className="allocation-input" placeholder="0" /></td>
+                                        </tr>
+                                    ))}
                             </tbody>
                         </table>
                     )}
@@ -1796,10 +1956,10 @@ export default function SupplierList() {
                         <button type="button" className="btn btn-secondary" onClick={() => setPaymentModalOpen(false)}>
                             Bỏ qua
                         </button>
-                        <button type="button" className="btn btn-outline-primary" onClick={() => toast.info('Tạo phiếu chi & In')}>
+                        <button type="button" className="btn btn-outline-primary" onClick={() => handlePaymentSubmit(true)}>
                             Tạo phiếu chi & In
                         </button>
-                        <button type="button" className="btn btn-primary" onClick={() => { toast.success('Tạo phiếu chi thành công!'); setPaymentModalOpen(false); }}>
+                        <button type="button" className="btn btn-primary" onClick={() => handlePaymentSubmit(false)}>
                             Tạo phiếu chi
                         </button>
                     </div>

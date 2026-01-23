@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
+import { CreatePaymentDto } from './dto/create-payment.dto';
+
 import { SupplierQueryDto } from './dto/supplier-query.dto';
 import { Prisma } from '@prisma/client';
 
@@ -166,6 +168,77 @@ export class SuppliersService {
             throw new NotFoundException('SUPPLIER_NOT_FOUND');
         }
         return supplier;
+    }
+
+    async payDebt(id: string, dto: CreatePaymentDto) {
+        await this.ensureExists(id);
+        const { amount, allocations } = dto;
+
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Update purchase orders if allocated
+            if (dto.allocateToPurchases && allocations && allocations.length > 0) {
+                for (const alloc of allocations) {
+                    if (alloc.amount > 0) {
+                        try {
+                            // Fetch current PO to calculate new values correctly
+                            const po = await tx.purchaseOrder.findUnique({
+                                where: { id: BigInt(alloc.purchaseOrderId) }
+                            });
+
+                            if (po) {
+                                const currentPaid = Number(po.amountPaid || 0);
+                                const total = Number(po.totalAmount || 0);
+                                const newPaid = currentPaid + Number(alloc.amount);
+                                const newDue = total - newPaid;
+
+                                await tx.purchaseOrder.update({
+                                    where: { id: BigInt(alloc.purchaseOrderId) },
+                                    data: {
+                                        amountPaid: newPaid,
+                                        amountDue: newDue,
+                                        status: newDue <= 0 ? 'PAID' : 'PARTIAL'
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.error(`Error updating PO ${alloc.purchaseOrderId}`, e);
+                        }
+                    }
+                }
+            }
+
+            // 2. Update supplier debt
+            const supplier = await tx.supplier.findUnique({ where: { id: BigInt(id) } });
+            const currentDebt = Number(supplier?.currentDebt || 0);
+            const newDebt = currentDebt - Number(amount);
+
+            // 3. Create SupplierPayment record
+            const payment = await tx.supplierPayment.create({
+                data: {
+                    supplierId: BigInt(id),
+                    amount: amount,
+                    method: dto.paymentMethod || 'CASH',
+                    note: dto.note,
+                    code: `PC${Date.now()}`, // Simple code generation, can be improved
+                }
+            });
+
+            await tx.supplier.update({
+                where: { id: BigInt(id) },
+                data: {
+                    currentDebt: newDebt
+                }
+            });
+
+            return payment;
+        });
+    }
+
+    async getPayments(id: string) {
+        return this.prisma.supplierPayment.findMany({
+            where: { supplierId: BigInt(id) },
+            orderBy: { createdAt: 'desc' }
+        });
     }
 }
 

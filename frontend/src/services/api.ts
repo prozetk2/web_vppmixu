@@ -112,6 +112,9 @@ export const suppliersAPI = {
     update: (id: string, data: any) => api.put(`/suppliers/${id}`, data),
     delete: (id: string) => api.delete(`/suppliers/${id}`),
     getPurchases: (id: string) => api.get('/purchases', { params: { supplierId: id } }),
+    payDebt: (id: string, data: any) => api.post(`/suppliers/${id}/payments`, data),
+    getPayments: (id: string) => api.get(`/suppliers/${id}/payments`),
+
 };
 
 export const inventoryAPI = {

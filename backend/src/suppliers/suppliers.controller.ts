@@ -5,6 +5,8 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SuppliersService } from './suppliers.service';
+import { CreatePaymentDto } from './dto/create-payment.dto';
+
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('suppliers')
@@ -26,6 +28,17 @@ export class SuppliersController {
     findOne(@Param('id') id: string) {
         return this.suppliersService.findOne(id);
     }
+
+    @Post(':id/payments')
+    payDebt(@Param('id') id: string, @Body() createPaymentDto: CreatePaymentDto) {
+        return this.suppliersService.payDebt(id, createPaymentDto);
+    }
+
+    @Get(':id/payments')
+    getPayments(@Param('id') id: string) {
+        return this.suppliersService.getPayments(id);
+    }
+
 
     @Put(':id')
     @Roles('ADMIN', 'MANAGER', 'ACCOUNTANT')
