@@ -191,19 +191,19 @@ export class SalesService {
                 }
             });
 
-            // 7. Deduct inventory (trừ tồn kho)
-            const whId = warehouseId ? BigInt(warehouseId) : null;
-            let targetWarehouseId = whId;
+            // 7. Deduct inventory (trừ tồn kho) - Allow negative inventory
+            // Consolidate all warehouses into one main warehouse
+            let targetWarehouseId: bigint | null = null;
 
-            // If no warehouse specified, try to find first one
-            if (!targetWarehouseId) {
-                const firstWh = await tx.warehouse.findFirst({ orderBy: { createdAt: 'asc' } });
-                if (firstWh) targetWarehouseId = firstWh.id;
+            // Always use the first warehouse as the main consolidated warehouse
+            const mainWarehouse = await tx.warehouse.findFirst({ orderBy: { createdAt: 'asc' } });
+            if (mainWarehouse) {
+                targetWarehouseId = mainWarehouse.id;
             }
 
             if (targetWarehouseId) {
                 for (const item of orderItems) {
-                    // Find or create inventory record
+                    // Find or create inventory record in main warehouse
                     let inv = await tx.inventory.findFirst({
                         where: {
                             variantId: item.variantId,
@@ -221,12 +221,10 @@ export class SalesService {
                         });
                     }
 
-                    // Check sufficient stock
-                    if (inv.quantity < item.quantity) {
-                        throw new BadRequestException(`INSUFFICIENT_STOCK: variant ${item.variantId}`);
-                    }
+                    // NO STOCK CHECK - Allow negative inventory
+                    // Remove the insufficient stock check to allow selling even when stock is 0 or negative
 
-                    // Deduct
+                    // Deduct (can result in negative quantity)
                     await tx.inventory.update({
                         where: { id: inv.id },
                         data: { quantity: { decrement: Number(item.quantity) } },
@@ -240,7 +238,7 @@ export class SalesService {
                             fromWarehouseId: targetWarehouseId,
                             quantity: -Number(item.quantity),
                             note: `Bán hàng: ${orderNumber}`,
-                            storeId: dto.storeId ? BigInt(dto.storeId) : null, // Company for this sale
+                            storeId: dto.storeId ? BigInt(dto.storeId) : null,
                         },
                     });
                 }
