@@ -1,8 +1,8 @@
 /* KiotViet Style POS Page */
 .pos-page.kiotviet-style {
     display: grid;
-    grid-template-columns: 1fr 400px;
-    /* Right panel width */
+    grid-template-columns: 65% 35%;
+    /* 65% left, 35% right */
     height: calc(100vh - 105px);
     /* Adjusted for header + tabs */
     gap: 0;
@@ -623,7 +623,7 @@
     font-size: 0.75rem;
     background: white;
     cursor: pointer;
-    max-width: 100px;
+    max-width: 150px;
 }
 
 .right-info .warehouse-select {

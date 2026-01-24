@@ -168,6 +168,7 @@ export class SalesService {
                 data: {
                     invoiceNumber: orderNumber,
                     orderCode: orderNumber,
+                    customerId: dto.customerId ? BigInt(dto.customerId) : null,
                     customerCode: customerData?.code,
                     customerName: customerData?.name || 'Khách lẻ',
                     customerPhone: customerData?.phone,

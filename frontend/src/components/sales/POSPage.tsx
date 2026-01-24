@@ -549,21 +549,15 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         fetchStores();
     }, []);
 
-    // Refetch products when price list changes
     // Refetch products when price list changes and update cart prices
-    // But skip invoices that are being edited (preserve original prices)
+    // Updates ALL invoices including those being edited (user explicitly changed price list)
     useEffect(() => {
         const updatePrices = async () => {
             if (selectedPriceList) {
                 const newProducts = await fetchData();
 
-                // Update prices in all invoices EXCEPT those being edited
+                // Update prices in ALL invoices when price list changes
                 setInvoices(prevInvoices => prevInvoices.map(inv => {
-                    // Skip price update for invoices being edited - preserve original prices
-                    if (inv.editingInvoiceId) {
-                        return inv;
-                    }
-
                     const newCart = inv.cart.map(item => {
                         const updatedProduct = newProducts.find((p: Product) => p.id === item.product.id);
                         if (updatedProduct) {
