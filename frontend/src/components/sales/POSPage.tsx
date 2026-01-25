@@ -345,6 +345,15 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     });
     const [showPrintSettings, setShowPrintSettings] = useState(false);
 
+    // Track price changes for saving to price list
+    interface PriceChange {
+        productId: string;
+        productName: string;
+        originalPrice: number;
+        newPrice: number;
+    }
+    const [priceChanges, setPriceChanges] = useState<Map<string, PriceChange>>(new Map());
+
     // Generate VietQR URL
     const generateVietQRUrl = (bankCode: string, accountNumber: string, accountName: string, amount: number, description: string = '') => {
         // VietQR API format: https://img.vietqr.io/image/{BANK_ID}-{ACCOUNT_NO}-{TEMPLATE}.png
@@ -575,6 +584,9 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
 
                     return { ...inv, cart: newCart };
                 }));
+
+                // Reset price changes when switching price list
+                setPriceChanges(new Map());
             }
         };
 
@@ -836,13 +848,35 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     // Update unit price for cart item
     const updateUnitPrice = (productId: string, newPrice: number) => {
         const currentCart = activeInvoice?.cart || [];
-        updateActiveInvoice({
-            cart: currentCart.map((item) =>
-                item.product.id === productId
-                    ? { ...item, unitPrice: Math.max(0, newPrice) }
-                    : item
-            )
-        });
+        const item = currentCart.find(i => i.product.id === productId);
+
+        if (item) {
+            const sanitizedPrice = Math.max(0, newPrice);
+
+            // Track price change if different from current price
+            if (item.unitPrice !== sanitizedPrice) {
+                setPriceChanges(prev => {
+                    const newMap = new Map(prev);
+                    const existing = newMap.get(productId);
+                    newMap.set(productId, {
+                        productId,
+                        productName: item.product.name,
+                        originalPrice: existing?.originalPrice ?? item.unitPrice,
+                        newPrice: sanitizedPrice
+                    });
+                    return newMap;
+                });
+            }
+
+            // Update cart
+            updateActiveInvoice({
+                cart: currentCart.map((cartItem) =>
+                    cartItem.product.id === productId
+                        ? { ...cartItem, unitPrice: sanitizedPrice }
+                        : cartItem
+                )
+            });
+        }
     };
 
     // Calculate totals with discount
@@ -855,6 +889,36 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     // Format currency
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('vi-VN').format(value);
+    };
+
+    // Save changed prices to price list
+    const savePricesToPriceList = async (): Promise<boolean> => {
+        if (!selectedPriceList || priceChanges.size === 0) return false;
+
+        // Filter only changes where price actually changed
+        const changesToSave = Array.from(priceChanges.values())
+            .filter(change => change.originalPrice !== change.newPrice);
+
+        if (changesToSave.length === 0) return false;
+
+        try {
+            // Use bulk update API
+            await priceListsAPI.bulkSetPrices(
+                selectedPriceList,
+                changesToSave.map(c => ({ productId: c.productId, price: c.newPrice }))
+            );
+
+            const priceListName = priceLists.find(pl => pl.id === selectedPriceList)?.name || 'Bảng giá';
+            toast.success(`Đã lưu ${changesToSave.length} giá vào "${priceListName}"`);
+
+            // Clear tracked changes
+            setPriceChanges(new Map());
+            return true;
+        } catch (error) {
+            console.error('Failed to save prices:', error);
+            toast.error('Không thể lưu giá vào bảng giá');
+            return false;
+        }
     };
 
     // Checkout
@@ -927,6 +991,11 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 } else {
                     setShowSuccess(true);
                 }
+            }
+
+            // Auto-save price changes to price list
+            if (priceChanges.size > 0 && selectedPriceList) {
+                await savePricesToPriceList();
             }
 
             // Reset active invoice

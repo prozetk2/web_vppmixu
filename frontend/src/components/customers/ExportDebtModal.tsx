@@ -3,6 +3,17 @@ import { MdClose, MdExpandMore, MdExpandLess } from 'react-icons/md';
 import * as XLSX from 'xlsx-js-style';
 import './ExportDebtModal.css';
 
+interface TransactionItem {
+    productCode: string;
+    productName: string;
+    unit: string;
+    quantity: number;
+    unitPrice: number;
+    discountAmount: number;
+    salePrice: number;
+    totalPrice: number;
+}
+
 interface Transaction {
     id: string;
     code: string;
@@ -10,15 +21,7 @@ interface Transaction {
     type: string;
     value: number;
     runningBalance: number;
-    productCode?: string;
-    productName?: string;
-    unit?: string;
-    quantity?: number;
-    unitPrice?: number;
-    discount?: number;
-    vat?: number;
-    salePrice?: number;
-    total?: number;
+    items?: TransactionItem[];
     note?: string;
 }
 
@@ -198,6 +201,16 @@ export default function ExportDebtModal({
 
         const tableData: (string | number)[][] = [tableHeader];
 
+        // DEBUG: Log transactions to check if items are available
+        console.log('=== DEBUG ExportDebtModal ===');
+        console.log('Total transactions:', filteredTransactions.length);
+        filteredTransactions.forEach((tx, idx) => {
+            console.log(`Transaction ${idx}:`, tx.code, tx.type, 'items:', tx.items?.length || 0);
+            if (tx.items && tx.items.length > 0) {
+                console.log('  Items:', tx.items);
+            }
+        });
+
         // Add transaction rows with product details
         filteredTransactions.forEach(tx => {
             // Main transaction row
@@ -227,26 +240,29 @@ export default function ExportDebtModal({
             if (showDetails && selectedFields.note) mainRow.push(tx.note || '');
             tableData.push(mainRow);
 
-            // Product detail row (if available)
-            if (showDetails && tx.productCode) {
-                const detailRow: (string | number)[] = [
-                    '',
-                    tx.productCode || '',
-                    tx.productName || '',
-                ];
+            // Product detail rows - loop through items array
+            if (showDetails && tx.items && tx.items.length > 0) {
+                tx.items.forEach((item) => {
+                    const detailRow: (string | number)[] = [
+                        '', // Empty time column for detail rows
+                        item.productCode || '',
+                        item.productName || '',
+                    ];
 
-                if (selectedFields.unit) detailRow.push(tx.unit || '');
-                if (selectedFields.quantity) detailRow.push(tx.quantity || '');
-                if (selectedFields.unitPrice) detailRow.push(tx.unitPrice || '');
-                if (selectedFields.discount) detailRow.push(tx.discount || 0);
-                if (selectedFields.vat) detailRow.push(tx.vat || 0);
-                if (selectedFields.salePrice) detailRow.push(tx.salePrice || 0);
-                if (selectedFields.total) detailRow.push(tx.total || 0);
+                    if (selectedFields.unit) detailRow.push(item.unit || '');
+                    if (selectedFields.quantity) detailRow.push(item.quantity || 0);
+                    if (selectedFields.unitPrice) detailRow.push(item.unitPrice || 0);
+                    if (selectedFields.discount) detailRow.push(item.discountAmount || 0);
+                    if (selectedFields.vat) detailRow.push(0); // VAT not in item, default 0
+                    if (selectedFields.salePrice) detailRow.push(item.salePrice || 0);
+                    if (selectedFields.total) detailRow.push(item.totalPrice || 0);
 
-                detailRow.push('', '');
-                if (selectedFields.note) detailRow.push('');
+                    // Empty Ghi nợ/Ghi có columns for detail rows
+                    detailRow.push('', '');
+                    if (selectedFields.note) detailRow.push('');
 
-                tableData.push(detailRow);
+                    tableData.push(detailRow);
+                });
             }
         });
 

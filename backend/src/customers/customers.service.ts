@@ -3,6 +3,18 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 
+// Exported interface for transaction items in debt summary
+export interface TransactionItem {
+    productCode: string;
+    productName: string;
+    unit: string;
+    quantity: number;
+    unitPrice: number;
+    discountAmount: number;
+    salePrice: number;
+    totalPrice: number;
+}
+
 @Injectable()
 export class CustomersService {
     constructor(private readonly prisma: PrismaService) { }
@@ -232,15 +244,27 @@ export class CustomersService {
 
     // Get customer's invoices history
     async getInvoices(id: string) {
-        await this.ensureExists(id);
+        const customer = await this.ensureExists(id);
 
-        const invoices = await this.prisma.invoice.findMany({
+        // First try by customerId FK
+        let invoices = await this.prisma.invoice.findMany({
             where: { customerId: BigInt(id) },
             orderBy: { createdAt: 'desc' },
             include: {
                 items: true,
             },
         });
+
+        // If no invoices found and customer has code, try by customerCode
+        if (invoices.length === 0 && customer.code) {
+            invoices = await this.prisma.invoice.findMany({
+                where: { customerCode: customer.code },
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    items: true,
+                },
+            });
+        }
 
         return invoices.map((inv) => ({
             id: inv.id.toString(),
@@ -265,11 +289,26 @@ export class CustomersService {
     async getDebts(id: string, filter?: string) {
         const customer = await this.ensureExists(id);
 
-        // Get invoices for this customer (main debt source)
-        const invoices = await this.prisma.invoice.findMany({
+        // Get invoices for this customer (main debt source) with items
+        // First try by customerId FK
+        let invoices = await this.prisma.invoice.findMany({
             where: { customerId: BigInt(id) },
             orderBy: { createdAt: 'asc' }, // Oldest first for running balance
+            include: {
+                items: true,
+            },
         });
+
+        // If no invoices found and customer has code, try by customerCode
+        if (invoices.length === 0 && customer.code) {
+            invoices = await this.prisma.invoice.findMany({
+                where: { customerCode: customer.code },
+                orderBy: { createdAt: 'asc' },
+                include: {
+                    items: true,
+                },
+            });
+        }
 
         // Build transactions list with running balance
         const transactions: {
@@ -279,6 +318,7 @@ export class CustomersService {
             type: string;
             value: number;
             runningBalance: number;
+            items?: TransactionItem[];
         }[] = [];
 
         let runningBalance = 0;
@@ -305,6 +345,18 @@ export class CustomersService {
             const invoiceAmount = Number(inv.amountDue || inv.totalAmount || 0);
             const paidAmount = Number(inv.amountPaid || 0);
 
+            // Map invoice items for this transaction
+            const invoiceItems: TransactionItem[] = inv.items.map((item) => ({
+                productCode: item.productCode || '',
+                productName: item.productName || '',
+                unit: item.unit || 'Cái',
+                quantity: Number(item.quantity || 0),
+                unitPrice: Number(item.unitPrice || 0),
+                discountAmount: Number(item.discountAmount || 0),
+                salePrice: Number(item.salePrice || item.unitPrice || 0),
+                totalPrice: Number(item.totalPrice || 0),
+            }));
+
             // Sale transaction (increases debt)
             if (invoiceAmount > 0) {
                 runningBalance += invoiceAmount;
@@ -315,6 +367,7 @@ export class CustomersService {
                     type: 'Bán hàng',
                     value: invoiceAmount,
                     runningBalance: runningBalance,
+                    items: invoiceItems, // Include items for sale transactions
                 });
             }
 
@@ -328,6 +381,7 @@ export class CustomersService {
                     type: 'Thanh toán',
                     value: -paidAmount,
                     runningBalance: runningBalance,
+                    // No items for payment transactions
                 });
             }
         }

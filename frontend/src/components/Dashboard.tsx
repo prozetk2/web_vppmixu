@@ -57,6 +57,12 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         setEditInvoiceData(null);
     };
 
+    // Handle opening invoice from customer tab
+    const handleOpenInvoice = (invoiceId: string) => {
+        console.log('Opening invoice:', invoiceId);
+        setActiveTab('invoices');
+    };
+
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (token) {
@@ -183,7 +189,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         }
 
         if (activeTab === 'customers') {
-            return <CustomerList />;
+            return <CustomerList onOpenInvoice={handleOpenInvoice} />;
         }
 
         if (activeTab === 'suppliers') {

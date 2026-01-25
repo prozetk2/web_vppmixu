@@ -20,6 +20,7 @@ import PaymentModal from './PaymentModal';
 import AdjustmentModal from './AdjustmentModal';
 import DiscountModal from './DiscountModal';
 import ExportDebtModal from './ExportDebtModal';
+import InvoiceDetailModal from './InvoiceDetailModal';
 import * as XLSX from 'xlsx';
 import './CustomerDetail.css';
 
@@ -28,6 +29,7 @@ interface CustomerDetailProps {
     onEdit: () => void;
     onDelete: () => void;
     onRefresh?: () => void;
+    onOpenInvoice?: (invoiceId: string) => void;
 }
 
 interface Customer {
@@ -66,6 +68,17 @@ interface Invoice {
     createdAt: string;
 }
 
+interface TransactionItem {
+    productCode: string;
+    productName: string;
+    unit: string;
+    quantity: number;
+    unitPrice: number;
+    discountAmount: number;
+    salePrice: number;
+    totalPrice: number;
+}
+
 interface DebtTransaction {
     id: string;
     code: string;
@@ -73,6 +86,7 @@ interface DebtTransaction {
     type: string;
     value: number;
     runningBalance: number;
+    items?: TransactionItem[];
 }
 
 interface DebtData {
@@ -92,6 +106,7 @@ export default function CustomerDetail({
     customerId,
     onEdit,
     onDelete,
+    onOpenInvoice,
 }: CustomerDetailProps) {
     const [activeTab, setActiveTab] = useState<TabType>('info');
     const [customer, setCustomer] = useState<Customer | null>(null);
@@ -103,6 +118,20 @@ export default function CustomerDetail({
     const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
     const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
     const [isExportDebtModalOpen, setIsExportDebtModalOpen] = useState(false);
+    const [isInvoiceDetailModalOpen, setIsInvoiceDetailModalOpen] = useState(false);
+    const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+
+    const handleInvoiceClick = (invoiceId: string) => {
+        setSelectedInvoiceId(invoiceId);
+        setIsInvoiceDetailModalOpen(true);
+    };
+
+    const handleOpenInvoiceFromModal = (invoiceId: string) => {
+        setIsInvoiceDetailModalOpen(false);
+        if (onOpenInvoice) {
+            onOpenInvoice(invoiceId);
+        }
+    };
 
     useEffect(() => {
         fetchCustomer();
@@ -113,6 +142,7 @@ export default function CustomerDetail({
             fetchInvoices();
         } else if (activeTab === 'debt') {
             fetchDebts();
+            fetchInvoices(); // Also fetch invoices to match codes for clicking
         }
     }, [activeTab, customerId]);
 
@@ -386,10 +416,19 @@ export default function CustomerDetail({
                                     invoices.map((inv) => (
                                         <tr key={inv.id}>
                                             <td>
-                                                <a href="#" className="invoice-link">{inv.invoiceNumber}</a>
+                                                <a
+                                                    href="#"
+                                                    className="invoice-link"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        handleInvoiceClick(inv.id);
+                                                    }}
+                                                >
+                                                    {inv.invoiceNumber}
+                                                </a>
                                             </td>
                                             <td>{formatDateTime(inv.createdAt)}</td>
-                                            <td>{inv.seller}</td>
+                                            <td>{inv.seller || 'N/A'}</td>
                                             <td className="text-right">{formatCurrency(inv.totalAmount)}</td>
                                             <td className="text-center">
                                                 <span className={`status-badge ${inv.status?.toLowerCase()}`}>
@@ -445,17 +484,37 @@ export default function CustomerDetail({
                                         </td>
                                     </tr>
                                 ) : (
-                                    debtData.transactions.map((tx) => (
-                                        <tr key={tx.id}>
-                                            <td>
-                                                <a href="#" className="invoice-link">{tx.code}</a>
-                                            </td>
-                                            <td>{formatDateTime(tx.time)}</td>
-                                            <td>{tx.type}</td>
-                                            <td className="text-right">{formatCurrency(Math.abs(tx.value))}</td>
-                                            <td className="text-right">{formatCurrency(tx.runningBalance)}</td>
-                                        </tr>
-                                    ))
+                                    debtData.transactions.map((tx) => {
+                                        // Find matching invoice for HD codes
+                                        const matchingInvoice = tx.code.startsWith('HD')
+                                            ? invoices.find(inv => inv.invoiceNumber === tx.code)
+                                            : null;
+
+                                        return (
+                                            <tr key={tx.id}>
+                                                <td>
+                                                    {matchingInvoice ? (
+                                                        <a
+                                                            href="#"
+                                                            className="invoice-link"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                handleInvoiceClick(matchingInvoice.id);
+                                                            }}
+                                                        >
+                                                            {tx.code}
+                                                        </a>
+                                                    ) : (
+                                                        <span className="code-text">{tx.code}</span>
+                                                    )}
+                                                </td>
+                                                <td>{formatDateTime(tx.time)}</td>
+                                                <td>{tx.type}</td>
+                                                <td className="text-right">{formatCurrency(Math.abs(tx.value))}</td>
+                                                <td className="text-right">{formatCurrency(tx.runningBalance)}</td>
+                                            </tr>
+                                        );
+                                    })
                                 )}
                             </tbody>
                         </table>
@@ -536,6 +595,16 @@ export default function CustomerDetail({
                 currentDebt={customer.currentDebt || 0}
                 transactions={debtData?.transactions || []}
             />
+
+            {/* Invoice Detail Modal */}
+            {selectedInvoiceId && (
+                <InvoiceDetailModal
+                    isOpen={isInvoiceDetailModalOpen}
+                    onClose={() => setIsInvoiceDetailModalOpen(false)}
+                    invoiceId={selectedInvoiceId}
+                    onOpenInvoice={handleOpenInvoiceFromModal}
+                />
+            )}
         </div>
     );
 }

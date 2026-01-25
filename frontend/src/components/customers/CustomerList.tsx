@@ -118,7 +118,11 @@ interface FormData {
     totalSalesAfterReturn?: string;
 }
 
-export default function CustomerList() {
+interface CustomerListProps {
+    onOpenInvoice?: (invoiceId: string) => void;
+}
+
+export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
     // Helper function to create empty form data
     const createEmptyFormData = (): FormData => ({
         code: '',
@@ -1367,6 +1371,7 @@ export default function CustomerList() {
                                                                     handleDelete(c);
                                                                 }}
                                                                 onRefresh={fetchCustomers}
+                                                                onOpenInvoice={onOpenInvoice}
                                                             />
                                                         </div>
                                                     </td>
