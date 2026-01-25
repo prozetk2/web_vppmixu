@@ -77,11 +77,15 @@ const createNewInvoice = (index: number): Invoice => ({
 const PrintInvoice = ({
     invoice,
     settings,
-    sellerName
+    sellerName,
+    customerName,
+    customerPhone
 }: {
     invoice: Invoice | undefined,
     settings: any,
-    sellerName: string
+    sellerName: string,
+    customerName: string,
+    customerPhone: string
 }) => {
     if (!invoice) return null;
 
@@ -179,11 +183,11 @@ const PrintInvoice = ({
             <div className="customer-info-print">
                 <div className="row">
                     <span className="label">Khách hàng:</span>
-                    <span className="value">{invoice.customerId || 'Khách lẻ'}</span>
+                    <span className="value">{customerName || 'Khách lẻ'}</span>
                 </div>
                 <div className="row">
                     <span className="label">Số điện thoại:</span>
-                    <span className="value"></span>
+                    <span className="value">{customerPhone}</span>
                 </div>
                 <div className="row">
                     <span className="label">Địa chỉ:</span>
@@ -494,6 +498,15 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     const discountAmount = activeInvoice?.discountAmount || 0;
     const paymentMethod = activeInvoice?.paymentMethod || 'CASH';
     const customerPayment = activeInvoice?.customerPayment || 0;
+
+    // Cache selected customer data for print
+    const selectedCustomerData = useMemo(() => {
+        const customer = customers.find(c => c.id === selectedCustomer);
+        return {
+            name: customer?.name || '',
+            phone: customer?.phone || ''
+        };
+    }, [customers, selectedCustomer]);
 
     // Update active invoice
     const updateActiveInvoice = useCallback((updates: Partial<Invoice>) => {
@@ -2252,6 +2265,8 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     invoice={activeInvoice}
                     settings={printSettings}
                     sellerName={sellers.find(s => s.id === selectedSeller)?.name || 'Người bán'}
+                    customerName={selectedCustomerData.name}
+                    customerPhone={selectedCustomerData.phone}
                 />
             </div>
         </>
