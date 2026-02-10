@@ -13,6 +13,7 @@ interface ProductFormData {
   categoryId?: string;
   defaultPrice: number;
   defaultCost?: number;
+  images?: string;
 }
 
 interface ProductFormProps {
@@ -36,6 +37,7 @@ export default function ProductForm({
     categoryId: '',
     defaultPrice: 0,
     defaultCost: 0,
+    images: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [importNote, setImportNote] = useState<string>('');
@@ -49,6 +51,7 @@ export default function ProductForm({
         categoryId: product.categoryId || '',
         defaultPrice: product.defaultPrice || 0,
         defaultCost: product.defaultCost || 0,
+        images: product.images || '',
       });
     }
   }, [product]);
@@ -98,6 +101,21 @@ export default function ProductForm({
 
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const { productsAPI } = await import('../../services/api');
+      const response = await productsAPI.uploadImage(file);
+      const url = response.data.data?.url || response.data.url;
+      setFormData((prev) => ({ ...prev, images: url }));
+    } catch (error) {
+      console.error('Upload failed', error);
+      alert('Không thể tải ảnh lên, vui lòng thử lại');
     }
   };
 
@@ -323,6 +341,33 @@ export default function ProductForm({
             <span className="currency-preview">{formatCurrencyWithUnit(cost)}</span>
           )}
           {errors.defaultCost && <span className="error-text">{errors.defaultCost}</span>}
+        </div>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">Ảnh sản phẩm</label>
+        <div className="image-upload-content">
+          <input
+            type="file"
+            onChange={handleImageUpload}
+            accept="image/*"
+            className="form-input"
+          />
+          {formData.images && (
+            <div className="image-preview" style={{ marginTop: '10px' }}>
+              <img
+                src={formData.images}
+                alt="Product Preview"
+                style={{
+                  width: '100px',
+                  height: '100px',
+                  objectFit: 'cover',
+                  borderRadius: '4px',
+                  border: '1px solid #ddd',
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 

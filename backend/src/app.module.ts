@@ -19,6 +19,7 @@ import { StoresModule } from './stores/stores.module';
 import { PriceListsModule } from './price-lists/price-lists.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { SettingsModule } from './settings/settings.module';
     PriceListsModule,
     ReportsModule,
     SettingsModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

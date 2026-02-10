@@ -19,6 +19,7 @@ export class ProductsService {
         defaultPrice: dto.price,
         defaultCost: dto.cost ?? 0,
         description: dto.description,
+        images: dto.images,
       },
       include: { category: true },
     });
@@ -123,6 +124,7 @@ export class ProductsService {
     if (dto.price !== undefined) data.defaultPrice = dto.price;
     if (dto.cost !== undefined) data.defaultCost = dto.cost;
     if (dto.description !== undefined) data.description = dto.description;
+    if (dto.images !== undefined) data.images = dto.images;
 
     if (dto.categoryId !== undefined) {
       data.category = dto.categoryId

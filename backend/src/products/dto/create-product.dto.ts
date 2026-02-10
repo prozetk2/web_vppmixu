@@ -103,6 +103,7 @@ export class CreateProductDto {
   @IsBoolean()
   directSale?: boolean; // Được bán trực tiếp
 
+
   @IsOptional()
   @IsString()
   supplierId?: string; // Nhà cung cấp

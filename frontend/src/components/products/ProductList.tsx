@@ -25,6 +25,7 @@ interface Product {
     location?: string;
     productType?: string;
     createdAt?: string;
+    images?: string;
 }
 
 interface Category {
@@ -630,6 +631,7 @@ export default function ProductList() {
                                         />
                                     </th>
                                     <th className="col-star"></th>
+                                    <th className="col-image">Ảnh</th>
                                     <th>Mã hàng</th>
                                     <th>Tên hàng</th>
                                     <th className="text-right">Giá bán</th>
@@ -655,6 +657,17 @@ export default function ProductList() {
                                             <button className="btn-star">
                                                 <MdStarBorder />
                                             </button>
+                                        </td>
+                                        <td className="col-image">
+                                            {product.images ? (
+                                                <img
+                                                    src={product.images}
+                                                    alt={product.name}
+                                                    style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
+                                                />
+                                            ) : (
+                                                <div style={{ width: '40px', height: '40px', background: '#f5f5f5', borderRadius: '4px', border: '1px solid #eee' }}></div>
+                                            )}
                                         </td>
                                         <td className="col-sku">{product.sku || '—'}</td>
                                         <td className="col-name">

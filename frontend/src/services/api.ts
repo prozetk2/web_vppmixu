@@ -55,6 +55,13 @@ export const productsAPI = {
     bulkImport: (data: { items: any[]; warehouseId?: string }) => api.post('/products/bulk', data),
     testBulk: (data: { items: any[] }) => api.post('/products/test-bulk', data),
     export: (params?: Record<string, unknown>) => api.get('/products/export', { params }),
+    uploadImage: (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/upload/product-image', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+    },
 };
 
 export const categoriesAPI = {
