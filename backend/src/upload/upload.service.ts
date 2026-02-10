@@ -25,6 +25,7 @@ export class UploadService {
             });
 
         if (error) {
+            console.error('Supabase Upload Error:', error);
             throw new BadRequestException(`Lỗi upload: ${error.message}`);
         }
 
