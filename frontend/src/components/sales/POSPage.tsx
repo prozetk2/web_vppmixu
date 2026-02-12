@@ -11,7 +11,7 @@ interface Product {
     sku?: string;
     defaultPrice: number;
     stock?: number;
-    imageUrl?: string;
+    images?: string; // Add images field
 }
 
 interface CartItem {
@@ -1210,9 +1210,18 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                                 setSearch('');
                                             }}
                                         >
-                                            <span className="item-sku">{product.sku || '---'}</span>
-                                            <span className="item-name">{product.name}</span>
-                                            <span className="item-price">{formatCurrency(Number(product.defaultPrice))}đ</span>
+                                            <div className="item-image">
+                                                {product.images ? (
+                                                    <img src={product.images} alt={product.name} />
+                                                ) : (
+                                                    <div className="image-placeholder"><MdShoppingCart /></div>
+                                                )}
+                                            </div>
+                                            <div className="item-info">
+                                                <span className="item-sku">{product.sku || '---'}</span>
+                                                <span className="item-name">{product.name}</span>
+                                                <span className="item-price">{formatCurrency(Number(product.defaultPrice))}đ</span>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -1278,7 +1287,16 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                                 </button>
                                             </td>
                                             <td className="col-sku">{item.product.sku || '---'}</td>
-                                            <td className="col-name">{item.product.name}</td>
+                                            <td className="col-name">
+                                                <div className="product-cell">
+                                                    {item.product.images ? (
+                                                        <img src={item.product.images} className="product-thumb" alt={item.product.name} />
+                                                    ) : (
+                                                        <div className="product-thumb-placeholder"><MdShoppingCart /></div>
+                                                    )}
+                                                    <span>{item.product.name}</span>
+                                                </div>
+                                            </td>
                                             <td className="col-unit">Cái</td>
                                             <td className="col-qty">
                                                 <input

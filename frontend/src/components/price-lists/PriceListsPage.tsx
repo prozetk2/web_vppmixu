@@ -25,6 +25,7 @@ interface Product {
     categoryId?: string;
     totalStock?: number;
     unit?: string;
+    images?: string;
 }
 
 interface Category {
@@ -153,6 +154,7 @@ export default function PriceListsPage() {
                 categoryId: p.categoryId?.toString(),
                 totalStock: Number(p.totalStock || 0),
                 unit: p.unit,
+                images: p.images,
             })));
         } catch (error) {
             toast.error('Không thể tải danh sách sản phẩm');
@@ -699,7 +701,16 @@ export default function PriceListsPage() {
                                 {paginatedProducts.map(product => (
                                     <tr key={product.id}>
                                         <td className="col-sku">{product.sku}</td>
-                                        <td className="col-name">{product.name}</td>
+                                        <td className="col-name">
+                                            <div className="product-cell">
+                                                {product.images ? (
+                                                    <img src={product.images} alt={product.name} className="product-thumb" />
+                                                ) : (
+                                                    <div className="product-thumb-placeholder"><MdGridView /></div>
+                                                )}
+                                                <span>{product.name}</span>
+                                            </div>
+                                        </td>
                                         <td className="col-cost">{formatCurrency(product.defaultCost)}</td>
                                         <td className="col-last-cost">{formatCurrency(product.defaultCost)}</td>
                                         <td className="col-price">

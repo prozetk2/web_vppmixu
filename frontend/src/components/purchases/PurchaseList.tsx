@@ -12,7 +12,7 @@ interface PurchaseItem {
     unitCost: number;
     totalCost: number;
     variant: {
-        product: { name: string; sku?: string };
+        product: { name: string; sku?: string; images?: string };
     };
 }
 
@@ -41,6 +41,7 @@ interface Product {
     name: string;
     sku?: string;
     defaultCost?: number;
+    images?: string;
 }
 
 interface Warehouse {
@@ -1245,14 +1246,24 @@ export default function PurchaseList() {
                                                                     .map((p) => (
                                                                         <div
                                                                             key={p.id}
-                                                                            className="product-dropdown-item"
+                                                                            className="dropdown-item"
                                                                             onClick={() => {
                                                                                 updateItem(idx, 'productId', p.id);
-                                                                                updateItem(idx, 'productSearch', '');
+                                                                                updateItem(idx, 'productSearch', p.name);
                                                                             }}
                                                                         >
-                                                                            <span className="product-sku">{p.sku || p.id.slice(-8)}</span>
-                                                                            <span className="product-name-hint">{p.name}</span>
+                                                                            <div className="product-item-info">
+                                                                                {p.images ? (
+                                                                                    <img src={p.images} alt={p.name} className="product-tiny-thumb" />
+                                                                                ) : (
+                                                                                    <div className="product-tiny-placeholder"><MdInventory /></div>
+                                                                                )}
+                                                                                <div className="product-text">
+                                                                                    <span className="product-name">{p.name}</span>
+                                                                                    <span className="product-sku">{p.sku}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                            <span className="product-cost">{Number(p.defaultCost || 0).toLocaleString()}đ</span>
                                                                         </div>
                                                                     ))
                                                                 }
@@ -1590,6 +1601,7 @@ export default function PurchaseList() {
                                         <tr>
                                             <th className="col-index">#</th>
                                             <th className="col-product">Sản phẩm</th>
+                                            <th className="col-unit">ĐVT</th>
                                             <th className="col-qty">SL</th>
                                             <th className="col-price">Đơn giá</th>
                                             <th className="col-total">Thành tiền</th>
@@ -1599,12 +1611,20 @@ export default function PurchaseList() {
                                         {selectedPurchase.purchaseItems.map((item, idx) => (
                                             <tr key={item.id}>
                                                 <td className="col-index">{idx + 1}</td>
-                                                <td className="col-product">
-                                                    <div className="product-name">{item.variant?.product?.name}</div>
-                                                    {item.variant?.product?.sku && (
-                                                        <div className="product-sku">SKU: {item.variant.product.sku}</div>
-                                                    )}
+                                                <td className="col-name">
+                                                    <div className="product-cell">
+                                                        {item.variant?.product?.images ? (
+                                                            <img src={item.variant.product.images} alt={item.variant.product.name} className="product-thumb" />
+                                                        ) : (
+                                                            <div className="product-thumb-placeholder"><MdInventory /></div>
+                                                        )}
+                                                        <div className="product-info">
+                                                            <span className="product-name">{item.variant?.product?.name}</span>
+                                                            <span className="product-sku">{item.variant?.product?.sku}</span>
+                                                        </div>
+                                                    </div>
                                                 </td>
+                                                <td className="col-unit">Cái</td>
                                                 <td className="col-qty">{item.quantity}</td>
                                                 <td className="col-price">{formatCurrency(Number(item.unitCost))}đ</td>
                                                 <td className="col-total">{formatCurrency(Number(item.totalCost))}đ</td>
