@@ -12,6 +12,7 @@ interface Product {
     defaultCost: number;
     totalStock: number;
     unit?: string;
+    categoryName?: string;
 }
 
 interface PriceList {
@@ -84,9 +85,11 @@ export default function POSPage() {
 
     useEffect(() => {
         if (searchTerm) {
+            const term = searchTerm.toLowerCase();
             const filtered = products.filter(p =>
-                p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                p.sku.toLowerCase().includes(searchTerm.toLowerCase())
+                p.name.toLowerCase().includes(term) ||
+                p.sku.toLowerCase().includes(term) ||
+                (p.categoryName && p.categoryName.toLowerCase().includes(term))
             );
             setFilteredProducts(filtered);
             setShowProductList(true);
@@ -165,6 +168,7 @@ export default function POSPage() {
                     defaultCost: Number(p.defaultCost || 0),
                     totalStock: Number(p.totalStock || 0),
                     unit: p.unit,
+                    categoryName: p.category?.name || '',
                 };
             }));
         } catch (error) {

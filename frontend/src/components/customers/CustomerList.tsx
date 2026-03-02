@@ -195,7 +195,7 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(20);
+    const [itemsPerPage, setItemsPerPage] = useState(100);
 
     const toast = useToast();
 

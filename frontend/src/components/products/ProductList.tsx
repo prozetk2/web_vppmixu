@@ -53,7 +53,7 @@ export default function ProductList() {
     const [loading, setLoading] = useState(false);
     const [pagination, setPagination] = useState<PaginationMeta>({
         page: 1,
-        limit: 20,
+        limit: 100,
         total: 0,
     });
 

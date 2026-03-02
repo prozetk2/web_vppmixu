@@ -201,7 +201,7 @@ export default function SupplierList() {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalSuppliers, setTotalSuppliers] = useState(0);
-    const [itemsPerPage, setItemsPerPage] = useState(20);
+    const [itemsPerPage, setItemsPerPage] = useState(100);
 
     // Filters
     const [filters, setFilters] = useState<FilterState>({

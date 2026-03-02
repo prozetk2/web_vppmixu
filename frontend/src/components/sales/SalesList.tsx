@@ -125,7 +125,7 @@ export default function SalesList() {
                     <MdSearch className="search-icon" />
                     <input
                         type="text"
-                        placeholder="Tìm mã đơn hàng..."
+                        placeholder="Tìm mã đơn, tên sản phẩm, khách hàng..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         onKeyDown={handleKeyDown}

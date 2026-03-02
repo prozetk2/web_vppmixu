@@ -12,6 +12,7 @@ interface Product {
     defaultPrice: number;
     stock?: number;
     imageUrl?: string;
+    categoryName?: string;
 }
 
 interface CartItem {
@@ -710,15 +711,34 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 code: pl.code,
                 isDefault: pl.isDefault,
             }));
-            setPriceLists(lists);
+
+            const defaultZeroList = {
+                id: 'DEFAULT_ZERO',
+                name: 'Bảng giá mặc định (0đ)',
+                code: 'DEFAULT_ZERO',
+                isDefault: lists.length === 0,
+            };
+
+            const allLists = [defaultZeroList, ...lists];
+            setPriceLists(allLists);
 
             // Auto-select default price list
-            const defaultList = lists.find((pl: PriceList) => pl.isDefault);
+            const defaultList = allLists.find((pl: PriceList) => pl.isDefault);
             if (defaultList && !selectedPriceList) {
                 setSelectedPriceList(defaultList.id);
             }
         } catch (error) {
             console.error('Error fetching price lists:', error);
+            const defaultZeroList = {
+                id: 'DEFAULT_ZERO',
+                name: 'Bảng giá mặc định (0đ)',
+                code: 'DEFAULT_ZERO',
+                isDefault: true,
+            };
+            setPriceLists([defaultZeroList]);
+            if (!selectedPriceList) {
+                setSelectedPriceList('DEFAULT_ZERO');
+            }
         }
     };
 
@@ -744,10 +764,10 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         setLoading(true);
         try {
             const [productsRes, customersRes, warehousesRes, stockRes] = await Promise.all([
-                productsAPI.getAll({ limit: 1000 }),
+                productsAPI.getAll({ limit: 10000 }),
                 customersAPI.getAll(),
                 warehousesAPI.getAll(),
-                inventoryAPI.getStock({ limit: 1000 }),
+                inventoryAPI.getStock({ limit: 10000 }),
             ]);
 
             // Map stock to products
@@ -764,7 +784,10 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             const mappedProducts = productsData.map((p: any) => {
                 // Get price from selected price list if available
                 let price = Number(p.defaultPrice || 0);
-                if (selectedPriceList && p.productPrices) {
+
+                if (selectedPriceList === 'DEFAULT_ZERO') {
+                    price = 0;
+                } else if (selectedPriceList && p.productPrices) {
                     const priceListPrice = p.productPrices.find(
                         (pp: any) => pp.priceListId.toString() === selectedPriceList
                     );
@@ -780,6 +803,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     defaultPrice: price,
                     stock: stockMap.get(p.id.toString()) || 0,
                     imageUrl: p.imageUrl,
+                    categoryName: p.category?.name || '',
                 };
             });
 
@@ -813,7 +837,8 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         return products.filter(
             (p) =>
                 p.name.toLowerCase().includes(term) ||
-                (p.sku && p.sku.toLowerCase().includes(term))
+                (p.sku && p.sku.toLowerCase().includes(term)) ||
+                (p.categoryName && p.categoryName.toLowerCase().includes(term))
         );
     }, [products, search]);
 
@@ -906,7 +931,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
 
     // Save changed prices to price list
     const savePricesToPriceList = async (): Promise<boolean> => {
-        if (!selectedPriceList || priceChanges.size === 0) return false;
+        if (!selectedPriceList || priceChanges.size === 0 || selectedPriceList === 'DEFAULT_ZERO') return false;
 
         // Filter only changes where price actually changed
         const changesToSave = Array.from(priceChanges.values())

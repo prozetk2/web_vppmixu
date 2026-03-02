@@ -256,7 +256,13 @@ export class SalesService {
         const where: any = {};
 
         if (search) {
-            where.orderNumber = { contains: search, mode: 'insensitive' };
+            where.OR = [
+                { orderNumber: { contains: search, mode: 'insensitive' } },
+                { customer: { name: { contains: search, mode: 'insensitive' } } },
+                { orderItems: { some: { variant: { product: { name: { contains: search, mode: 'insensitive' } } } } } },
+                { orderItems: { some: { variant: { product: { sku: { contains: search, mode: 'insensitive' } } } } } },
+                { orderItems: { some: { variant: { product: { category: { name: { contains: search, mode: 'insensitive' } } } } } } },
+            ];
         }
 
         if (customerId) {
@@ -284,7 +290,7 @@ export class SalesService {
                     orderItems: {
                         include: {
                             variant: {
-                                include: { product: true },
+                                include: { product: { include: { category: true } } },
                             },
                         },
                     },
