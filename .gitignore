@@ -54,6 +54,3 @@ generate-hash.js
 
 # Claude
 CLAUDE.md
-
-# Nginx
-nginx-ssl.conf
