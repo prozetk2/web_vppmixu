@@ -54,7 +54,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border: none;
     border-radius: 8px;
@@ -64,7 +64,7 @@
 }
 
 .btn-add:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .btn-import {
@@ -96,9 +96,9 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    background: #eff6ff;
-    color: #2563eb;
-    border: 1px solid #2563eb;
+    background: var(--color-primary-light);
+    color: var(--color-primary-dark);
+    border: 1px solid var(--color-primary-dark);
     border-radius: 8px;
     font-weight: 500;
     cursor: pointer;
@@ -106,7 +106,7 @@
 }
 
 .btn-export:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
     color: white;
 }
 
@@ -162,8 +162,8 @@
 
 .search-input:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .clear-search {
@@ -202,9 +202,9 @@
 
 .btn-filter-toggle:hover,
 .btn-filter-toggle.active {
-    border-color: #3b82f6;
-    color: #3b82f6;
-    background: #eff6ff;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: var(--color-primary-light);
 }
 
 /* Content Layout */
@@ -287,7 +287,7 @@
 
 .filter-input-group input:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 /* Radio buttons */
@@ -320,7 +320,7 @@
 }
 
 .filter-radio.selected .radio-dot {
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .filter-radio.selected .radio-dot::after {
@@ -331,7 +331,7 @@
     transform: translate(-50%, -50%);
     width: 8px;
     height: 8px;
-    background: #3b82f6;
+    background: var(--color-primary);
     border-radius: 50%;
 }
 
@@ -368,13 +368,13 @@
 }
 
 .status-btn:hover {
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .status-btn.active {
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 /* ========================================
@@ -456,7 +456,7 @@
 .create-link {
     font-size: 12px;
     font-weight: 400;
-    color: #2563eb;
+    color: var(--color-primary-dark);
     text-decoration: none;
 }
 
@@ -483,7 +483,7 @@
 
 .filter-select-sidebar:focus {
     outline: none;
-    border-color: #2563eb;
+    border-color: var(--color-primary-dark);
 }
 
 /* Radio Group Vertical */
@@ -510,7 +510,7 @@
     width: 16px;
     height: 16px;
     margin: 0;
-    accent-color: #2563eb;
+    accent-color: var(--color-primary-dark);
 }
 
 .radio-item span {
@@ -524,7 +524,7 @@
 }
 
 .radio-item:hover {
-    color: #2563eb;
+    color: var(--color-primary-dark);
 }
 
 /* Date Range Inputs */
@@ -545,7 +545,7 @@
 
 .filter-date-input:focus {
     outline: none;
-    border-color: #2563eb;
+    border-color: var(--color-primary-dark);
 }
 
 /* Pill Group (Status Buttons) */
@@ -567,14 +567,14 @@
 }
 
 .pill-btn:hover {
-    border-color: #2563eb;
-    color: #2563eb;
+    border-color: var(--color-primary-dark);
+    color: var(--color-primary-dark);
 }
 
 .pill-btn.active {
-    background: #2563eb;
+    background: var(--color-primary-dark);
     color: white;
-    border-color: #2563eb;
+    border-color: var(--color-primary-dark);
 }
 
 /* Range Inputs */
@@ -613,7 +613,7 @@
 
 .range-input:focus {
     outline: none;
-    border-color: #2563eb;
+    border-color: var(--color-primary-dark);
 }
 
 .range-input::placeholder {
@@ -636,7 +636,7 @@
     justify-content: center;
     gap: 4px;
     padding: 8px 12px;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border: none;
     border-radius: 6px;
@@ -647,7 +647,7 @@
 }
 
 .btn-apply-filter:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .btn-clear-filter {
@@ -773,11 +773,11 @@
 
 .btn-edit {
     background: #dbeafe;
-    color: #2563eb;
+    color: var(--color-primary-dark);
 }
 
 .btn-edit:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
     color: white;
 }
 
@@ -815,7 +815,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border: none;
     border-radius: 8px;
@@ -858,8 +858,8 @@
 }
 
 .pagination-btn:hover:not(:disabled) {
-    border-color: #3b82f6;
-    color: #3b82f6;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
 }
 
 .pagination-btn:disabled {
@@ -920,8 +920,8 @@
 
 .form-input:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .form-input.error {
@@ -999,13 +999,13 @@
 }
 
 .btn-primary {
-    background: #3b82f6;
+    background: var(--color-primary);
     border: none;
     color: white;
 }
 
 .btn-primary:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .btn:disabled {
@@ -1062,12 +1062,12 @@
 }
 
 .detail-tab:hover {
-    color: #3b82f6;
+    color: var(--color-primary);
 }
 
 .detail-tab.active {
-    color: #3b82f6;
-    border-bottom-color: #3b82f6;
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
     font-weight: 500;
 }
 
@@ -1103,7 +1103,7 @@
 }
 
 .branch-tag {
-    color: #3b82f6;
+    color: var(--color-primary);
     font-size: 0.85rem;
 }
 
@@ -1154,7 +1154,7 @@
 }
 
 .add-invoice-info {
-    color: #3b82f6;
+    color: var(--color-primary);
     font-size: 0.875rem;
     text-decoration: none;
 }
@@ -1211,7 +1211,7 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.5rem 1rem;
-    background: #3b82f6;
+    background: var(--color-primary);
     border: none;
     border-radius: 6px;
     color: white;
@@ -1221,7 +1221,7 @@
 }
 
 .btn-detail-edit:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .btn-detail-deactivate {
@@ -1280,7 +1280,7 @@
 }
 
 .purchase-code {
-    color: #3b82f6;
+    color: var(--color-primary);
     font-weight: 500;
 }
 
@@ -1418,7 +1418,7 @@
     align-items: center;
     gap: 0.35rem;
     padding: 0.5rem 1rem;
-    background: #3b82f6;
+    background: var(--color-primary);
     border: none;
     border-radius: 6px;
     color: white;
@@ -1428,7 +1428,7 @@
 }
 
 .btn-debt-primary:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .btn-debt-success {
@@ -1487,12 +1487,12 @@
 }
 
 .debt-modal-total {
-    color: #3b82f6;
+    color: var(--color-primary);
     font-size: 0.9rem;
 }
 
 .debt-modal-total strong {
-    color: #1d4ed8;
+    color: var(--color-primary-dark);
 }
 
 .debt-remaining-display {
@@ -1524,7 +1524,7 @@
 .checkbox-label input[type="checkbox"] {
     width: 16px;
     height: 16px;
-    accent-color: #3b82f6;
+    accent-color: var(--color-primary);
 }
 
 /* Allocation Table */
@@ -1565,7 +1565,7 @@
 
 .allocation-input:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 /* Adjustment Modal */
@@ -1587,12 +1587,12 @@
 /* Button Outline Primary */
 .btn-outline-primary {
     background: white;
-    color: #3b82f6;
-    border: 1px solid #3b82f6;
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
 }
 
 .btn-outline-primary:hover {
-    background: #eff6ff;
+    background: var(--color-primary-light);
 }
 
 /* Export Debt Modal Styles */
@@ -1632,13 +1632,13 @@
 }
 
 .time-pill:hover {
-    border-color: #3b82f6;
-    color: #3b82f6;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
 }
 
 .time-pill.active {
-    background: #3b82f6;
-    border-color: #3b82f6;
+    background: var(--color-primary);
+    border-color: var(--color-primary);
     color: white;
 }
 
@@ -1655,7 +1655,7 @@
 }
 
 .export-info-note p {
-    color: #3b82f6;
+    color: var(--color-primary);
     font-size: 0.85rem;
     margin: 0.25rem 0 0 0;
 }

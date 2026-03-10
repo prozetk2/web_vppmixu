@@ -199,28 +199,68 @@ export default function CustomerDetail({
     };
 
     const handleExportFile = () => {
-        // Simple export - just transactions list
-        if (!customer || !debtData) {
+        if (!customer) {
             alert('Không có dữ liệu để xuất');
             return;
         }
 
-        const wb = XLSX.utils.book_new();
-        const data = [
-            ['Danh sách giao dịch công nợ - ' + customer.name],
-            [],
-            ['Mã phiếu', 'Thời gian', 'Loại', 'Giá trị', 'Dư nợ'],
-            ...debtData.transactions.map(tx => [
-                tx.code,
-                formatDateTime(tx.time),
-                tx.type,
-                Math.abs(tx.value),
-                tx.runningBalance
-            ])
-        ];
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        XLSX.utils.book_append_sheet(wb, ws, 'Giao dịch');
-        XLSX.writeFile(wb, `GiaoDich_${customer.code || 'KH'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        if (activeTab === 'history') {
+            // Export invoice history
+            if (!invoices || invoices.length === 0) {
+                alert('Không có lịch sử bán hàng để xuất');
+                return;
+            }
+
+            const exportData = invoices.map(inv => ({
+                'Mã hóa đơn': inv.invoiceNumber,
+                'Thời gian': formatDateTime(inv.createdAt),
+                'Người bán': inv.seller || 'N/A',
+                'Tổng cộng': inv.totalAmount,
+                'Đã thanh toán': inv.amountPaid || 0,
+                'Còn nợ': (inv.totalAmount - (inv.amountPaid || 0)),
+                'Trạng thái': inv.status === 'COMPLETED' ? 'Hoàn thành' : inv.status === 'CANCELLED' ? 'Đã hủy' : inv.status,
+            }));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            ws['!cols'] = [
+                { wch: 18 }, // Mã hóa đơn
+                { wch: 20 }, // Thời gian
+                { wch: 15 }, // Người bán
+                { wch: 15 }, // Tổng cộng
+                { wch: 15 }, // Đã thanh toán
+                { wch: 15 }, // Còn nợ
+                { wch: 15 }, // Trạng thái
+            ];
+            XLSX.utils.book_append_sheet(wb, ws, 'Lịch sử bán hàng');
+            XLSX.writeFile(wb, `LichSuBanHang_${customer.code || 'KH'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        } else {
+            // Export debt transactions
+            if (!debtData || debtData.transactions.length === 0) {
+                alert('Không có dữ liệu công nợ để xuất');
+                return;
+            }
+
+            const exportData = debtData.transactions.map(tx => ({
+                'Mã phiếu': tx.code,
+                'Thời gian': formatDateTime(tx.time),
+                'Loại': tx.type,
+                'Giá trị': Math.abs(tx.value),
+                'Dư nợ': tx.runningBalance,
+            }));
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            ws['!cols'] = [
+                { wch: 18 }, // Mã phiếu
+                { wch: 20 }, // Thời gian
+                { wch: 12 }, // Loại
+                { wch: 15 }, // Giá trị
+                { wch: 15 }, // Dư nợ
+            ];
+            XLSX.utils.book_append_sheet(wb, ws, 'Giao dịch công nợ');
+            XLSX.writeFile(wb, `GiaoDich_${customer.code || 'KH'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        }
     };
 
     const handleExportDebtFile = () => {

@@ -13,26 +13,42 @@ body {
 }
 
 :root {
-  /* Simple Color Palette */
-  --color-primary: #009ddc;
-  --color-primary-dark: #0088c2;
-  --color-success: #52c41a;
-  --color-warning: #faad14;
-  --color-error: #ff4d4f;
+  /* Modern Premium Color Palette - Indigo & Slate */
+  --color-primary: #4F46E5;
+  /* Indigo 600 */
+  --color-primary-dark: #4338CA;
+  /* Indigo 700 */
+  --color-primary-light: #EEF2FF;
+  /* Indigo 50 */
 
-  --color-bg: #f5f5f5;
-  --color-white: #ffffff;
-  --color-border: #d9d9d9;
-  --color-border-light: #e8e8e8;
+  --color-success: #10B981;
+  /* Emerald 500 */
+  --color-warning: #F59E0B;
+  /* Amber 500 */
+  --color-error: #EF4444;
+  /* Red 500 */
 
-  --color-text-primary: #262626;
-  --color-text-secondary: #595959;
-  --color-text-tertiary: #8c8c8c;
+  --color-bg: #F8FAFC;
+  /* Slate 50 - Softer and cleaner dashboard background */
+  --color-white: #FFFFFF;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --color-border: #E2E8F0;
+  /* Slate 200 */
+  --color-border-light: #F1F5F9;
+  /* Slate 100 */
 
-  --radius: 4px;
+  --color-text-primary: #0F172A;
+  /* Slate 900 - High contrast text */
+  --color-text-secondary: #475569;
+  /* Slate 600 */
+  --color-text-tertiary: #94A3B8;
+  /* Slate 400 */
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+
+  --radius: 6px;
+  /* Slightly rounder edges for modern look */
   --spacing: 16px;
 }
 
@@ -132,8 +148,8 @@ body {
   display: flex;
   align-items: center;
   padding: 0.75rem 1rem;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--color-white);
+  border-bottom: 1px solid var(--color-border);
   height: 60px;
   /* Fixed height for consistency */
 }
@@ -143,7 +159,7 @@ body {
   margin: 0;
   font-size: 1.125rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--color-text-primary);
   flex-shrink: 0;
   white-space: nowrap;
   min-width: 150px;
@@ -162,27 +178,28 @@ body {
 .search-box .search-icon {
   position: absolute;
   left: 0.75rem;
-  color: #9ca3af;
+  color: var(--color-text-tertiary);
   font-size: 1.125rem;
   pointer-events: none;
 }
 
 .search-box input {
   padding: 0.5rem 0.625rem 0.5rem 2.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
   font-size: 0.875rem;
   width: 100%;
-  background: #f9fafb;
-  color: #374151;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
   transition: all 0.2s;
 }
 
 .search-box input:focus {
   outline: none;
-  border-color: #3b82f6;
-  background: white;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  border-color: var(--color-primary);
+  background: var(--color-white);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+  /* Match Indigo */
 }
 
 /* Right Actions Container */
@@ -201,10 +218,10 @@ body {
   align-items: center;
   gap: 0.25rem;
   padding: 0.5rem 0.75rem;
-  background: #3b82f6;
-  color: white;
+  background: var(--color-primary);
+  color: var(--color-white);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
@@ -213,7 +230,7 @@ body {
 }
 
 .btn-primary:hover {
-  background: #2563eb;
+  background: var(--color-primary-dark);
 }
 
 .btn-outline-primary {
@@ -221,10 +238,10 @@ body {
   align-items: center;
   gap: 0.25rem;
   padding: 0.4375rem 0.625rem;
-  background: white;
-  color: #3b82f6;
-  border: 1px solid #3b82f6;
-  border-radius: 4px;
+  background: var(--color-white);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
@@ -233,7 +250,7 @@ body {
 }
 
 .btn-outline-primary:hover {
-  background: #eff6ff;
+  background: var(--color-primary-light);
 }
 
 .btn-secondary {
@@ -241,10 +258,10 @@ body {
   align-items: center;
   gap: 0.25rem;
   padding: 0.4375rem 0.625rem;
-  background: white;
-  color: #374151;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
+  background: var(--color-white);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
@@ -253,8 +270,8 @@ body {
 }
 
 .btn-secondary:hover {
-  background: #f9fafb;
-  border-color: #9ca3af;
+  background: var(--color-border-light);
+  border-color: var(--color-text-tertiary);
 }
 
 .btn-icon {
@@ -263,17 +280,17 @@ body {
   justify-content: center;
   width: 36px;
   height: 36px;
-  background: white;
-  color: #6b7280;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  background: var(--color-white);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
   cursor: pointer;
   transition: all 0.2s;
   flex-shrink: 0;
 }
 
 .btn-icon:hover {
-  background: #f9fafb;
-  color: #374151;
-  border-color: #9ca3af;
+  background: var(--color-border-light);
+  color: var(--color-text-primary);
+  border-color: var(--color-text-tertiary);
 }

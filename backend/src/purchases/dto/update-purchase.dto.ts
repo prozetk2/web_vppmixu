@@ -9,6 +9,10 @@ export class UpdatePurchaseItemDto {
     @Min(1)
     quantity: number;
 
+    @IsString()
+    @IsOptional()
+    unit?: string;
+
     @IsNumber()
     @Min(0)
     unitCost: number;
@@ -32,4 +36,8 @@ export class UpdatePurchaseDto {
     @IsOptional()
     @IsString()
     note?: string;
+
+    @IsOptional()
+    @IsString()
+    createdAt?: string;
 }

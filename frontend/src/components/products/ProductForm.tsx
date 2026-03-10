@@ -11,6 +11,7 @@ interface ProductFormData {
   name: string;
   sku?: string;
   categoryId?: string;
+  unit?: string;
   defaultPrice: number;
   defaultCost?: number;
   images?: string;
@@ -35,12 +36,25 @@ export default function ProductForm({
     name: '',
     sku: '',
     categoryId: '',
+    unit: 'Cái',
     defaultPrice: 0,
     defaultCost: 0,
     images: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [importNote, setImportNote] = useState<string>('');
+  const [categorySearch, setCategorySearch] = useState('');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+
+  // Helper to remove accents for searching
+  const removeAccents = (str: string) => {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  };
+
+  const filteredCategories = categories.filter((c) => {
+    if (!categorySearch.trim()) return true;
+    return removeAccents(c.name).includes(removeAccents(categorySearch));
+  });
 
   useEffect(() => {
     if (product) {
@@ -49,6 +63,7 @@ export default function ProductForm({
         name: product.name || '',
         sku: product.sku || '',
         categoryId: product.categoryId || '',
+        unit: product.unit || 'Cái',
         defaultPrice: product.defaultPrice || 0,
         defaultCost: product.defaultCost || 0,
         images: product.images || '',
@@ -282,24 +297,65 @@ export default function ProductForm({
         />
       </div>
 
+      <div className="form-group" style={{ position: 'relative' }}>
+        <label htmlFor="categoryId" className="form-label">Danh mục</label>
+        <div className="select-search-container">
+          <input
+            type="text"
+            className="form-input"
+            placeholder={
+              formData.categoryId
+                ? categories.find(c => c.id === formData.categoryId)?.name || 'Tìm danh mục...'
+                : '-- Chọn danh mục -- (Gõ để tìm)'
+            }
+            value={categorySearch}
+            onChange={(e) => {
+              setCategorySearch(e.target.value);
+              setShowCategoryDropdown(true);
+              if (formData.categoryId && e.target.value !== categories.find(c => c.id === formData.categoryId)?.name) {
+                setFormData({ ...formData, categoryId: '' });
+              }
+            }}
+            onFocus={() => setShowCategoryDropdown(true)}
+            onBlur={() => setTimeout(() => setShowCategoryDropdown(false), 200)}
+          />
+          {showCategoryDropdown && (
+            <div className="select-dropdown-list">
+              {filteredCategories.length > 0 ? (
+                filteredCategories.slice(0, 50).map((cat) => (
+                  <div
+                    key={cat.id}
+                    className="select-dropdown-item"
+                    onMouseDown={() => {
+                      setFormData({ ...formData, categoryId: cat.id });
+                      setCategorySearch(''); // Clear search to show placeholder
+                      setShowCategoryDropdown(false);
+                    }}
+                  >
+                    {cat.name}
+                  </div>
+                ))
+              ) : (
+                <div className="select-dropdown-empty">Không tìm thấy danh mục</div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="form-group">
-        <label htmlFor="categoryId" className="form-label">
-          Danh mục
+        <label htmlFor="unit" className="form-label">
+          Đơn vị tính
         </label>
-        <select
-          id="categoryId"
-          name="categoryId"
-          value={formData.categoryId}
+        <input
+          type="text"
+          id="unit"
+          name="unit"
+          value={formData.unit || ''}
           onChange={handleChange}
-          className="form-select"
-        >
-          <option value="">-- Chọn danh mục --</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>
-              {cat.name}
-            </option>
-          ))}
-        </select>
+          className="form-input"
+          placeholder="VD: Cái, Hộp, Thùng, Kg..."
+        />
       </div>
 
       <div className="form-row">

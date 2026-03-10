@@ -11,8 +11,9 @@ interface PurchaseItem {
     quantity: number;
     unitCost: number;
     totalCost: number;
+    unit?: string;
     variant: {
-        product: { name: string; sku?: string };
+        product: { name: string; sku?: string; unit?: string };
     };
 }
 
@@ -40,6 +41,7 @@ interface Product {
     id: string;
     name: string;
     sku?: string;
+    unit?: string;
     defaultCost?: number;
 }
 
@@ -53,14 +55,23 @@ interface FormItem {
     productSearch: string;
     quantity: number;
     unitCost: number;
+    unit: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
-    PENDING: 'Phiếu tạm',
     CONFIRMED: 'Đã nhập hàng',
     CANCELLED: 'Đã hủy',
     PAID: 'Đã thanh toán',
     PARTIAL: 'Thanh toán 1 phần',
+};
+
+const removeAccents = (str: string) => {
+    return str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .toLowerCase();
 };
 
 export default function PurchaseList() {
@@ -74,8 +85,9 @@ export default function PurchaseList() {
     const [itemsPerPage, setItemsPerPage] = useState(15);
 
     // Sidebar Filters - Status checkboxes
-    const [statusPending, setStatusPending] = useState(true);
     const [statusConfirmed, setStatusConfirmed] = useState(true);
+    const [statusPaid, setStatusPaid] = useState(true);
+    const [statusPartial, setStatusPartial] = useState(true);
     const [statusCancelled, setStatusCancelled] = useState(false);
 
     // Sidebar Filters - Date range
@@ -96,6 +108,7 @@ export default function PurchaseList() {
 
     // Sidebar collapsed state
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
 
     // Product search in form
     const [productSearchQuery, setProductSearchQuery] = useState('');
@@ -109,8 +122,9 @@ export default function PurchaseList() {
         note: '',
         prepaymentAmount: 0,
         paymentMethod: 'CASH',
+        purchaseDate: '',
     });
-    const [items, setItems] = useState<FormItem[]>([{ productId: '', productSearch: '', quantity: 1, unitCost: 0 }]);
+    const [items, setItems] = useState<FormItem[]>([{ productId: '', productSearch: '', quantity: 1, unitCost: 0, unit: 'Cái' }]);
     const [submitting, setSubmitting] = useState(false);
 
     // Detail Modal state
@@ -143,10 +157,12 @@ export default function PurchaseList() {
     const [savingSupplier, setSavingSupplier] = useState(false);
 
     // Filtered suppliers based on search
-    const filteredSuppliers = suppliers.filter(s =>
-        s.name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-        (s.code && s.code.toLowerCase().includes(supplierSearch.toLowerCase()))
-    );
+    const filteredSuppliers = suppliers.filter(s => {
+        if (!supplierSearch.trim()) return true; // Show all when search is empty
+        const query = removeAccents(supplierSearch);
+        return removeAccents(s.name).includes(query) ||
+            (s.code && removeAccents(s.code).includes(query));
+    });
 
     // Quick Add Importer (Staff) Modal state
     const [isQuickImporterOpen, setIsQuickImporterOpen] = useState(false);
@@ -234,7 +250,13 @@ export default function PurchaseList() {
     const toast = useToast();
 
     // Legacy statusFilter for API compatibility
-    const statusFilter = [statusPending && 'PENDING', statusConfirmed && 'CONFIRMED', statusCancelled && 'CANCELLED'].filter(Boolean).join(',');
+    // Legacy statusFilter for API compatibility
+    const statusFilter = [
+        statusConfirmed && 'CONFIRMED',
+        statusPaid && 'PAID',
+        statusPartial && 'PARTIAL',
+        statusCancelled && 'CANCELLED'
+    ].filter(Boolean).join(',');
 
     useEffect(() => {
         fetchData();
@@ -242,20 +264,22 @@ export default function PurchaseList() {
 
     useEffect(() => {
         fetchPurchases();
-    }, [page, statusPending, statusConfirmed, statusCancelled, searchQuery, fromDate, toDate]);
+    }, [page, statusConfirmed, statusPaid, statusPartial, statusCancelled, searchQuery, fromDate, toDate]);
 
     const fetchData = async () => {
         try {
             const [suppliersRes, productsRes, warehousesRes, priceListsRes] = await Promise.all([
-                suppliersAPI.getAll(),
-                productsAPI.getAll({ limit: 1000 }),
+                suppliersAPI.getAll({ limit: 10000 }),
+                productsAPI.getAll({ limit: 10000 }),
                 warehousesAPI.getAll(),
                 priceListsAPI.getAll(),
             ]);
-            setSuppliers((suppliersRes.data?.data || suppliersRes.data || []).map((s: any) => ({
+            const rawSuppliers = (suppliersRes.data?.data || suppliersRes.data || []).map((s: any) => ({
                 ...s,
                 id: s.id.toString(),
-            })));
+            }));
+            console.log('Loaded suppliers:', rawSuppliers.length, rawSuppliers.map((s: any) => s.name));
+            setSuppliers(rawSuppliers);
             setProducts((productsRes.data?.data || []).map((p: any) => ({
                 ...p,
                 id: p.id.toString(),
@@ -301,8 +325,10 @@ export default function PurchaseList() {
 
     const openCreateModal = () => {
         setEditingId(null);
-        setFormData({ supplierId: '', warehouseId: '', note: '', prepaymentAmount: 0, paymentMethod: 'CASH' });
-        setItems([{ productId: '', productSearch: '', quantity: 1, unitCost: 0 }]);
+        const now = new Date();
+        const formattedDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        setFormData({ supplierId: '', warehouseId: '', note: '', prepaymentAmount: 0, paymentMethod: 'CASH', purchaseDate: formattedDate });
+        setItems([{ productId: '', productSearch: '', quantity: 1, unitCost: 0, unit: 'Cái' }]);
         setIsModalOpen(true);
     };
 
@@ -314,6 +340,7 @@ export default function PurchaseList() {
             note: purchase.note || '',
             prepaymentAmount: 0,
             paymentMethod: 'CASH',
+            purchaseDate: purchase.createdAt ? new Date(purchase.createdAt).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
         });
         setItems(purchase.purchaseItems.map(item => {
             const product = products.find(p =>
@@ -324,6 +351,7 @@ export default function PurchaseList() {
                 productSearch: '',
                 quantity: item.quantity,
                 unitCost: Number(item.unitCost),
+                unit: item.unit || product?.unit || 'Cái',
             };
         }));
         setIsModalOpen(true);
@@ -345,7 +373,7 @@ export default function PurchaseList() {
     };
 
     const addItem = () => {
-        setItems([...items, { productId: '', productSearch: '', quantity: 1, unitCost: 0 }]);
+        setItems([...items, { productId: '', productSearch: '', quantity: 1, unitCost: 0, unit: 'Cái' }]);
     };
 
     const removeItem = (index: number) => {
@@ -366,6 +394,8 @@ export default function PurchaseList() {
             newItems[index].quantity = Number(value) || 1;
         } else if (field === 'unitCost') {
             newItems[index].unitCost = Number(value) || 0;
+        } else if (field === 'unit') {
+            newItems[index].unit = value as string;
         }
         setItems(newItems);
     };
@@ -391,6 +421,7 @@ export default function PurchaseList() {
                 note: formData.note || undefined,
                 prepaymentAmount: formData.prepaymentAmount || undefined,
                 paymentMethod: formData.prepaymentAmount > 0 ? formData.paymentMethod : undefined,
+                createdAt: formData.purchaseDate ? new Date(formData.purchaseDate).toISOString() : undefined,
             };
 
             if (editingId) {
@@ -520,8 +551,9 @@ export default function PurchaseList() {
 
     const clearFilters = () => {
         setSearchQuery('');
-        setStatusPending(true);
         setStatusConfirmed(true);
+        setStatusPaid(true);
+        setStatusPartial(true);
         setStatusCancelled(false);
         setFromDate('');
         setToDate('');
@@ -884,20 +916,29 @@ export default function PurchaseList() {
                             <label className="checkbox-item">
                                 <input
                                     type="checkbox"
-                                    checked={statusPending}
-                                    onChange={(e) => { setStatusPending(e.target.checked); setPage(1); }}
-                                />
-                                <span className="checkbox-custom"></span>
-                                <span>Phiếu tạm</span>
-                            </label>
-                            <label className="checkbox-item">
-                                <input
-                                    type="checkbox"
                                     checked={statusConfirmed}
                                     onChange={(e) => { setStatusConfirmed(e.target.checked); setPage(1); }}
                                 />
                                 <span className="checkbox-custom"></span>
                                 <span>Đã nhập hàng</span>
+                            </label>
+                            <label className="checkbox-item">
+                                <input
+                                    type="checkbox"
+                                    checked={statusPaid}
+                                    onChange={(e) => { setStatusPaid(e.target.checked); setPage(1); }}
+                                />
+                                <span className="checkbox-custom"></span>
+                                <span>Đã thanh toán</span>
+                            </label>
+                            <label className="checkbox-item">
+                                <input
+                                    type="checkbox"
+                                    checked={statusPartial}
+                                    onChange={(e) => { setStatusPartial(e.target.checked); setPage(1); }}
+                                />
+                                <span className="checkbox-custom"></span>
+                                <span>Thanh toán 1 phần</span>
                             </label>
                             <label className="checkbox-item">
                                 <input
@@ -1081,20 +1122,17 @@ export default function PurchaseList() {
                                                 </span>
                                             </td>
                                             <td className="col-actions">
-                                                {p.status === 'PENDING' && (
+                                                {p.status !== 'CANCELLED' && (
                                                     <button
-                                                        className="btn-confirm-purchase"
+                                                        className="btn-edit-purchase"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            handleConfirmPurchase(p.id);
+                                                            openEditModal(p);
                                                         }}
-                                                        title="Xác nhận đã nhập hàng"
+                                                        title="Sửa đơn nhập"
                                                     >
-                                                        <MdCheck /> Xác nhận
+                                                        <MdEdit /> Sửa
                                                     </button>
-                                                )}
-                                                {p.status === 'CONFIRMED' && (
-                                                    <span className="confirm-done">Đã xác nhận</span>
                                                 )}
                                             </td>
                                         </tr>
@@ -1191,7 +1229,12 @@ export default function PurchaseList() {
                             </button>
                         </div>
                         <div className="create-header-right">
-                            <span className="create-date">{new Date().toLocaleDateString('vi-VN')} {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <input
+                                type="datetime-local"
+                                className="purchase-date-picker"
+                                value={formData.purchaseDate}
+                                onChange={(e) => setFormData(prev => ({ ...prev, purchaseDate: e.target.value }))}
+                            />
                         </div>
                     </div>
 
@@ -1220,28 +1263,37 @@ export default function PurchaseList() {
                                         return (
                                             <tr key={idx}>
                                                 <td className="col-stt">{idx + 1}</td>
-                                                <td className="col-code">
+                                                <td className="col-code">{product?.sku || '-'}</td>
+                                                <td className="col-name">
                                                     <div className="product-autocomplete">
                                                         <input
+                                                            id={`product-search-${idx}`}
                                                             type="text"
-                                                            value={item.productSearch || (product ? (product.sku || product.id.slice(-8)) : '')}
+                                                            value={item.productSearch || (product ? product.name : '')}
                                                             onChange={(e) => {
                                                                 updateItem(idx, 'productSearch', e.target.value);
                                                                 if (item.productId) {
                                                                     updateItem(idx, 'productId', '');
                                                                 }
                                                             }}
-                                                            placeholder="Gõ mã SP..."
+                                                            placeholder="Gõ tên SP..."
                                                             className="inline-input product-code-input"
                                                         />
                                                         {item.productSearch && !item.productId && (
                                                             <div className="product-dropdown-list">
                                                                 {products
-                                                                    .filter(p =>
-                                                                        (p.sku && p.sku.toLowerCase().includes(item.productSearch.toLowerCase())) ||
-                                                                        (p.name && p.name.toLowerCase().includes(item.productSearch.toLowerCase()))
-                                                                    )
-                                                                    .slice(0, 8)
+                                                                    .filter(p => {
+                                                                        const search = removeAccents(item.productSearch);
+                                                                        const name = removeAccents(p.name || '');
+                                                                        const sku = removeAccents(p.sku || '');
+                                                                        const barcode = removeAccents((p as any).barcode || '');
+                                                                        return (
+                                                                            !search ||
+                                                                            name.includes(search) ||
+                                                                            sku.includes(search) ||
+                                                                            barcode.includes(search)
+                                                                        );
+                                                                    })
                                                                     .map((p) => (
                                                                         <div
                                                                             key={p.id}
@@ -1249,16 +1301,35 @@ export default function PurchaseList() {
                                                                             onClick={() => {
                                                                                 updateItem(idx, 'productId', p.id);
                                                                                 updateItem(idx, 'productSearch', '');
+                                                                                if (p.unit) {
+                                                                                    updateItem(idx, 'unit', p.unit);
+                                                                                }
+
+                                                                                // Auto-add new row if this is the last row
+                                                                                if (idx === items.length - 1) {
+                                                                                    setItems(prev => [
+                                                                                        ...prev,
+                                                                                        { productId: '', productSearch: '', quantity: 1, unitCost: Number(p.defaultCost) || 0, unit: p.unit || 'Cái' }
+                                                                                    ]);
+                                                                                }
+
+                                                                                // Focus next input
+                                                                                setTimeout(() => {
+                                                                                    const nextInput = document.getElementById(`product-search-${idx + 1}`);
+                                                                                    if (nextInput) {
+                                                                                        nextInput.focus();
+                                                                                    }
+                                                                                }, 50);
                                                                             }}
                                                                         >
-                                                                            <span className="product-sku">{p.sku || p.id.slice(-8)}</span>
-                                                                            <span className="product-name-hint">{p.name}</span>
+                                                                            <span className="product-sku">{p.name}</span>
+                                                                            <span className="product-name-hint">{p.sku || ''}</span>
                                                                         </div>
                                                                     ))
                                                                 }
                                                                 {products.filter(p =>
-                                                                    (p.sku && p.sku.toLowerCase().includes(item.productSearch.toLowerCase())) ||
-                                                                    (p.name && p.name.toLowerCase().includes(item.productSearch.toLowerCase()))
+                                                                    (p.name && p.name.toLowerCase().includes(item.productSearch.toLowerCase())) ||
+                                                                    (p.sku && p.sku.toLowerCase().includes(item.productSearch.toLowerCase()))
                                                                 ).length === 0 && (
                                                                         <div className="product-dropdown-empty">Không tìm thấy sản phẩm</div>
                                                                     )}
@@ -1266,8 +1337,15 @@ export default function PurchaseList() {
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="col-name">{product?.name || '-'}</td>
-                                                <td className="col-unit">Cái</td>
+                                                <td className="col-unit">
+                                                    <input
+                                                        type="text"
+                                                        value={item.unit}
+                                                        onChange={(e) => updateItem(idx, 'unit', e.target.value)}
+                                                        className="inline-input unit-input text-center"
+                                                        placeholder="ĐVT"
+                                                    />
+                                                </td>
                                                 <td className="col-qty">
                                                     <input
                                                         type="number"
@@ -1302,6 +1380,14 @@ export default function PurchaseList() {
                                     })}
                                 </tbody>
                             </table>
+                            <button
+                                type="button"
+                                className="btn-add-row-below"
+                                onClick={addItem}
+                                title="Thêm hàng mới"
+                            >
+                                <MdAdd /> Thêm dòng
+                            </button>
 
                             {items.length === 1 && !items[0].productId && (
                                 <div className="empty-products">
@@ -1346,6 +1432,7 @@ export default function PurchaseList() {
                                             value={supplierSearch}
                                             onChange={(e) => {
                                                 setSupplierSearch(e.target.value);
+                                                setShowSupplierDropdown(true);
                                                 // Clear selected if typing
                                                 if (formData.supplierId) {
                                                     const selected = suppliers.find(s => s.id === formData.supplierId);
@@ -1354,16 +1441,21 @@ export default function PurchaseList() {
                                                     }
                                                 }
                                             }}
-                                            placeholder="Tìm NCC"
+                                            onFocus={() => setShowSupplierDropdown(true)}
+                                            onBlur={() => setTimeout(() => setShowSupplierDropdown(false), 200)}
+                                            placeholder="Tìm NCC (gõ tên hoặc mã)"
                                             className="supplier-search-input"
                                         />
-                                        {supplierSearch && filteredSuppliers.length > 0 && !formData.supplierId && (
+                                        {showSupplierDropdown && filteredSuppliers.length > 0 && !formData.supplierId && (
                                             <div className="supplier-dropdown-list">
-                                                {filteredSuppliers.slice(0, 8).map((s) => (
+                                                {filteredSuppliers.slice(0, 10).map((s) => (
                                                     <div
                                                         key={s.id}
                                                         className="supplier-dropdown-item"
-                                                        onClick={() => handleSelectSupplier(s.id)}
+                                                        onClick={() => {
+                                                            handleSelectSupplier(s.id);
+                                                            setShowSupplierDropdown(false);
+                                                        }}
                                                     >
                                                         <span className="supplier-name">{s.name}</span>
                                                         {s.code && <span className="supplier-code">{s.code}</span>}
@@ -1443,7 +1535,7 @@ export default function PurchaseList() {
 
                             <div className="info-row">
                                 <span className="info-label">Trạng thái</span>
-                                <span className="info-value status-temp">Phiếu tạm</span>
+                                <span className="info-value">Đã nhập hàng</span>
                             </div>
 
                             <div className="info-row">
@@ -1516,14 +1608,6 @@ export default function PurchaseList() {
                         <button
                             type="button"
                             onClick={() => { handleSubmit(new Event('submit') as any); }}
-                            className="btn-save-temp"
-                            disabled={submitting}
-                        >
-                            💾 Lưu tạm
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => { handleSubmit(new Event('submit') as any); }}
                             className="btn-complete"
                             disabled={submitting}
                         >
@@ -1590,6 +1674,7 @@ export default function PurchaseList() {
                                         <tr>
                                             <th className="col-index">#</th>
                                             <th className="col-product">Sản phẩm</th>
+                                            <th className="col-unit">ĐVT</th>
                                             <th className="col-qty">SL</th>
                                             <th className="col-price">Đơn giá</th>
                                             <th className="col-total">Thành tiền</th>
@@ -1605,6 +1690,7 @@ export default function PurchaseList() {
                                                         <div className="product-sku">SKU: {item.variant.product.sku}</div>
                                                     )}
                                                 </td>
+                                                <td className="col-unit">{item.unit || item.variant?.product?.unit || 'Cái'}</td>
                                                 <td className="col-qty">{item.quantity}</td>
                                                 <td className="col-price">{formatCurrency(Number(item.unitCost))}đ</td>
                                                 <td className="col-total">{formatCurrency(Number(item.totalCost))}đ</td>
@@ -1624,27 +1710,16 @@ export default function PurchaseList() {
                             <button onClick={closeDetailModal} className="btn btn-secondary">
                                 Đóng
                             </button>
-                            {selectedPurchase.status === 'PENDING' && (
-                                <>
-                                    <button
-                                        onClick={() => {
-                                            closeDetailModal();
-                                            openEditModal(selectedPurchase);
-                                        }}
-                                        className="btn btn-warning"
-                                    >
-                                        <MdEdit /> Sửa đơn
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            handleConfirm(selectedPurchase.id);
-                                            closeDetailModal();
-                                        }}
-                                        className="btn btn-success"
-                                    >
-                                        <MdCheck /> Xác nhận nhập kho
-                                    </button>
-                                </>
+                            {selectedPurchase.status !== 'CANCELLED' && (
+                                <button
+                                    onClick={() => {
+                                        closeDetailModal();
+                                        openEditModal(selectedPurchase);
+                                    }}
+                                    className="btn btn-warning"
+                                >
+                                    <MdEdit /> Sửa đơn
+                                </button>
                             )}
                         </div>
                     </div>

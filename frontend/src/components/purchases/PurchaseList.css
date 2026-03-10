@@ -129,7 +129,7 @@
 }
 
 .purchase-supplier {
-    color: #3b82f6;
+    color: var(--color-primary);
 }
 
 .purchase-date {
@@ -444,11 +444,11 @@
 
 .btn-view {
     background: #dbeafe;
-    color: #2563eb;
+    color: var(--color-primary-dark);
 }
 
 .btn-view:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
     color: white;
 }
 
@@ -586,7 +586,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border: none;
     border-radius: 8px;
@@ -596,7 +596,7 @@
 }
 
 .btn-export:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
     transform: translateY(-1px);
 }
 
@@ -660,7 +660,7 @@
 }
 
 .info-value.supplier-name {
-    color: #3b82f6;
+    color: var(--color-primary);
 }
 
 .info-value.confirmed {
@@ -860,8 +860,8 @@
 .export-date-input:focus,
 .export-select:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .export-actions {
@@ -1067,7 +1067,7 @@
 .checkbox-item input[type="checkbox"] {
     width: 16px;
     height: 16px;
-    accent-color: #3b82f6;
+    accent-color: var(--color-primary);
     cursor: pointer;
 }
 
@@ -1090,7 +1090,7 @@
 .radio-item input[type="radio"] {
     width: 16px;
     height: 16px;
-    accent-color: #3b82f6;
+    accent-color: var(--color-primary);
     cursor: pointer;
 }
 
@@ -1127,7 +1127,7 @@
 
 .filter-input-v2:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
     background: white;
 }
 
@@ -1175,7 +1175,7 @@
 }
 
 .purchase-table-v2 tbody tr.selected {
-    background: #eff6ff;
+    background: var(--color-primary-light);
 }
 
 .col-checkbox {
@@ -1206,7 +1206,7 @@
 }
 
 .order-number-v2 {
-    color: #3b82f6;
+    color: var(--color-primary);
     font-weight: 500;
     cursor: pointer;
 }
@@ -1221,7 +1221,7 @@
 }
 
 .col-supplier-code {
-    color: #3b82f6;
+    color: var(--color-primary);
     font-family: monospace;
     font-size: 0.75rem;
 }
@@ -1325,7 +1325,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border-radius: 4px;
     font-size: 0.8rem;
@@ -1443,6 +1443,27 @@
     opacity: 0.9;
 }
 
+.purchase-date-picker {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    color: white;
+    padding: 4px 8px;
+    font-size: 0.85rem;
+    outline: none;
+    cursor: pointer;
+}
+
+.purchase-date-picker:focus {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: white;
+}
+
+.purchase-date-picker::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
+
 /* Create Content - Two Column Layout */
 .create-content {
     flex: 1;
@@ -1459,7 +1480,7 @@
 }
 
 .create-right {
-    width: 280px;
+    width: 420px;
     background: #fafafa;
     border-left: 1px solid #e5e7eb;
     padding: 1rem;
@@ -1518,6 +1539,30 @@
 .create-product-table .col-action {
     width: 40px;
     text-align: center;
+}
+
+.btn-add-row-below {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background: #4285f4;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.btn-add-row-below:hover {
+    background: #3367d6;
+}
+
+.btn-add-row-below:active {
+    transform: translateY(1px);
 }
 
 .inline-select {
@@ -1591,7 +1636,7 @@
 }
 
 .empty-products a {
-    color: #3b82f6;
+    color: var(--color-primary);
 }
 
 .btn-import-excel {
@@ -1718,7 +1763,7 @@
 }
 
 .info-value.code-active {
-    color: #3b82f6;
+    color: var(--color-primary);
     font-weight: 600;
     font-family: monospace;
 }
@@ -1747,7 +1792,7 @@
 }
 
 .info-value.status-temp {
-    color: #3b82f6;
+    color: var(--color-primary);
 }
 
 .info-input {
@@ -1762,7 +1807,7 @@
 .info-amount {
     font-size: 0.85rem;
     font-weight: 600;
-    color: #3b82f6;
+    color: var(--color-primary);
 }
 
 .info-row.highlight {
@@ -1773,7 +1818,7 @@
 
 .total-pay {
     font-size: 1rem;
-    color: #3b82f6;
+    color: var(--color-primary);
 }
 
 .note-section {
@@ -1808,7 +1853,7 @@
 
 .btn-save-temp {
     padding: 0.875rem 2rem;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border: none;
     border-radius: 6px;
@@ -1821,7 +1866,7 @@
 }
 
 .btn-save-temp:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .btn-complete {
@@ -1859,8 +1904,8 @@
 
 .supplier-search-input:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
 }
 
 .supplier-dropdown-list {
@@ -1872,7 +1917,8 @@
     border: 1px solid #e5e7eb;
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 100;
+    z-index: 1050;
+    /* Increased z-index */
     max-height: 200px;
     overflow-y: auto;
 }
@@ -1950,12 +1996,12 @@
 .quick-supplier-form .form-input:focus,
 .quick-supplier-form .form-textarea:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .quick-supplier-form .required-input {
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .quick-supplier-form .form-textarea {
@@ -2024,13 +2070,13 @@
 }
 
 .quick-supplier-form .btn-primary {
-    background: #3b82f6;
+    background: var(--color-primary);
     border: none;
     color: white;
 }
 
 .quick-supplier-form .btn-primary:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .quick-supplier-form .btn-primary:disabled {
@@ -2095,7 +2141,7 @@
 .btn-add-importer {
     width: 32px;
     height: 32px;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border: none;
     border-radius: 6px;
@@ -2109,7 +2155,7 @@
 }
 
 .btn-add-importer:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 /* Quick Add Importer Modal */
@@ -2153,12 +2199,12 @@
 
 .quick-importer-form .form-input:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .quick-importer-form .required-input {
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .quick-importer-form .form-actions {
@@ -2189,13 +2235,13 @@
 }
 
 .quick-importer-form .btn-primary {
-    background: #3b82f6;
+    background: var(--color-primary);
     border: none;
     color: white;
 }
 
 .quick-importer-form .btn-primary:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .quick-importer-form .btn-primary:disabled {
@@ -2226,8 +2272,8 @@
 
 .importer-input-form:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
 }
 
 .importer-dropdown-list-form {
@@ -2267,7 +2313,7 @@
 .btn-add-importer-form {
     width: 32px;
     height: 32px;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border: none;
     border-radius: 6px;
@@ -2281,14 +2327,14 @@
 }
 
 .btn-add-importer-form:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 /* Store Add Button - Blue */
 .btn-add-store-form {
     width: 32px;
     height: 32px;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border: none;
     border-radius: 6px;
@@ -2302,7 +2348,7 @@
 }
 
 .btn-add-store-form:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 /* Quick Add Store Modal */
@@ -2346,12 +2392,12 @@
 
 .quick-store-form .form-input:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .quick-store-form .required-input {
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .quick-store-form .form-actions {
@@ -2382,13 +2428,13 @@
 }
 
 .quick-store-form .btn-primary {
-    background: #3b82f6;
+    background: var(--color-primary);
     border: none;
     color: white;
 }
 
 .quick-store-form .btn-primary:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .quick-store-form .btn-primary:disabled {
@@ -2408,12 +2454,13 @@
     padding: 0.375rem 0.5rem;
     font-size: 0.85rem;
     border-radius: 4px;
+    text-align: left;
 }
 
 .product-code-input:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
 }
 
 .product-dropdown-list {
@@ -2441,7 +2488,7 @@
 }
 
 .product-dropdown-item:hover {
-    background: #eff6ff;
+    background: var(--color-primary-light);
 }
 
 .product-dropdown-item:last-child {
@@ -2473,7 +2520,7 @@
 .btn-add-product-header {
     width: 36px;
     height: 36px;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border: none;
     border-radius: 6px;
@@ -2487,7 +2534,7 @@
 }
 
 .btn-add-product-header:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 /* Quick Add Product Modal */
@@ -2519,12 +2566,12 @@
 }
 
 .product-tab:hover {
-    color: #3b82f6;
+    color: var(--color-primary);
 }
 
 .product-tab.active {
-    color: #3b82f6;
-    border-bottom-color: #3b82f6;
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
     font-weight: 500;
 }
 
@@ -2564,7 +2611,7 @@
 
 .quick-product-modal .link-text {
     font-size: 0.75rem;
-    color: #3b82f6;
+    color: var(--color-primary);
     cursor: pointer;
 }
 
@@ -2581,12 +2628,12 @@
 
 .quick-product-modal .form-input:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .quick-product-modal .required-input {
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .quick-product-modal .form-textarea {
@@ -2600,7 +2647,7 @@
 
 .quick-product-modal .form-textarea:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 /* Sections */
@@ -2683,7 +2730,7 @@
 .product-modal-footer .checkbox-label input[type="checkbox"] {
     width: 18px;
     height: 18px;
-    accent-color: #3b82f6;
+    accent-color: var(--color-primary);
 }
 
 .product-modal-footer .footer-right {
@@ -2710,13 +2757,13 @@
 }
 
 .quick-product-modal .btn-primary {
-    background: #3b82f6;
+    background: var(--color-primary);
     border: none;
     color: white;
 }
 
 .quick-product-modal .btn-primary:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .quick-product-modal .btn-primary:disabled {
@@ -2821,7 +2868,7 @@
 
 .price-input-field:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .price-list-popup-footer {
@@ -2851,18 +2898,18 @@
 }
 
 .price-list-popup-footer .btn-primary {
-    background: #3b82f6;
+    background: var(--color-primary);
     border: none;
     color: white;
 }
 
 .price-list-popup-footer .btn-primary:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 /* Confirm Purchase Button */
 .col-actions {
-    width: 120px;
+    width: 180px;
     text-align: center;
 }
 
@@ -2893,4 +2940,53 @@
     color: #10b981;
     font-size: 0.8rem;
     font-weight: 500;
+}
+
+.btn-edit-purchase {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: #f59e0b;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-left: 6px;
+}
+
+.btn-edit-purchase:hover {
+    background: #d97706;
+}
+
+.btn-edit-purchase svg {
+    font-size: 12px;
+}
+
+.unit-input {
+    width: 60px;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.quantity-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.unit-badge {
+    position: absolute;
+    right: 12px;
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: #64748b;
+    pointer-events: none;
 }

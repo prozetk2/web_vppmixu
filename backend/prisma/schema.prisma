@@ -359,7 +359,7 @@ model Product {
   productType         String?   @default("GOODS") @map("product_type") // GOODS, SERVICE, COMBO
   barcode             String?   // Mã vạch
   brand               String?   // Thương hiệu
-  unit                String?   // ĐVT
+  unit                String?   @default("Cái") // ĐVT
   baseUnitCode        String?   @map("base_unit_code") // Mã ĐVT cơ bản
   conversionRate      Decimal?  @default(1) @map("conversion_rate") // Quy đổi
   minStock            Int?      @default(0) @map("min_stock") // Tồn nhỏ nhất
@@ -542,6 +542,7 @@ model PurchaseItem {
   variantId       BigInt  @map("variant_id")
   quantity        BigInt
   unitCost        Decimal @map("unit_cost")
+  unit            String?
   totalCost       Decimal @map("total_cost")
 
   purchaseOrder PurchaseOrder  @relation(fields: [purchaseOrderId], references: [id])

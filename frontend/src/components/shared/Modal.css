@@ -59,7 +59,7 @@
 }
 
 .modal-xl {
-    width: 700px;
+    width: 1100px;
 }
 
 .modal-header {
@@ -68,7 +68,7 @@
     justify-content: space-between;
     padding: 16px 20px;
     border-bottom: none;
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
 }
 
 .modal-title {
@@ -162,7 +162,7 @@
 }
 
 .modal-body .btn-primary {
-    background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
     color: #fff;
 }
 

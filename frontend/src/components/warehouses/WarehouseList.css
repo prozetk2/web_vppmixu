@@ -24,7 +24,7 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    background: var(--primary, #3b82f6);
+    background: var(--primary, var(--color-primary));
     color: white;
     border: none;
     border-radius: 8px;
@@ -34,7 +34,7 @@
 }
 
 .btn-add:hover {
-    background: var(--primary-dark, #2563eb);
+    background: var(--primary-dark, var(--color-primary-dark));
 }
 
 /* Table */
@@ -87,7 +87,7 @@
     min-width: 32px;
     padding: 0.25rem 0.5rem;
     background: var(--primary-bg, #dbeafe);
-    color: var(--primary, #2563eb);
+    color: var(--primary, var(--color-primary-dark));
     border-radius: 12px;
     font-size: 0.875rem;
     font-weight: 600;
@@ -109,12 +109,12 @@
 
 .btn-edit {
     background: var(--info-bg, #dbeafe);
-    color: var(--info, #2563eb);
+    color: var(--info, var(--color-primary-dark));
     border: none;
 }
 
 .btn-edit:hover {
-    background: var(--info, #2563eb);
+    background: var(--info, var(--color-primary-dark));
     color: white;
 }
 
@@ -224,7 +224,7 @@
     width: 40px;
     height: 40px;
     border: 3px solid var(--border-color, #e5e7eb);
-    border-top-color: var(--primary, #3b82f6);
+    border-top-color: var(--primary, var(--color-primary));
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     margin-bottom: 1rem;
@@ -269,8 +269,8 @@
 
 .form-input:focus {
     outline: none;
-    border-color: var(--primary, #3b82f6);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--primary, var(--color-primary));
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .form-input.error {
@@ -311,13 +311,13 @@
 }
 
 .btn-primary {
-    background: var(--primary, #3b82f6);
+    background: var(--primary, var(--color-primary));
     border: none;
     color: white;
 }
 
 .btn-primary:hover {
-    background: var(--primary-dark, #2563eb);
+    background: var(--primary-dark, var(--color-primary-dark));
 }
 
 .btn:disabled {

@@ -515,39 +515,78 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
             console.log('Total parsed customers:', parsedCustomers.length);
             console.log('First customer sample:', parsedCustomers[0]);
 
-            // Bulk create customers
-            let successCount = 0;
+            // Lấy danh sách khách hàng hiện có để check trùng lặp (Upsert)
+            let existingCustomers: any[] = [];
+            try {
+                const res = await customersAPI.getAll();
+                existingCustomers = res.data?.data || res.data || [];
+            } catch (err) {
+                console.error('Lỗi khi lấy danh sách khách hàng để check trùng', err);
+            }
+
+            const codeMap = new Map();
+            const phoneMap = new Map();
+            existingCustomers.forEach(c => {
+                if (c.code) codeMap.set(c.code.toLowerCase(), c);
+                if (c.phone) phoneMap.set(c.phone.replace(/\D/g, ''), c);
+            });
+
+            // Lọc các khách hàng trùng lặp trong chính file excel (ưu tiên dòng ở dưới - dòng mới nhất)
+            const uniqueParsed = [];
+            const seenCode = new Set();
+            const seenPhone = new Set();
+
+            for (let i = parsedCustomers.length - 1; i >= 0; i--) {
+                const c = parsedCustomers[i];
+                if (!c.name) continue;
+
+                let isDuplicate = false;
+                if (c.code) {
+                    const cleanCode = c.code.toString().toLowerCase();
+                    if (seenCode.has(cleanCode)) isDuplicate = true;
+                    seenCode.add(cleanCode);
+                }
+                if (c.phone && !isDuplicate) {
+                    const cleanPhone = c.phone.toString().replace(/\D/g, '');
+                    if (seenPhone.has(cleanPhone)) isDuplicate = true;
+                    seenPhone.add(cleanPhone);
+                }
+
+                if (!isDuplicate) {
+                    uniqueParsed.unshift(c);
+                }
+            }
+
+            // Bulk create/update customers
+            let createdCount = 0;
+            let updatedCount = 0;
             let failCount = 0;
             const errors: string[] = [];
 
-            for (const customer of parsedCustomers) {
-                if (!customer.name) continue;
+            for (const customer of uniqueParsed) {
+                let existing = null;
+                if (customer.code) {
+                    existing = codeMap.get(customer.code.toString().toLowerCase());
+                }
+                if (!existing && customer.phone) {
+                    existing = phoneMap.get(customer.phone.toString().replace(/\D/g, ''));
+                }
 
-                let retryCount = 0;
-                let success = false;
-
-                while (!success && retryCount < 3) {
-                    try {
-                        console.log('Importing customer:', customer);
+                try {
+                    if (existing) {
+                        console.log('Updating customer:', existing.code || existing.name);
+                        await customersAPI.update(existing.id, customer as any);
+                        updatedCount++;
+                    } else {
+                        console.log('Creating customer:', customer.code || customer.name);
                         await customersAPI.create(customer as any);
-                        successCount++;
-                        success = true;
-                    } catch (error: any) {
-                        const errorMsg = error.response?.data?.message || error.message;
-                        console.error('Import error for customer:', customer.name, errorMsg);
-
-                        // Nếu lỗi duplicate code, thử thêm suffix
-                        if (errorMsg.includes('code') && errorMsg.includes('unique') && retryCount < 2) {
-                            retryCount++;
-                            customer.code = (customer.code || '') + `_${retryCount}`;
-                            console.log('Retrying with new code:', customer.code);
-                        } else {
-                            failCount++;
-                            if (errors.length < 5) {
-                                errors.push(`${customer.name}: ${errorMsg}`);
-                            }
-                            break;
-                        }
+                        createdCount++;
+                    }
+                } catch (error: any) {
+                    failCount++;
+                    const errorMsg = error.response?.data?.message || error.message;
+                    if (errors.length < 5) {
+                        errors.push(`${customer.name}: ${errorMsg}`);
                     }
                 }
             }
@@ -556,8 +595,9 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
                 console.log('First 5 errors:', errors);
             }
 
-            setImportNote(`✅ Import thành công ${successCount} khách hàng${failCount > 0 ? ` (${failCount} lỗi)` : ''}`);
-            toast.success(`Import thành công ${successCount} khách hàng`);
+            const totalSuccess = createdCount + updatedCount;
+            setImportNote(`✅ Import thành công ${totalSuccess} khách hàng (${createdCount} tạo mới, ${updatedCount} cập nhật)${failCount > 0 ? `, thất bại ${failCount} lỗi` : ''}`);
+            toast.success(`Import hoàn tất: ${createdCount} mới, ${updatedCount} cập nhật!`);
             fetchCustomers();
         } catch (error: any) {
             setImportNote(`❌ Lỗi: ${error.message}`);
@@ -1455,7 +1495,7 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
                 isOpen={isFormOpen}
                 onClose={closeFormModal}
                 title={editingCustomer ? 'Sửa khách hàng' : 'Thêm khách hàng'}
-                size="sm"
+                size="md"
             >
                 <form onSubmit={handleSubmit} className="customer-form">
                     <div className="form-row">

@@ -30,6 +30,10 @@ export class AdjustStockDto {
     storeId?: string;
 
     @IsOptional()
+    @IsString()
+    unit?: string;
+
+    @IsOptional()
     @Type(() => Number)
     unitCost?: number;
 }

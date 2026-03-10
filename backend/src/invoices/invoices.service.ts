@@ -214,7 +214,7 @@ export class InvoicesService {
         // Generate invoice number if not provided
         if (!invoiceData.invoiceNumber) {
             const count = await this.prisma.invoice.count();
-            invoiceData.invoiceNumber = `HD${String(count + 1).padStart(6, '0')}`;
+            invoiceData.invoiceNumber = `HD${String(count + 1).padStart(8, '0')}`;
         }
 
         // Parse customerDob if provided
@@ -255,6 +255,7 @@ export class InvoicesService {
                     eInvoiceStatus: invoiceData.eInvoiceStatus,
                     paymentMethod: invoiceData.paymentMethod,
                     issuedAt,
+                    createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,
                     items: items?.length
                         ? {
                             create: items.map((item) => ({
@@ -342,6 +343,7 @@ export class InvoicesService {
                 issuedAt,
                 // Convert storeId string to BigInt if provided
                 storeId: storeId ? BigInt(storeId) : undefined,
+                createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,
                 // Update items if provided
                 items: items?.length
                     ? {

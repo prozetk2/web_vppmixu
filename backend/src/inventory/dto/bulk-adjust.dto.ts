@@ -31,6 +31,10 @@ export class BulkAdjustItemDto {
     @IsOptional()
     @IsString()
     storeId?: string;
+
+    @IsOptional()
+    @IsString()
+    unit?: string;
 }
 
 export class BulkAdjustStockDto {

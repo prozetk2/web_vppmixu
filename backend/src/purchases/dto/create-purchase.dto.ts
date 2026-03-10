@@ -9,6 +9,10 @@ export class PurchaseItemDto {
     @Min(1)
     quantity: number;
 
+    @IsString()
+    @IsOptional()
+    unit?: string;
+
     @IsNumber()
     @Min(0)
     unitCost: number;
@@ -39,4 +43,8 @@ export class CreatePurchaseDto {
     @IsOptional()
     @IsString()
     paymentMethod?: string; // CASH, TRANSFER, etc.
+
+    @IsOptional()
+    @IsString()
+    createdAt?: string;
 }

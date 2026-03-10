@@ -17,8 +17,8 @@ export class PurchaseQueryDto {
     supplierId?: string;
 
     @IsOptional()
-    @IsEnum(PurchaseStatus)
-    status?: PurchaseStatus;
+    @IsString()
+    status?: string;
 
     @IsOptional()
     @IsDateString()

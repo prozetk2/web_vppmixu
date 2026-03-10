@@ -53,8 +53,8 @@
 
 .header-actions .search-box input:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
 }
 
 .header-actions {
@@ -69,7 +69,7 @@
     align-items: center;
     gap: 0.25rem;
     padding: 0.4375rem 0.625rem;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border: none;
     border-radius: 4px;
@@ -83,7 +83,7 @@
 }
 
 .btn-primary:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .btn-outline-primary {
@@ -91,12 +91,12 @@
     align-items: center;
     gap: 0.25rem;
     padding: 0.4375rem 0.625rem;
-    background: #eff6ff;
+    background: var(--color-primary-light);
     /* Light blue tint matching KiotViet selected state or just white */
     background: white;
     /* Let's start with white as per image analysis likely */
-    color: #3b82f6;
-    border: 1px solid #3b82f6;
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
     border-radius: 4px;
     font-size: 0.8125rem;
     font-weight: 600;
@@ -189,7 +189,7 @@
 
 .link-add {
     font-size: 0.75rem;
-    color: #3b82f6;
+    color: var(--color-primary);
     font-weight: 500;
     text-decoration: none;
 }
@@ -211,7 +211,7 @@
 }
 
 .price-list-selector:hover {
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .selected-tag {
@@ -219,7 +219,7 @@
     align-items: center;
     gap: 0.375rem;
     padding: 0.25rem 0.5rem;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border-radius: 4px;
     font-size: 0.75rem;
@@ -249,11 +249,52 @@
     background: white;
     border: 1px solid #e5e7eb;
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    z-index: 100;
-    margin-top: 0.25rem;
-    max-height: 200px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    z-index: 1000;
+    margin-top: 0.5rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.dropdown-search {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+    background: #f9fafb;
+}
+
+.dropdown-search svg {
+    color: #9ca3af;
+    margin-right: 0.5rem;
+    font-size: 1rem;
+}
+
+.dropdown-search input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 0.8125rem;
+    color: #374151;
+    padding: 0.25rem 0;
+}
+
+.dropdown-search input:focus {
+    outline: none;
+}
+
+.dropdown-items {
+    max-height: 250px;
     overflow-y: auto;
+}
+
+.dropdown-empty {
+    padding: 1rem;
+    text-align: center;
+    font-size: 0.8125rem;
+    color: #9ca3af;
+    font-style: italic;
 }
 
 .filter-section {
@@ -274,8 +315,8 @@
 }
 
 .dropdown-item.active {
-    background: #eff6ff;
-    color: #3b82f6;
+    background: var(--color-primary-light);
+    color: var(--color-primary);
 }
 
 .badge-default {
@@ -286,6 +327,46 @@
     font-size: 0.625rem;
     font-weight: 600;
     text-transform: uppercase;
+}
+
+.dropdown-item-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dropdown-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex-shrink: 0;
+}
+
+.btn-delete-price-list {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 0.875rem;
+    padding: 0;
+    transition: all 0.15s;
+    opacity: 0;
+}
+
+.dropdown-item:hover .btn-delete-price-list {
+    opacity: 1;
+}
+
+.btn-delete-price-list:hover {
+    background: #fef2f2;
+    color: #ef4444;
 }
 
 .filter-select {
@@ -301,7 +382,7 @@
 
 .filter-select:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .filter-input {
@@ -315,7 +396,7 @@
 
 .filter-input:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 /* Sidebar Save Button */
@@ -400,7 +481,7 @@
 
 .data-table .filter-row input:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .data-table tbody tr:hover {
@@ -409,7 +490,7 @@
 
 .col-sku {
     width: 120px;
-    color: #3b82f6;
+    color: var(--color-primary);
     font-weight: 500;
 }
 
@@ -440,7 +521,7 @@
 
 .price-input:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
     background: white;
 }
 
@@ -500,8 +581,8 @@
 }
 
 .pagination-pages button.active {
-    background: #3b82f6;
-    border-color: #3b82f6;
+    background: var(--color-primary);
+    border-color: var(--color-primary);
     color: white;
 }
 
@@ -619,8 +700,8 @@
 .form-group input:focus,
 .form-group textarea:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
 }
 
 .form-group textarea {

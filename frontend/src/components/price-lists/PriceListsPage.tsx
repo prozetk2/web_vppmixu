@@ -41,6 +41,7 @@ export default function PriceListsPage() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingPriceList, setEditingPriceList] = useState<Partial<PriceList> | null>(null);
     const [showPriceListDropdown, setShowPriceListDropdown] = useState(false);
+    const [priceListSearchTerm, setPriceListSearchTerm] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Filters
@@ -185,6 +186,7 @@ export default function PriceListsPage() {
             setProductPrices(prices);
             setSelectedPriceList(priceListId);
             setShowPriceListDropdown(false);
+            setPriceListSearchTerm('');
         } catch (error) {
             toast.error('Không thể tải giá sản phẩm');
         }
@@ -254,6 +256,15 @@ export default function PriceListsPage() {
     };
 
     const selectedPriceListName = priceLists.find(pl => pl.id === selectedPriceList)?.name || 'Bảng giá chung';
+
+    const filteredPriceLists = useMemo(() => {
+        if (!priceListSearchTerm.trim()) return priceLists;
+        const term = priceListSearchTerm.toLowerCase();
+        return priceLists.filter(pl =>
+            pl.name.toLowerCase().includes(term) ||
+            pl.code.toLowerCase().includes(term)
+        );
+    }, [priceLists, priceListSearchTerm]);
 
     const handleExport = async () => {
         if (!selectedPriceList) {
@@ -574,28 +585,60 @@ export default function PriceListsPage() {
                                 setShowAddModal(true);
                             }}>Tạo mới</a>
                         </div>
-                        <div className="price-list-selector" onClick={() => setShowPriceListDropdown(!showPriceListDropdown)}>
+                        <div
+                            className="price-list-selector"
+                            onClick={() => {
+                                setShowPriceListDropdown(!showPriceListDropdown);
+                                if (!showPriceListDropdown) setPriceListSearchTerm('');
+                            }}
+                        >
                             <span className="selected-tag">
                                 {selectedPriceListName}
-                                <button className="btn-remove-tag" onClick={(e) => {
-                                    e.stopPropagation();
-                                    // Keep selection, don't remove
-                                }}>×</button>
                             </span>
                             <MdExpandMore />
                         </div>
                         {showPriceListDropdown && (
-                            <div className="dropdown-menu">
-                                {priceLists.map(pl => (
-                                    <div
-                                        key={pl.id}
-                                        className={`dropdown-item ${selectedPriceList === pl.id ? 'active' : ''}`}
-                                        onClick={() => loadPriceListProducts(pl.id)}
-                                    >
-                                        {pl.name}
-                                        {pl.isDefault && <span className="badge-default">Mặc định</span>}
-                                    </div>
-                                ))}
+                            <div className="dropdown-menu price-list-dropdown">
+                                <div className="dropdown-search">
+                                    <MdSearch />
+                                    <input
+                                        type="text"
+                                        placeholder="Tìm bảng giá..."
+                                        autoFocus
+                                        value={priceListSearchTerm}
+                                        onChange={(e) => setPriceListSearchTerm(e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                </div>
+                                <div className="dropdown-items">
+                                    {filteredPriceLists.map(pl => (
+                                        <div
+                                            key={pl.id}
+                                            className={`dropdown-item ${selectedPriceList === pl.id ? 'active' : ''}`}
+                                            onClick={() => loadPriceListProducts(pl.id)}
+                                        >
+                                            <span className="dropdown-item-name">{pl.name}</span>
+                                            <span className="dropdown-item-actions">
+                                                {pl.isDefault && <span className="badge-default">Mặc định</span>}
+                                                {!pl.isDefault && (
+                                                    <button
+                                                        className="btn-delete-price-list"
+                                                        title="Xóa bảng giá"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeletePriceList(pl.id);
+                                                        }}
+                                                    >
+                                                        <MdDelete />
+                                                    </button>
+                                                )}
+                                            </span>
+                                        </div>
+                                    ))}
+                                    {filteredPriceLists.length === 0 && (
+                                        <div className="dropdown-empty">Không tìm thấy bảng giá</div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>

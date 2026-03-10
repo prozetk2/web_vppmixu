@@ -8,11 +8,12 @@ import { UpdatePurchaseDto } from './dto/update-purchase.dto';
 export class PurchasesService {
     constructor(private readonly prisma: PrismaService) { }
 
-    // Generate purchase order number: PN + YYYYMMDD + sequence
+    // Generate purchase order number: PN + YYMM + 4-digit sequence (10 digits total)
     private async generateOrderNumber(): Promise<string> {
         const today = new Date();
-        const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-        const prefix = `PN${dateStr}`;
+        const yyStr = today.getFullYear().toString().slice(-2);
+        const mmStr = String(today.getMonth() + 1).padStart(2, '0');
+        const prefix = `PN${yyStr}${mmStr}`; // e.g. "PN2410"
 
         const lastOrder = await this.prisma.purchaseOrder.findFirst({
             where: {
@@ -80,20 +81,21 @@ export class PurchasesService {
                 variantId: info.variant.id,
                 quantity: BigInt(item.quantity),
                 unitCost: item.unitCost,
+                unit: item.unit,
                 totalCost,
             });
         }
 
-        // Determine initial status and amountPaid based on prepayment
+        // Determine payment status
         const prepaymentAmount = dto.prepaymentAmount || 0;
-        let initialStatus = 'PENDING';
+        let initialStatus = 'CONFIRMED';
         if (prepaymentAmount >= totalAmount) {
             initialStatus = 'PAID';
         } else if (prepaymentAmount > 0) {
             initialStatus = 'PARTIAL';
         }
 
-        // Create purchase order with transaction to handle prepayment
+        // Create purchase order with auto-confirm and inventory update
         const orderNumber = await this.generateOrderNumber();
 
         return this.prisma.$transaction(async (tx) => {
@@ -107,6 +109,8 @@ export class PurchasesService {
                     amountPaid: prepaymentAmount,
                     amountDue: totalAmount - prepaymentAmount,
                     note: dto.note,
+                    createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,
+                    confirmedAt: new Date(),
                     purchaseItems: {
                         create: purchaseItems,
                     },
@@ -137,6 +141,63 @@ export class PurchasesService {
                 });
             }
 
+            // Auto-confirm: Add inventory (nhập kho tự động)
+            let warehouseId = dto.warehouseId ? BigInt(dto.warehouseId) : null;
+            if (!warehouseId) {
+                const firstWh = await tx.warehouse.findFirst({ orderBy: { createdAt: 'asc' } });
+                if (firstWh) warehouseId = firstWh.id;
+            }
+
+            if (!warehouseId) {
+                throw new BadRequestException('NO_WAREHOUSE_AVAILABLE');
+            }
+
+            for (const item of purchaseItems) {
+                let inv = await tx.inventory.findFirst({
+                    where: {
+                        variantId: item.variantId,
+                        warehouseId: warehouseId,
+                    },
+                });
+
+                if (!inv) {
+                    inv = await tx.inventory.create({
+                        data: {
+                            variantId: item.variantId,
+                            warehouseId: warehouseId,
+                            quantity: 0,
+                        },
+                    });
+                }
+
+                // Add stock
+                await tx.inventory.update({
+                    where: { id: inv.id },
+                    data: { quantity: { increment: Number(item.quantity) } },
+                });
+
+                // Record stock movement
+                await tx.stockMovement.create({
+                    data: {
+                        movementType: 'PURCHASE',
+                        variantId: item.variantId,
+                        toWarehouseId: warehouseId,
+                        quantity: Number(item.quantity),
+                        unitCost: item.unitCost,
+                        note: `Nhập hàng: ${orderNumber}`,
+                    },
+                });
+            }
+
+            // Update supplier debt
+            await tx.supplier.update({
+                where: { id: BigInt(dto.supplierId) },
+                data: {
+                    currentDebt: { increment: totalAmount },
+                    totalPurchase: { increment: totalAmount },
+                },
+            });
+
             return order;
         });
     }
@@ -156,7 +217,7 @@ export class PurchasesService {
         }
 
         if (status) {
-            where.status = status;
+            where.status = { in: status.split(',') };
         }
 
         if (fromDate || toDate) {
@@ -223,9 +284,11 @@ export class PurchasesService {
     async update(id: string, dto: UpdatePurchaseDto) {
         const order = await this.findOne(id);
 
-        if (order.status !== 'PENDING') {
-            throw new BadRequestException('CAN_ONLY_UPDATE_PENDING_ORDER');
+        if (order.status === 'CANCELLED') {
+            throw new BadRequestException('CANNOT_UPDATE_CANCELLED_ORDER');
         }
+
+        const isConfirmed = order.status === 'CONFIRMED';
 
         // Build update data
         const updateData: any = {};
@@ -234,6 +297,7 @@ export class PurchasesService {
             updateData.warehouseId = dto.warehouseId ? BigInt(dto.warehouseId) : null;
         }
         if (dto.note !== undefined) updateData.note = dto.note;
+        if (dto.createdAt) updateData.createdAt = new Date(dto.createdAt);
 
         // If items are provided, recalculate
         if (dto.items && dto.items.length > 0) {
@@ -267,14 +331,59 @@ export class PurchasesService {
                     variantId: info.variant.id,
                     quantity: BigInt(item.quantity),
                     unitCost: item.unitCost,
+                    unit: item.unit,
                     totalCost,
                 });
             }
 
             updateData.totalAmount = totalAmount;
 
-            // Transaction: delete old items, create new
             return this.prisma.$transaction(async (tx) => {
+                // If order was CONFIRMED, reverse old inventory first
+                if (isConfirmed) {
+                    let warehouseId = order.warehouseId;
+                    if (!warehouseId) {
+                        const firstWh = await tx.warehouse.findFirst({ orderBy: { createdAt: 'asc' } });
+                        if (firstWh) warehouseId = firstWh.id;
+                    }
+
+                    if (warehouseId) {
+                        // Reverse old inventory: decrement stock for each old item
+                        for (const oldItem of order.purchaseItems) {
+                            const inv = await tx.inventory.findFirst({
+                                where: {
+                                    variantId: oldItem.variantId,
+                                    warehouseId: warehouseId,
+                                },
+                            });
+                            if (inv) {
+                                await tx.inventory.update({
+                                    where: { id: inv.id },
+                                    data: { quantity: { decrement: Number(oldItem.quantity) } },
+                                });
+                            }
+                        }
+
+                        // Delete old stock movements for this order
+                        await tx.stockMovement.deleteMany({
+                            where: {
+                                note: { contains: order.orderNumber || '' },
+                                movementType: 'PURCHASE',
+                            },
+                        });
+                    }
+
+                    // Reverse supplier debt
+                    await tx.supplier.update({
+                        where: { id: order.supplierId },
+                        data: {
+                            currentDebt: { decrement: Number(order.totalAmount) },
+                            totalPurchase: { decrement: Number(order.totalAmount) },
+                        },
+                    });
+                }
+
+                // Delete old items and create new ones
                 await tx.purchaseItem.deleteMany({
                     where: { purchaseOrderId: BigInt(id) },
                 });
@@ -286,6 +395,61 @@ export class PurchasesService {
                         purchaseItems: { create: purchaseItems },
                     },
                 });
+
+                // If order was CONFIRMED, re-apply inventory with new items
+                if (isConfirmed) {
+                    let warehouseId = order.warehouseId;
+                    if (!warehouseId) {
+                        const firstWh = await tx.warehouse.findFirst({ orderBy: { createdAt: 'asc' } });
+                        if (firstWh) warehouseId = firstWh.id;
+                    }
+
+                    if (warehouseId) {
+                        for (const newItem of purchaseItems) {
+                            let inv = await tx.inventory.findFirst({
+                                where: {
+                                    variantId: newItem.variantId,
+                                    warehouseId: warehouseId,
+                                },
+                            });
+
+                            if (!inv) {
+                                inv = await tx.inventory.create({
+                                    data: {
+                                        variantId: newItem.variantId,
+                                        warehouseId: warehouseId,
+                                        quantity: 0,
+                                    },
+                                });
+                            }
+
+                            await tx.inventory.update({
+                                where: { id: inv.id },
+                                data: { quantity: { increment: Number(newItem.quantity) } },
+                            });
+
+                            await tx.stockMovement.create({
+                                data: {
+                                    movementType: 'PURCHASE',
+                                    variantId: newItem.variantId,
+                                    toWarehouseId: warehouseId,
+                                    quantity: Number(newItem.quantity),
+                                    unitCost: newItem.unitCost,
+                                    note: `Nhập hàng: ${order.orderNumber}`,
+                                },
+                            });
+                        }
+                    }
+
+                    // Re-apply supplier debt with new total
+                    await tx.supplier.update({
+                        where: { id: order.supplierId },
+                        data: {
+                            currentDebt: { increment: totalAmount },
+                            totalPurchase: { increment: totalAmount },
+                        },
+                    });
+                }
 
                 return this.findOne(id);
             });

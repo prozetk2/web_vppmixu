@@ -35,8 +35,8 @@
 .form-input:focus,
 .form-textarea:focus {
     outline: none;
-    border-color: var(--primary, #3b82f6);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: var(--primary, var(--color-primary));
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .form-input.error,
@@ -70,12 +70,12 @@
 }
 
 .type-btn:hover {
-    border-color: var(--primary, #3b82f6);
+    border-color: var(--primary, var(--color-primary));
     background: var(--bg-hover, #f9fafb);
 }
 
 .type-btn.active {
-    border-color: var(--primary, #3b82f6);
+    border-color: var(--primary, var(--color-primary));
     background: rgba(59, 130, 246, 0.05);
 }
 
@@ -140,13 +140,13 @@
 }
 
 .btn-primary {
-    background: var(--primary, #3b82f6);
+    background: var(--primary, var(--color-primary));
     border: none;
     color: white;
 }
 
 .btn-primary:hover {
-    background: var(--primary-dark, #2563eb);
+    background: var(--primary-dark, var(--color-primary-dark));
 }
 
 .btn:disabled {
@@ -390,4 +390,20 @@
 
 .product-option.no-result:hover {
     background: white;
+}
+.quantity-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.unit-badge {
+    position: absolute;
+    right: 12px;
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: #64748b;
+    pointer-events: none;
 }

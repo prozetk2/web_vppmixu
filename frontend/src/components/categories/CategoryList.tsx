@@ -147,7 +147,7 @@ export default function CategoryList() {
                     )}
                 </div>
                 <div className="header-actions">
-                    <button onClick={handleAdd} className="btn-outline-primary" style={{ fontWeight: 'bold', color: '#009ddc', borderColor: '#009ddc' }}>
+                    <button onClick={handleAdd} className="btn-outline-primary" style={{ fontWeight: 'bold', color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}>
                         <MdAdd /> Thêm danh mục
                     </button>
                     <button className="btn-icon" onClick={fetchCategories} title="Làm mới">

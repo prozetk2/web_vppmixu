@@ -7,11 +7,12 @@ import { OrderQueryDto, OrderStatus } from './dto/order-query.dto';
 export class SalesService {
     constructor(private readonly prisma: PrismaService) { }
 
-    // Generate order number: HD + YYYYMMDD + sequence
+    // Generate order number: HD + YYMM + 4-digit sequence (10 digits total)
     private async generateOrderNumber(): Promise<string> {
         const today = new Date();
-        const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-        const prefix = `HD${dateStr}`;
+        const yyStr = today.getFullYear().toString().slice(-2);
+        const mmStr = String(today.getMonth() + 1).padStart(2, '0');
+        const prefix = `HD${yyStr}${mmStr}`; // e.g. "HD2410"
 
         const lastOrder = await this.prisma.order.findFirst({
             where: {
@@ -124,6 +125,8 @@ export class SalesService {
                     discountAmount,
                     taxAmount,
                     totalAmount,
+                    storeId: dto.storeId ? BigInt(dto.storeId) : undefined,
+                    createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,
                     orderItems: {
                         create: orderItems,
                     },

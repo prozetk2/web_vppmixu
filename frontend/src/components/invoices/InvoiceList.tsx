@@ -465,7 +465,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
             XLSX.utils.book_append_sheet(wb, ws, 'Hóa đơn');
             XLSX.writeFile(wb, `hoa_don_tong_quan_${new Date().toISOString().split('T')[0]}.xlsx`);
         } else {
-            // Detailed export - need to flatten items
+            // Detailed export - clean columns
             const exportData: any[] = [];
 
             invoices.forEach((inv) => {
@@ -473,31 +473,10 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                     'Chi nhánh': inv.branch || '',
                     'Mã hóa đơn': inv.invoiceNumber,
                     'Thời gian': formatDate(inv.issuedAt || inv.createdAt),
-                    'Thời gian tạo': formatDate(inv.createdAt),
-                    'Ngày cập nhật': inv.updatedAt ? formatDate(inv.updatedAt) : '',
-                    'Mã đặt hàng': inv.orderCode || '',
-                    'Mã trả hàng': inv.returnOrderCode || '',
                     'Mã khách hàng': inv.customerCode || '',
                     'Tên khách hàng': inv.customerName || '',
-                    'Email': inv.customerEmail || '',
                     'Điện thoại': inv.customerPhone || '',
-                    'Địa chỉ (Khách hàng)': inv.customerAddress || '',
-                    'Khu vực (Khách hàng)': inv.customerArea || '',
-                    'Phường/Xã (Khách hàng)': inv.customerWard || '',
-                    'Ngày sinh': inv.customerDob || '',
-                    'Bảng giá': inv.priceList || '',
-                    'Người bán': inv.seller || '',
-                    'Kênh bán': inv.salesChannel || '',
-                    'Người tạo': inv.creator || '',
-                    'Ghi chú': inv.notes || '',
-                    'Tổng tiền hàng': inv.totalAmount,
-                    'Giảm giá hóa đơn': inv.discountAmount,
-                    'Khách cần trả': inv.amountDue || 0,
-                    'Khách đã trả': inv.amountPaid,
-                    'Tiền mặt': inv.cashAmount || 0,
-                    'Thẻ': inv.cardAmount || 0,
-                    'Ví': inv.walletAmount || 0,
-                    'Chuyển khoản': inv.transferAmount || 0,
+                    'Địa chỉ': inv.customerAddress || '',
                     'Trạng thái': STATUS_LABELS[inv.status] || inv.status,
                 };
 
@@ -506,16 +485,12 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                         exportData.push({
                             ...baseRow,
                             'Mã hàng': item.productCode || '',
-                            'Mã vạch': item.barcode || '',
                             'Tên hàng': item.productName || '',
-                            'Thương hiệu': item.brand || '',
                             'ĐVT': item.unit || '',
-                            'Ghi chú hàng hóa': item.notes || '',
                             'Số lượng': item.quantity,
                             'Đơn giá': item.unitPrice,
-                            'Giảm giá %': item.discountPercent || 0,
                             'Giảm giá': item.discountAmount || 0,
-                            'Giá bán': item.salePrice || 0,
+                            'Giá bán': item.salePrice || item.unitPrice,
                             'Thành tiền': item.totalPrice,
                         });
                     });
@@ -523,14 +498,10 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                     exportData.push({
                         ...baseRow,
                         'Mã hàng': '',
-                        'Mã vạch': '',
                         'Tên hàng': '',
-                        'Thương hiệu': '',
                         'ĐVT': '',
-                        'Ghi chú hàng hóa': '',
                         'Số lượng': 0,
                         'Đơn giá': 0,
-                        'Giảm giá %': 0,
                         'Giảm giá': 0,
                         'Giá bán': 0,
                         'Thành tiền': 0,
@@ -934,7 +905,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                         >
                             <MdFilterList />
                         </button>
-                        <button className="btn-outline-primary" onClick={() => setShowAddModal(true)} style={{ fontWeight: 'bold', color: '#009ddc', borderColor: '#009ddc' }}>
+                        <button className="btn-outline-primary" onClick={() => setShowAddModal(true)} style={{ fontWeight: 'bold', color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}>
                             <MdAdd /> Hóa đơn
                         </button>
                         <button className="btn-secondary" onClick={handleImportClick}>

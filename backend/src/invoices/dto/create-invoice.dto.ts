@@ -187,6 +187,10 @@ export class CreateInvoiceDto {
     storeId?: string; // Company/Store for this invoice (for reporting)
 
     @IsOptional()
+    @IsString()
+    createdAt?: string;
+
+    @IsOptional()
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => CreateInvoiceItemDto)

@@ -23,7 +23,7 @@
 .pos-top-bar {
     display: flex;
     align-items: center;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
     padding: 0.5rem;
     gap: 0.5rem;
 }
@@ -103,11 +103,21 @@
     max-width: 280px;
 }
 
+.search-item .item-unit {
+    color: #64748b;
+    font-size: 0.75rem;
+    background: #f1f5f9;
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    margin-left: 0.5rem;
+}
+
 .search-item .item-price {
     font-weight: 600;
     color: #10b981;
     min-width: 90px;
     text-align: right;
+    margin-left: auto;
 }
 
 /* Invoice Tabs */
@@ -139,7 +149,7 @@
 
 .invoice-tabs .tab.active {
     background: white;
-    color: #2563eb;
+    color: var(--color-primary-dark);
 }
 
 .invoice-tabs .tab .badge {
@@ -152,7 +162,7 @@
 }
 
 .invoice-tabs .tab.active .badge {
-    background: #3b82f6;
+    background: var(--color-primary);
 }
 
 .invoice-tabs .tab .close-tab {
@@ -239,6 +249,11 @@
     text-align: center;
 }
 
+.col-drag {
+    width: 32px;
+    text-align: center;
+}
+
 .col-delete {
     width: 32px;
 }
@@ -298,16 +313,16 @@
 .qty-input {
     width: 50px;
     padding: 0.25rem;
-    border: 1px solid #3b82f6;
+    border: 1px solid var(--color-primary);
     border-radius: 4px;
     text-align: center;
     font-weight: 600;
-    color: #3b82f6;
+    color: var(--color-primary);
     font-size: 0.875rem;
 }
 
 .price-input {
-    width: 80px;
+    width: 110px;
     padding: 0.25rem 0.5rem;
     border: 1px solid #e5e7eb;
     border-radius: 4px;
@@ -320,7 +335,7 @@
 
 .price-input:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
     color: #1e40af;
 }
 
@@ -337,6 +352,30 @@
 
 .col-actions button:hover {
     background: #f1f5f9;
+}
+
+.drag-handle {
+    cursor: grab;
+    color: #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    padding: 0 4px;
+    transition: color 0.2s;
+}
+
+.drag-handle:hover {
+    color: #64748b;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+tr.dragging {
+    opacity: 0.5;
+    background: #f0fdf4 !important;
 }
 
 /* Empty Cart */
@@ -408,9 +447,9 @@
 }
 
 .sale-mode-btns button.active {
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .sale-mode-btns button.active:first-child {
@@ -549,19 +588,19 @@
 
 .add-new-item {
     border-top: 1px solid #e5e7eb;
-    color: #3b82f6;
+    color: var(--color-primary);
     font-weight: 500;
     margin-top: 0.25rem;
     padding-top: 0.5rem;
 }
 
 .add-new-item:hover {
-    background: #eff6ff;
+    background: var(--color-primary-light);
 }
 
 .dropdown-item .check {
     margin-left: auto;
-    color: #3b82f6;
+    color: var(--color-primary);
     font-size: 1rem;
 }
 
@@ -569,6 +608,23 @@
     margin-left: auto;
     font-size: 0.75rem;
     color: #64748b;
+}
+
+.invoice-date-picker {
+    margin-left: auto;
+    font-size: 0.75rem;
+    color: #64748b;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 2px 6px;
+    background: transparent;
+    outline: none;
+    cursor: pointer;
+}
+
+.invoice-date-picker:focus {
+    border-color: var(--color-primary);
+    color: #1e293b;
 }
 
 /* Customer Row */
@@ -609,9 +665,9 @@
     justify-content: center;
     width: 28px;
     height: 28px;
-    border: 1px solid #3b82f6;
+    border: 1px solid var(--color-primary);
     background: white;
-    color: #3b82f6;
+    color: var(--color-primary);
     border-radius: 4px;
     font-size: 1rem;
     font-weight: 600;
@@ -621,7 +677,7 @@
 }
 
 .add-customer-btn:hover {
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
 }
 
@@ -704,18 +760,18 @@
 .summary-line .payment-input {
     width: 100px;
     padding: 0.25rem 0.5rem;
-    border: 1px solid #3b82f6;
+    border: 1px solid var(--color-primary);
     border-radius: 4px;
     text-align: right;
     font-size: 0.875rem;
     font-weight: 600;
     color: #1e40af;
-    background: #eff6ff;
+    background: var(--color-primary-light);
 }
 
 .summary-line .payment-input:focus {
     outline: none;
-    border-color: #2563eb;
+    border-color: var(--color-primary-dark);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
@@ -752,9 +808,9 @@
 }
 
 .payment-methods label.active {
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .payment-methods label input {
@@ -815,7 +871,7 @@
 .bank-info-row .account-number {
     font-family: monospace;
     letter-spacing: 1px;
-    color: #3b82f6;
+    color: var(--color-primary);
 }
 
 .btn-show-qr {
@@ -826,9 +882,9 @@
     width: 100%;
     padding: 0.5rem;
     margin-top: 0.5rem;
-    border: 1px solid #3b82f6;
+    border: 1px solid var(--color-primary);
     background: white;
-    color: #3b82f6;
+    color: var(--color-primary);
     border-radius: 6px;
     font-size: 0.8125rem;
     cursor: pointer;
@@ -836,7 +892,7 @@
 }
 
 .btn-show-qr:hover {
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
 }
 
@@ -978,7 +1034,7 @@
 .bank-modal .form-group input:focus,
 .bank-modal .form-group select:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .checkbox-group label {
@@ -1064,9 +1120,9 @@
     align-items: center;
     justify-content: center;
     padding: 0 0.875rem;
-    border: 1px solid #3b82f6;
+    border: 1px solid var(--color-primary);
     background: white;
-    color: #3b82f6;
+    color: var(--color-primary);
     border-radius: 8px;
     font-size: 1.25rem;
     cursor: pointer;
@@ -1074,7 +1130,7 @@
 }
 
 .btn-print-settings:hover {
-    background: #eff6ff;
+    background: var(--color-primary-light);
 }
 
 /* Print Settings Popover */
@@ -1082,7 +1138,9 @@
     position: absolute;
     bottom: 120%;
     left: 0;
-    width: 320px;
+    width: 380px;
+    max-height: 70vh;
+    overflow-y: auto;
     background: white;
     border-radius: 12px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
@@ -1115,6 +1173,20 @@
     font-size: 0.875rem;
     color: #334155;
     font-weight: 500;
+}
+
+.custom-config-input {
+    flex: 2;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 0.8125rem;
+}
+
+.custom-config-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
 }
 
 /* Toggle Switch */
@@ -1154,7 +1226,7 @@
 }
 
 .toggle-switch input:checked+.slider {
-    background-color: #3b82f6;
+    background-color: var(--color-primary);
 }
 
 .toggle-switch input:checked+.slider:before {
@@ -1219,8 +1291,8 @@
 }
 
 .template-btn:hover:not(.active) {
-    border-color: #3b82f6;
-    color: #3b82f6;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
 }
 
 .popover-footer {
@@ -1243,12 +1315,12 @@
 
 .btn-skip {
     background: white;
-    border: 1px solid #3b82f6;
-    color: #3b82f6;
+    border: 1px solid var(--color-primary);
+    color: var(--color-primary);
 }
 
 .btn-done {
-    background: #3b82f6;
+    background: var(--color-primary);
     border: none;
     color: white;
 }
@@ -1259,9 +1331,9 @@
     justify-content: center;
     gap: 0.25rem;
     padding: 0.875rem 1rem;
-    border: 1px solid #3b82f6;
+    border: 1px solid var(--color-primary);
     background: white;
-    color: #3b82f6;
+    color: var(--color-primary);
     font-size: 0.875rem;
     font-weight: 600;
     border-radius: 8px;
@@ -1270,7 +1342,7 @@
 }
 
 .btn-print:hover {
-    background: #eff6ff;
+    background: var(--color-primary-light);
 }
 
 .btn-checkout {
@@ -1356,7 +1428,7 @@
 }
 
 .success-actions .btn-print {
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
 }
 
@@ -1433,7 +1505,7 @@
     align-items: center;
     gap: 0.25rem;
     padding: 0.75rem 1rem;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border: none;
     border-radius: 6px;
@@ -1652,7 +1724,7 @@
 }
 
 .modal-tabs button.active {
-    color: #3b82f6;
+    color: var(--color-primary);
     font-weight: 600;
 }
 
@@ -1663,7 +1735,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: #3b82f6;
+    background: var(--color-primary);
 }
 
 .modal-body {
@@ -1703,9 +1775,9 @@
 
 .btn-choose-avatar {
     padding: 0.375rem 0.75rem;
-    border: 1px solid #3b82f6;
+    border: 1px solid var(--color-primary);
     background: white;
-    color: #3b82f6;
+    color: var(--color-primary);
     border-radius: 6px;
     font-size: 0.75rem;
     cursor: pointer;
@@ -1753,7 +1825,7 @@
 
 .form-group input:focus,
 .form-group select:focus {
-    border-color: #3b82f6;
+    border-color: var(--color-primary);
 }
 
 .form-group input::placeholder {
@@ -1818,7 +1890,7 @@
 .btn-save {
     padding: 0.625rem 2rem;
     border: none;
-    background: #3b82f6;
+    background: var(--color-primary);
     color: white;
     border-radius: 6px;
     font-size: 0.875rem;
@@ -1827,7 +1899,7 @@
 }
 
 .btn-save:hover {
-    background: #2563eb;
+    background: var(--color-primary-dark);
 }
 
 .btn-save:disabled {
@@ -1925,9 +1997,9 @@
     .print-topbar {
         display: flex;
         justify-content: space-between;
-        font-size: 10px;
+        font-size: 13px;
         color: #666;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }
 
     /* NEW: Centered Header */
@@ -1937,29 +2009,29 @@
     }
 
     .store-name-centered {
-        font-size: 24px;
+        font-size: 28px;
         font-weight: bold;
         color: #65a30d;
-        margin-bottom: 3px;
-    }
-
-    .store-name-centered small {
-        font-size: 12px;
-        color: #555;
-        font-weight: normal;
-        margin-left: 5px;
-    }
-
-    .company-name-centered {
-        font-size: 16px;
-        font-weight: bold;
-        text-transform: uppercase;
         margin-bottom: 5px;
     }
 
+    .store-name-centered small {
+        font-size: 14px;
+        color: #555;
+        font-weight: normal;
+        margin-left: 6px;
+    }
+
+    .company-name-centered {
+        font-size: 19px;
+        font-weight: bold;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+
     .company-details-centered {
-        font-size: 12px;
-        line-height: 1.5;
+        font-size: 15px;
+        line-height: 1.6;
     }
 
     .label-red {
@@ -1970,10 +2042,10 @@
     /* NEW: Invoice Title Centered */
     .print-invoice-title {
         text-align: center;
-        font-size: 20px;
+        font-size: 24px;
         font-weight: bold;
         text-transform: uppercase;
-        margin: 15px 0;
+        margin: 20px 0;
     }
 
     /* NEW: Order Section Two Columns */
@@ -1987,7 +2059,7 @@
     }
 
     .print-order-section .order-left {
-        font-size: 12px;
+        font-size: 14px;
         flex: 1;
     }
 
@@ -2009,11 +2081,11 @@
     .order-code-underline {
         font-weight: bold;
         text-decoration: underline;
-        font-size: 12px;
+        font-size: 15px;
     }
 
     .invoice-label {
-        font-size: 11px;
+        font-size: 14px;
         color: #c00000;
     }
 
@@ -2086,7 +2158,7 @@
     /* Customer Info */
     .customer-info-print {
         margin-bottom: 20px;
-        font-size: 12px;
+        font-size: 15px;
     }
 
     .customer-info-print .row {
@@ -2104,17 +2176,17 @@
         width: 100%;
         border-collapse: collapse;
         margin-bottom: 20px;
-        font-size: 12px;
+        font-size: 15px;
     }
 
     .print-table th,
     .print-table td {
         border: 1px solid #000;
-        padding: 5px;
+        padding: 6px;
     }
 
     .print-table th {
-        background: #f0f0f0;
+        background: none;
         font-weight: bold;
         text-align: center;
     }
@@ -2150,19 +2222,19 @@
 
     .signature-block .role {
         font-weight: bold;
-        font-size: 12px;
+        font-size: 15px;
         margin-bottom: 40px;
     }
 
     .signature-block .name {
         font-weight: bold;
-        font-size: 12px;
+        font-size: 15px;
     }
 
     .print-footer-url {
         border-top: 1px solid #ccc;
         padding-top: 5px;
-        font-size: 10px;
+        font-size: 13px;
         color: #666;
         display: flex;
         justify-content: space-between;

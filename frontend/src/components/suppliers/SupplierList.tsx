@@ -222,10 +222,19 @@ export default function SupplierList() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const toast = useToast();
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(filters.search || '');
+            setCurrentPage(1); // Reset page to 1 when search happens
+        }, 500); // 500ms debounce
+        return () => clearTimeout(timer);
+    }, [filters.search]);
 
     useEffect(() => {
         fetchSuppliers();
-    }, [currentPage, itemsPerPage]);
+    }, [currentPage, itemsPerPage, debouncedSearch]);
 
     useEffect(() => {
         if (expandedSupplierId && activeDetailTab === 'payments') {
@@ -241,7 +250,7 @@ export default function SupplierList() {
                 limit: itemsPerPage,
             };
 
-            if (filters.search) params.search = filters.search;
+            if (debouncedSearch) params.search = debouncedSearch;
             if (filters.totalPurchaseFrom) params.totalPurchaseFrom = filters.totalPurchaseFrom;
             if (filters.totalPurchaseTo) params.totalPurchaseTo = filters.totalPurchaseTo;
             if (filters.currentDebtFrom) params.currentDebtFrom = filters.currentDebtFrom;
@@ -1101,11 +1110,10 @@ export default function SupplierList() {
                             placeholder="Theo mã, tên, số điện thoại"
                             value={filters.search}
                             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                             className="search-input"
                         />
                         {filters.search && (
-                            <button className="clear-search" onClick={() => { setFilters({ ...filters, search: '' }); handleSearch(); }}>
+                            <button className="clear-search" onClick={() => { setFilters({ ...filters, search: '' }); }}>
                                 <MdClose />
                             </button>
                         )}

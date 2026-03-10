@@ -10,18 +10,43 @@ import { BulkImportProductsDto } from './dto/bulk-import.dto';
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) { }
 
+  private generateCode(prefix: string): string {
+    const now = new Date();
+    const yy = String(now.getFullYear()).slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const rand = String(Math.floor(Math.random() * 100)).padStart(2, '0');
+    return `${prefix}${yy}${mm}${rand}`;
+  }
+
   async create(dto: CreateProductDto) {
-    return this.prisma.product.create({
-      data: {
-        name: dto.name,
-        sku: dto.sku || dto.barcode,
-        categoryId: dto.categoryId ? BigInt(dto.categoryId) : null,
-        defaultPrice: dto.price,
-        defaultCost: dto.cost ?? 0,
-        description: dto.description,
-        images: dto.images,
-      },
-      include: { category: true },
+    return this.prisma.$transaction(async (tx) => {
+      const sku = dto.sku || dto.barcode || this.generateCode('SP');
+      const product = await tx.product.create({
+        data: {
+          name: dto.name,
+          sku,
+          categoryId: dto.categoryId ? BigInt(dto.categoryId) : null,
+          defaultPrice: dto.price,
+          defaultCost: dto.cost ?? 0,
+          description: dto.description,
+          images: dto.images,
+          unit: dto.unit || null,
+        },
+        include: { category: true },
+      });
+
+      // Create default variant
+      await tx.productVariant.create({
+        data: {
+          productId: product.id,
+          sku: sku || null,
+          price: dto.price ?? 0,
+          cost: dto.cost ?? 0,
+          active: true,
+        },
+      });
+
+      return product;
     });
   }
 
@@ -40,6 +65,7 @@ export class ProductsService {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { sku: { contains: search, mode: 'insensitive' } },
+        { barcode: { contains: search, mode: 'insensitive' } },
         { category: { name: { contains: search, mode: 'insensitive' } } },
       ];
     }
@@ -126,6 +152,7 @@ export class ProductsService {
     if (dto.cost !== undefined) data.defaultCost = dto.cost;
     if (dto.description !== undefined) data.description = dto.description;
     if (dto.images !== undefined) data.images = dto.images;
+    if (dto.unit !== undefined) data.unit = dto.unit;
 
     if (dto.categoryId !== undefined) {
       data.category = dto.categoryId
@@ -141,8 +168,52 @@ export class ProductsService {
   }
 
   async remove(id: string) {
-    await this.ensureExists(id);
-    return this.prisma.product.delete({ where: { id: BigInt(id) } });
+    const product = await this.prisma.product.findUnique({
+      where: { id: BigInt(id) },
+      include: { variants: true },
+    });
+    if (!product) {
+      throw new NotFoundException('PRODUCT_NOT_FOUND');
+    }
+
+    const variantIds = product.variants.map(v => v.id);
+
+    return this.prisma.$transaction(async (tx) => {
+      if (variantIds.length > 0) {
+        // Delete inventory records
+        await tx.inventory.deleteMany({
+          where: { variantId: { in: variantIds } },
+        });
+
+        // Delete stock movements
+        await tx.stockMovement.deleteMany({
+          where: { variantId: { in: variantIds } },
+        });
+
+        // Delete purchase items
+        await tx.purchaseItem.deleteMany({
+          where: { variantId: { in: variantIds } },
+        });
+
+        // Delete order items
+        await tx.orderItem.deleteMany({
+          where: { variantId: { in: variantIds } },
+        });
+
+        // Delete variants
+        await tx.productVariant.deleteMany({
+          where: { productId: BigInt(id) },
+        });
+      }
+
+      // Delete product prices (already has onDelete: Cascade, but explicit is safer)
+      await tx.productPrice.deleteMany({
+        where: { productId: BigInt(id) },
+      });
+
+      // Delete the product
+      return tx.product.delete({ where: { id: BigInt(id) } });
+    });
   }
 
   /**
@@ -169,16 +240,42 @@ export class ProductsService {
     let updated = 0;
     let failed = 0;
 
+    // Get default warehouse for stock import if no warehouseId provided
+    let warehouseId = dto.warehouseId ? BigInt(dto.warehouseId) : null;
+    if (!warehouseId) {
+      const defaultWarehouse = await this.prisma.warehouse.findFirst({
+        where: { active: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (defaultWarehouse) {
+        warehouseId = defaultWarehouse.id;
+      }
+    }
+
     for (const item of dto.items) {
       try {
         const identifier = item.sku || item.name;
         console.log('Processing item:', identifier);
 
-        // Check if product already exists by SKU or name
+        // Check if product already exists by SKU, barcode, or name
         let existing: { id: bigint } | null = null;
         if (item.sku) {
           existing = await this.prisma.product.findFirst({
             where: { sku: item.sku },
+            select: { id: true },
+          });
+        }
+        // Also try matching by barcode field
+        if (!existing && item.barcode) {
+          existing = await this.prisma.product.findFirst({
+            where: { OR: [{ barcode: item.barcode }, { sku: item.barcode }] },
+            select: { id: true },
+          });
+        }
+        // Also try matching Excel SKU against DB barcode
+        if (!existing && item.sku) {
+          existing = await this.prisma.product.findFirst({
+            where: { barcode: item.sku },
             select: { id: true },
           });
         }
@@ -198,11 +295,12 @@ export class ProductsService {
         // Use only basic fields that exist in original schema
         const productData = {
           name: item.name,
-          sku: item.sku || null,
+          sku: item.sku || this.generateCode('SP'),
           description: item.description || null,
           defaultPrice: item.price ?? 0,
           defaultCost: item.cost ?? 0,
           categoryId: categoryId,
+          unit: item.unit || null,
         };
 
         if (existing) {
@@ -211,6 +309,67 @@ export class ProductsService {
             where: { id: existing.id },
             data: productData,
           });
+
+          // Check if it has variants
+          const variantCount = await this.prisma.productVariant.count({
+            where: { productId: existing.id },
+          });
+
+          if (variantCount === 0) {
+            const newVariant = await this.prisma.productVariant.create({
+              data: {
+                productId: existing.id,
+                sku: item.sku || null,
+                price: item.price ?? 0,
+                cost: item.cost ?? 0,
+                active: true,
+              },
+            });
+
+            // Set initial stock for the new variant
+            if (warehouseId && item.stock !== undefined) {
+              await this.prisma.inventory.upsert({
+                where: {
+                  variantId_warehouseId: {
+                    variantId: newVariant.id,
+                    warehouseId: warehouseId,
+                  }
+                },
+                update: { quantity: BigInt(item.stock) },
+                create: {
+                  variantId: newVariant.id,
+                  warehouseId: warehouseId,
+                  quantity: BigInt(item.stock),
+                }
+              });
+            }
+          } else {
+            // If variant exists and we have stock value, update inventory for first variant
+            if (warehouseId && item.stock !== undefined) {
+              const firstVariant = await this.prisma.productVariant.findFirst({
+                where: { productId: existing.id },
+                orderBy: { id: 'asc' }
+              });
+
+              if (firstVariant) {
+                await this.prisma.inventory.upsert({
+                  where: {
+                    variantId_warehouseId: {
+                      variantId: firstVariant.id,
+                      warehouseId: warehouseId,
+                    }
+                  },
+                  update: { quantity: BigInt(item.stock) },
+                  create: {
+                    variantId: firstVariant.id,
+                    warehouseId: warehouseId,
+                    quantity: BigInt(item.stock),
+                  }
+                });
+              }
+            }
+          }
+
           updated++;
           results.push({ sku: identifier, status: 'updated' });
           console.log('Updated:', identifier);
@@ -221,7 +380,7 @@ export class ProductsService {
           });
 
           // Create default variant
-          await this.prisma.productVariant.create({
+          const newVariant = await this.prisma.productVariant.create({
             data: {
               productId: product.id,
               sku: item.sku || null,
@@ -230,6 +389,17 @@ export class ProductsService {
               active: true,
             },
           });
+
+          // Set initial stock
+          if (warehouseId && item.stock !== undefined) {
+            await this.prisma.inventory.create({
+              data: {
+                variantId: newVariant.id,
+                warehouseId: warehouseId,
+                quantity: BigInt(item.stock),
+              }
+            });
+          }
 
           created++;
           results.push({ sku: identifier, status: 'created' });

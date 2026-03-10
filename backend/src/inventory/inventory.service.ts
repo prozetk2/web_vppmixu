@@ -89,7 +89,7 @@ export class InventoryService {
      * Uses transaction to ensure data integrity
      */
     async adjustStock(dto: AdjustStockDto, performedBy?: bigint) {
-        const { warehouseId, productId, quantity, type, note, storeId } = dto;
+        const { warehouseId, productId, quantity, type, note, storeId, unit } = dto;
 
         // Validate warehouse exists
         const warehouse = await this.prisma.warehouse.findUnique({
@@ -202,6 +202,14 @@ export class InventoryService {
                     storeId: storeId ? BigInt(storeId) : null,
                 },
             });
+
+            // Update product unit if provided
+            if (unit) {
+                await tx.product.update({
+                    where: { id: BigInt(productId) },
+                    data: { unit }
+                });
+            }
 
             return {
                 inventory: {
@@ -321,6 +329,7 @@ export class InventoryService {
             productWhere.OR = [
                 { name: { contains: search, mode: 'insensitive' } },
                 { sku: { contains: search, mode: 'insensitive' } },
+                { barcode: { contains: search, mode: 'insensitive' } },
             ];
         }
 
@@ -395,49 +404,90 @@ export class InventoryService {
             },
         });
 
+        // Get movements AFTER period end for backwards calculation from current inventory
+        const postMovementsWhere: Prisma.StockMovementWhereInput = {
+            AND: [
+                { performedAt: { gt: periodEnd } },
+                ...(warehouseId ? [{
+                    OR: [
+                        { fromWarehouseId: BigInt(warehouseId) },
+                        { toWarehouseId: BigInt(warehouseId) },
+                    ],
+                }] : []),
+                ...(storeId ? [{ storeId: BigInt(storeId) }] : []),
+            ],
+        };
+
+        const postMovements = await this.prisma.stockMovement.findMany({
+            where: postMovementsWhere,
+            include: {
+                variant: true,
+            },
+        });
+
         // Calculate report data for each product
         const reportData = products.map((product) => {
             const variantIds = product.variants.map((v) => v.id);
 
-            // Calculate beginning balance (movements before period)
-            let beginningQty = 0;
+            // Calculate current total inventory for these variants
+            let currentTotalQty = 0;
+            product.variants.forEach((v) => {
+                if (v.inventory && v.inventory.length > 0) {
+                    currentTotalQty += v.inventory.reduce((sum, inv) => sum + Number(inv.quantity), 0);
+                }
+            });
+
+            // Calculate historical sum from prior movements
+            let historicalBeginningQty = 0;
             priorMovements
                 .filter((m) => variantIds.includes(m.variantId))
                 .forEach((m) => {
                     if (m.movementType === 'IMPORT' || m.movementType === 'ADJUST') {
-                        beginningQty += Number(m.quantity);
+                        historicalBeginningQty += Number(m.quantity);
                     } else if (m.movementType === 'EXPORT') {
-                        beginningQty -= Number(m.quantity);
+                        historicalBeginningQty -= Number(m.quantity);
                     }
                 });
 
-            // Calculate period imports
+            // Calculate period imports and exports
             let importQty = 0;
-            movements
-                .filter((m) => variantIds.includes(m.variantId) && m.movementType === 'IMPORT')
-                .forEach((m) => {
-                    importQty += Number(m.quantity);
-                });
-
-            // Calculate period exports
             let exportQty = 0;
-            movements
-                .filter((m) => variantIds.includes(m.variantId) && m.movementType === 'EXPORT')
-                .forEach((m) => {
-                    exportQty += Number(m.quantity);
-                });
 
-            // Calculate adjustments in period
             movements
-                .filter((m) => variantIds.includes(m.variantId) && m.movementType === 'ADJUST')
+                .filter((m) => variantIds.includes(m.variantId))
                 .forEach((m) => {
-                    // Positive adjustment = import, negative = export
-                    if (Number(m.quantity) > 0) {
+                    if (m.movementType === 'IMPORT') {
                         importQty += Number(m.quantity);
-                    } else {
-                        exportQty += Math.abs(Number(m.quantity));
+                    } else if (m.movementType === 'EXPORT') {
+                        exportQty += Number(m.quantity);
+                    } else if (m.movementType === 'ADJUST') {
+                        // Positive adjustment = import, negative = export
+                        if (Number(m.quantity) > 0) {
+                            importQty += Number(m.quantity);
+                        } else {
+                            exportQty += Math.abs(Number(m.quantity));
+                        }
                     }
                 });
+
+            // Calculate net movements AFTER this period up to now
+            let postPeriodNetQty = 0;
+            postMovements
+                .filter((m) => variantIds.includes(m.variantId))
+                .forEach((m) => {
+                    if (m.movementType === 'IMPORT' || m.movementType === 'ADJUST') {
+                        postPeriodNetQty += Number(m.quantity);
+                    } else if (m.movementType === 'EXPORT') {
+                        postPeriodNetQty -= Number(m.quantity);
+                    }
+                });
+
+            // Identify initial stock without movements
+            const allTimeMovementsSum = historicalBeginningQty + importQty - exportQty + postPeriodNetQty;
+            const initialStockWithoutMovement = currentTotalQty - allTimeMovementsSum;
+
+            // The true beginning quantity
+            const beginningQty = historicalBeginningQty + initialStockWithoutMovement;
 
             // Calculate ending balance
             const endingQty = beginningQty + importQty - exportQty;
@@ -449,7 +499,7 @@ export class InventoryService {
                 id: product.id.toString(),
                 productCode: product.sku || '',
                 productName: product.name,
-                unit: 'Cái', // Default unit - could be extended with unit model
+                unit: product.unit || 'Cái',
                 beginningQty,
                 beginningValue: beginningQty * unitCost,
                 importQty,
@@ -462,13 +512,7 @@ export class InventoryService {
             };
         });
 
-        // NO FILTER - Show ALL products including zero stock
-        // const activeProducts = reportData.filter(...);  // REMOVED
-
-        // Pagination is already done at database level, just return reportData directly
-        // Total comes from the count query done earlier
-
-        // Calculate totals for current page only (note: for accurate global totals, would need separate query)
+        // Calculate totals
         const totals = reportData.reduce(
             (acc, p) => ({
                 beginningQty: acc.beginningQty + p.beginningQty,
@@ -520,9 +564,6 @@ export class InventoryService {
             };
         }
 
-        // Log first few items for debugging
-        console.log('First 3 items:', dto.items.slice(0, 3));
-
         const results: { success: boolean; productCode: string; message?: string }[] = [];
 
         for (const item of dto.items) {
@@ -556,6 +597,7 @@ export class InventoryService {
                         type: item.type,
                         note: item.note || `Bulk ${item.type.toLowerCase()}`,
                         storeId: item.storeId,
+                        unit: item.unit,
                     },
                     performedBy,
                 );

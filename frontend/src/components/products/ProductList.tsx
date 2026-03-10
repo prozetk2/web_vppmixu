@@ -260,6 +260,7 @@ export default function ProductList() {
             const typeIdx = findIdx(['loại hàng', 'type']);
             const descIdx = findIdx(['mô tả', 'description']);
             const locationIdx = findIdx(['vị trí', 'location']);
+            const stockIdx = findIdx(['tồn kho', 'số lượng tồn', 'tồn', 'stock']);
 
             // Skip sub-header if exists
             let dataStartIndex = headerRowIndex + 1;
@@ -287,6 +288,7 @@ export default function ProductList() {
                     productType: typeIdx >= 0 ? String(row[typeIdx] || '').trim() : 'GOODS',
                     description: descIdx >= 0 ? String(row[descIdx] || '').trim() : undefined,
                     location: locationIdx >= 0 ? String(row[locationIdx] || '').trim() : undefined,
+                    stock: stockIdx >= 0 ? parseFloat(row[stockIdx]) || 0 : 0,
                 }))
                 .filter(item => item.sku || item.name);
 
@@ -556,7 +558,7 @@ export default function ProductList() {
                         />
                     </div>
                     <div className="header-actions">
-                        <button className="btn-outline-primary" onClick={handleAdd} style={{ fontWeight: 'bold', color: '#009ddc', borderColor: '#009ddc' }}>
+                        <button className="btn-outline-primary" onClick={handleAdd} style={{ fontWeight: 'bold', color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}>
                             <MdAdd /> Tạo mới
                         </button>
                         <button className="btn-secondary" onClick={() => fileInputRef.current?.click()}>
@@ -634,6 +636,7 @@ export default function ProductList() {
                                     <th className="col-image">Ảnh</th>
                                     <th>Mã hàng</th>
                                     <th>Tên hàng</th>
+                                    <th className="text-center">ĐVT</th>
                                     <th className="text-right">Giá bán</th>
                                     <th className="text-right">Giá vốn</th>
                                     <th className="text-right">Tồn kho</th>
@@ -674,6 +677,7 @@ export default function ProductList() {
                                             <span className="product-name">{product.name}</span>
                                             {product.brand && <span className="product-brand">{product.brand}</span>}
                                         </td>
+                                        <td className="text-center">{product.unit || 'Cái'}</td>
                                         <td className="text-right col-price">{formatCurrency(product.defaultPrice)}</td>
                                         <td className="text-right col-cost">{formatCurrency(product.defaultCost)}</td>
                                         <td className="text-right col-stock">

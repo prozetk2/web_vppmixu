@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { productsAPI, customersAPI, warehousesAPI, salesAPI, inventoryAPI, priceListsAPI, storesAPI, invoicesAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
-import { MdShoppingCart, MdClose, MdCheckCircle, MdAttachMoney, MdAccountBalance, MdCreditCard, MdQrCodeScanner, MdPrint, MdAssignmentReturn, MdSearch, MdAdd, MdReceipt, MdFlashOn, MdFlashOff, MdPerson, MdStorefront, MdMoreHoriz, MdExpandMore, MdSettings } from 'react-icons/md';
+import { MdShoppingCart, MdClose, MdCheckCircle, MdAttachMoney, MdAccountBalance, MdCreditCard, MdQrCodeScanner, MdPrint, MdAssignmentReturn, MdSearch, MdAdd, MdReceipt, MdFlashOn, MdFlashOff, MdPerson, MdStorefront, MdMoreHoriz, MdExpandMore, MdSettings, MdDragIndicator } from 'react-icons/md';
 import { FaFacebook, FaInstagram } from 'react-icons/fa';
 import './POSPage.css';
 
@@ -13,6 +13,7 @@ interface Product {
     stock?: number;
     imageUrl?: string;
     categoryName?: string;
+    unit?: string;
 }
 
 interface CartItem {
@@ -25,6 +26,7 @@ interface Customer {
     id: string;
     name: string;
     phone?: string;
+    address?: string;
 }
 
 interface Warehouse {
@@ -58,8 +60,87 @@ type ViewMode = 'grid' | 'list';
 type SaleMode = 'quick' | 'normal';
 type SalesChannel = 'direct' | 'facebook' | 'instagram' | 'other';
 
-// Helper to generate unique ID
-const generateId = () => `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+// Generate invoice ID: HD + YYMM + 4-digit sequence (e.g. HD26030001)
+const generateId = () => {
+    const now = new Date();
+    const yy = now.getFullYear().toString().slice(-2);
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const prefix = `HD${yy}${mm}`;
+    const storageKey = `invoice_seq_${prefix}`;
+    const lastSeq = parseInt(localStorage.getItem(storageKey) || '0', 10);
+    const newSeq = lastSeq + 1;
+    localStorage.setItem(storageKey, newSeq.toString());
+    return `${prefix}${String(newSeq).padStart(4, '0')}`;
+};
+
+export type StoreConfigInfo = {
+    logoText: string;
+    logoSub: string;
+    companyName: string;
+    address: string;
+    phone: string;
+    website: string;
+    email: string;
+    // Font Sizes (optional)
+    logoFontSize?: number;
+    companyNameFontSize?: number;
+    titleFontSize?: number;
+    textFontSize?: number;
+    tableFontSize?: number;
+};
+
+export const defaultStoreConfigs: Record<string, StoreConfigInfo> = {
+    MIXU: {
+        logoText: 'MIXU',
+        logoSub: 'OFFICE SUPPLIES',
+        companyName: 'CÔNG TY TNHH MTV TM VÀ DV MIXU',
+        address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
+        phone: '0932.542.168 - 0934.792.168',
+        website: 'mixuoffice.com',
+        email: 'mixuoffice@gmail.com'
+    },
+    THANH_VAN: {
+        logoText: 'THANH VÂN',
+        logoSub: 'VĂN PHÒNG PHẨM',
+        companyName: 'CỬA HÀNG VĂN PHÒNG PHẨM THANH VÂN',
+        address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
+        phone: '0932.542.168 - 0934.792.168',
+        website: 'thanhvan.com',
+        email: 'thanhvan@gmail.com'
+    },
+    VIET_HONG: {
+        logoText: '',
+        logoSub: '',
+        companyName: 'CỬA HÀNG ĐẶNG THỊ VIỆT HỒNG',
+        address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
+        phone: '0236. 6563583 - 0932.542.168',
+        website: 'mixuoffice.com',
+        email: 'Mixuhoadon@gmail.com'
+    },
+    CUSTOM: {
+        logoText: 'TÊN CỬA HÀNG',
+        logoSub: '',
+        companyName: 'CÔNG TY TNHH ABC',
+        address: '123 Đường Số 1, Quận 1',
+        phone: '0901234567',
+        website: 'cuahang.com',
+        email: 'lienhe@cuahang.com',
+        logoFontSize: 28,
+        companyNameFontSize: 19,
+        titleFontSize: 24,
+        textFontSize: 14,
+        tableFontSize: 15
+    }
+};
+
+const removeAccents = (str: string) => {
+    return str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .toLowerCase();
+};
 
 // Create a new empty invoice
 const createNewInvoice = (index: number): Invoice => ({
@@ -80,59 +161,23 @@ const PrintInvoice = ({
     settings,
     sellerName,
     customerName,
-    customerPhone
+    customerPhone,
+    customerAddress,
+    storeConfigs
 }: {
     invoice: Invoice | undefined,
     settings: any,
     sellerName: string,
     customerName: string,
-    customerPhone: string
+    customerPhone: string,
+    customerAddress: string,
+    storeConfigs: Record<string, StoreConfigInfo>
 }) => {
     if (!invoice) return null;
 
     const total = invoice.cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) - invoice.discountAmount;
-    const now = new Date();
-    const printTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear().toString().slice(-2)}`;
-    const invoiceDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-
-    // Store-specific information based on template
-    const storeConfigs: Record<string, {
-        logoText: string;
-        logoSub: string;
-        companyName: string;
-        address: string;
-        phone: string;
-        website: string;
-        email: string;
-    }> = {
-        MIXU: {
-            logoText: 'MIXU',
-            logoSub: 'OFFICE SUPPLIES',
-            companyName: 'CÔNG TY TNHH MTV TM VÀ DV MIXU',
-            address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
-            phone: '0932.542.168 - 0934.792.168',
-            website: 'mixuoffice.com',
-            email: 'mixuoffice@gmail.com'
-        },
-        THANH_VAN: {
-            logoText: 'THANH VÂN',
-            logoSub: 'VĂN PHÒNG PHẨM',
-            companyName: 'CỬA HÀNG VĂN PHÒNG PHẨM THANH VÂN',
-            address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
-            phone: '0932.542.168 - 0934.792.168',
-            website: 'thanhvan.com',
-            email: 'thanhvan@gmail.com'
-        },
-        VIET_HONG: {
-            logoText: '',
-            logoSub: '',
-            companyName: 'CỬA HÀNG ĐẶNG THỊ VIỆT HỒNG',
-            address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
-            phone: '0236. 6563583 - 0932.542.168',
-            website: 'mixuoffice.com',
-            email: 'Mixuhoadon@gmail.com'
-        }
-    };
+    const printTime = `${invoice.createdAt.getHours().toString().padStart(2, '0')}:${invoice.createdAt.getMinutes().toString().padStart(2, '0')} ${invoice.createdAt.getDate().toString().padStart(2, '0')}/${(invoice.createdAt.getMonth() + 1).toString().padStart(2, '0')}/${invoice.createdAt.getFullYear().toString().slice(-2)}`;
+    const invoiceDate = `${invoice.createdAt.getDate().toString().padStart(2, '0')}/${(invoice.createdAt.getMonth() + 1).toString().padStart(2, '0')}/${invoice.createdAt.getFullYear()} ${invoice.createdAt.getHours().toString().padStart(2, '0')}:${invoice.createdAt.getMinutes().toString().padStart(2, '0')}`;
 
     // Determine which store config to use (strip _EXTRA suffix)
     const templateBase = settings.template.replace('_EXTRA', '');
@@ -145,7 +190,7 @@ const PrintInvoice = ({
     return (
         <div className="print-template template-a4">
             {/* Top bar */}
-            <div className="print-topbar">
+            <div className="print-topbar" style={{ fontSize: storeInfo.textFontSize ? `${storeInfo.textFontSize - 1}px` : '13px' }}>
                 <span>{printTime}</span>
                 <span>Chi nhánh trung tâm - Bán hàng</span>
             </div>
@@ -153,12 +198,12 @@ const PrintInvoice = ({
             {/* Header: Centered */}
             <div className="print-header-centered">
                 {storeInfo.logoText && (
-                    <div className="store-name-centered">
-                        {storeInfo.logoText} {storeInfo.logoSub && <small>{storeInfo.logoSub}</small>}
+                    <div className="store-name-centered" style={{ fontSize: storeInfo.logoFontSize ? `${storeInfo.logoFontSize}px` : '28px' }}>
+                        {storeInfo.logoText} {storeInfo.logoSub && <small style={{ fontSize: storeInfo.logoFontSize ? `${storeInfo.logoFontSize / 2}px` : '14px' }}>{storeInfo.logoSub}</small>}
                     </div>
                 )}
-                <div className="company-name-centered">{storeInfo.companyName}</div>
-                <div className="company-details-centered">
+                <div className="company-name-centered" style={{ fontSize: storeInfo.companyNameFontSize ? `${storeInfo.companyNameFontSize}px` : '19px' }}>{storeInfo.companyName}</div>
+                <div className="company-details-centered" style={{ fontSize: storeInfo.textFontSize ? `${storeInfo.textFontSize + 1}px` : '15px' }}>
                     <span className="label-red">A</span> - {storeInfo.address}.<br />
                     <span className="label-red">T</span> - {storeInfo.phone}.<br />
                     <span className="label-red">W</span> - {storeInfo.website} - <span className="label-red">E</span> - {storeInfo.email}.
@@ -166,22 +211,19 @@ const PrintInvoice = ({
             </div>
 
             {/* Invoice Title: Centered */}
-            <div className="print-invoice-title">HÓA ĐƠN BÁN HÀNG</div>
+            <div className="print-invoice-title" style={{ fontSize: storeInfo.titleFontSize ? `${storeInfo.titleFontSize}px` : '24px' }}>HÓA ĐƠN BÁN HÀNG</div>
 
             {/* Order Info: Two columns */}
             <div className="print-order-section">
-                <div className="order-left">
-                    <span>Mã đơn hàng: <strong>{invoice.id.length > 20 ? invoice.id.slice(-12) : invoice.id}</strong></span><br />
+                <div className="order-left" style={{ fontSize: storeInfo.textFontSize ? `${storeInfo.textFontSize}px` : '14px' }}>
+                    <span>Mã đơn hàng: <strong>{invoice.id}</strong></span><br />
                     <span>{invoiceDate}</span>
                 </div>
                 <div className="order-right">
-                    <div className="barcode-display">*{invoice.id.slice(-8)}*</div>
-                    <div className="order-code-underline">{invoice.id.length > 20 ? invoice.id.slice(-12) : invoice.id}</div>
-                    <div className="invoice-label">Hóa đơn <strong>1</strong></div>
                 </div>
             </div>
 
-            <div className="customer-info-print">
+            <div className="customer-info-print" style={{ fontSize: storeInfo.textFontSize ? `${storeInfo.textFontSize + 1}px` : '15px' }}>
                 <div className="row">
                     <span className="label">Khách hàng:</span>
                     <span className="value">{customerName || 'Khách lẻ'}</span>
@@ -192,11 +234,11 @@ const PrintInvoice = ({
                 </div>
                 <div className="row">
                     <span className="label">Địa chỉ:</span>
-                    <span className="value"></span>
+                    <span className="value">{customerAddress}</span>
                 </div>
             </div>
 
-            <table className="print-table">
+            <table className="print-table" style={{ fontSize: storeInfo.tableFontSize ? `${storeInfo.tableFontSize}px` : '15px' }}>
                 <thead>
                     <tr>
                         <th style={{ width: '40px' }}>STT</th>
@@ -212,10 +254,10 @@ const PrintInvoice = ({
                         <tr key={index}>
                             <td className="text-center">{index + 1}</td>
                             <td>{item.product.name}</td>
-                            <td className="text-center">Cái</td>
+                            <td className="text-center">{item.product.unit || 'Cái'}</td>
                             <td className="text-center">{item.quantity}</td>
-                            <td className="text-right">{new Intl.NumberFormat('vi-VN').format(item.unitPrice)}</td>
-                            <td className="text-right">{new Intl.NumberFormat('vi-VN').format(item.unitPrice * item.quantity)}</td>
+                            <td className="text-right">{new Intl.NumberFormat('vi-VN', { minimumFractionDigits: settings.showDecimals ? 2 : 0, maximumFractionDigits: 2 }).format(item.unitPrice)}</td>
+                            <td className="text-right">{new Intl.NumberFormat('vi-VN', { minimumFractionDigits: settings.showDecimals ? 2 : 0, maximumFractionDigits: 2 }).format(item.unitPrice * item.quantity)}</td>
                         </tr>
                     ))}
                     {/* Extra filler rows for "_EXTRA" templates */}
@@ -224,13 +266,11 @@ const PrintInvoice = ({
                             <td></td><td></td><td></td><td></td><td></td><td></td>
                         </tr>
                     ))}
-                </tbody>
-                <tfoot>
                     <tr>
                         <td colSpan={5} className="text-right font-bold">Số tiền cần phải thanh toán:</td>
-                        <td className="text-right font-bold total-amount">{new Intl.NumberFormat('vi-VN').format(total)}</td>
+                        <td className="text-right font-bold total-amount">{new Intl.NumberFormat('vi-VN', { minimumFractionDigits: settings.showDecimals ? 2 : 0, maximumFractionDigits: 2 }).format(total)}</td>
                     </tr>
-                </tfoot>
+                </tbody>
             </table>
 
             <div className="print-footer">
@@ -242,13 +282,11 @@ const PrintInvoice = ({
                 </div>
                 <div className="signature-block">
                     <p className="role">Người bán hàng</p>
-                    <br /><br /><br />
-                    <p className="name">{sellerName}</p>
                 </div>
             </div>
 
             <div className="print-footer-url">
-                https://vppmixu.kiotviet.vn/sale/#/
+                https://vppmixuri.com/
                 <span className="page-number">1/1</span>
             </div>
         </div>
@@ -271,6 +309,16 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     const [showSuccess, setShowSuccess] = useState(false);
     const [lastOrderNumber, setLastOrderNumber] = useState('');
     const [_viewMode, _setViewMode] = useState<ViewMode>('list');
+    const [searchFocused, setSearchFocused] = useState(false);
+
+    // Store data for printing after checkout
+    const [lastCheckoutData, setLastCheckoutData] = useState<{
+        invoice: Invoice;
+        sellerName: string;
+        customerName: string;
+        customerPhone: string;
+        customerAddress: string;
+    } | null>(null);
 
     // Price list state
     const [priceLists, setPriceLists] = useState<PriceList[]>([]);
@@ -340,15 +388,69 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         autoPrint: boolean;
         mergeItems: boolean;
         copies: number;
-        template: 'MIXU' | 'MIXU_EXTRA' | 'THANH_VAN' | 'THANH_VAN_EXTRA' | 'VIET_HONG' | 'VIET_HONG_EXTRA';
+        template: 'MIXU' | 'MIXU_EXTRA' | 'THANH_VAN' | 'THANH_VAN_EXTRA' | 'VIET_HONG' | 'VIET_HONG_EXTRA' | 'CUSTOM' | 'CUSTOM_EXTRA';
+        showDecimals: boolean;
     }
     const [printSettings, setPrintSettings] = useState<PrintSettings>({
         autoPrint: true,
         mergeItems: false,
         copies: 1,
-        template: 'MIXU'
+        template: 'MIXU',
+        showDecimals: true
     });
     const [showPrintSettings, setShowPrintSettings] = useState(false);
+
+    // Editable store configs state
+    const [customStoreConfigs, setCustomStoreConfigs] = useState<Record<string, StoreConfigInfo>>(() => {
+        try {
+            const saved = localStorage.getItem('vppmixu_store_configs');
+            if (saved) {
+                return { ...defaultStoreConfigs, ...JSON.parse(saved) };
+            }
+        } catch (e) {
+            console.error('Cannot read store configs from local storage');
+        }
+        return defaultStoreConfigs;
+    });
+
+    const updateStoreConfig = (field: keyof StoreConfigInfo, value: any) => {
+        const baseTemplate = printSettings.template.replace('_EXTRA', '');
+        const newConfigs = {
+            ...customStoreConfigs,
+            [baseTemplate]: {
+                ...customStoreConfigs[baseTemplate],
+                [field]: value
+            }
+        };
+        setCustomStoreConfigs(newConfigs);
+        localStorage.setItem('vppmixu_store_configs', JSON.stringify(newConfigs));
+    };
+
+    // Helper to format currency while typing (prevents truncation/rounding)
+    const formatWhileTyping = (str: string) => {
+        let clean = str.replace(/\./g, '');
+        clean = clean.replace(/[^0-9,]/g, '');
+        const parts = clean.split(',');
+        let integerPart = parts[0];
+        let decimalPart = parts.length > 1 ? ',' + parts[1].slice(0, 2) : '';
+        
+        if (integerPart) {
+            const num = parseInt(integerPart, 10);
+            if (isNaN(num)) return decimalPart ? '0' + decimalPart : '';
+            integerPart = num.toLocaleString('vi-VN');
+        } else if (parts.length > 1) {
+            integerPart = '0';
+        }
+        
+        return integerPart + decimalPart;
+    };
+
+    const formatCurrency = (value: number) => {
+        return new Intl.NumberFormat('vi-VN', {
+            minimumFractionDigits: printSettings.showDecimals ? 2 : 0,
+            maximumFractionDigits: 2
+        }).format(value);
+    };
 
     // Track price changes for saving to price list
     interface PriceChange {
@@ -358,6 +460,8 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         newPrice: number;
     }
     const [priceChanges, setPriceChanges] = useState<Map<string, PriceChange>>(new Map());
+    const [editingPrice, setEditingPrice] = useState<{ id: string, value: string } | null>(null);
+    const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
 
     // Generate VietQR URL
     const generateVietQRUrl = (bankCode: string, accountNumber: string, accountName: string, amount: number, description: string = '') => {
@@ -371,6 +475,8 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     // Customer search and modal state
     const [customerSearch, setCustomerSearch] = useState('');
     const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+    const [priceListSearch, setPriceListSearch] = useState('');
+    const [showPriceListDropdown, setShowPriceListDropdown] = useState(false);
     const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
     const [customerTab, setCustomerTab] = useState<'general' | 'invoice'>('general');
     const [newCustomer, setNewCustomer] = useState({
@@ -505,7 +611,8 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         const customer = customers.find(c => c.id === selectedCustomer);
         return {
             name: customer?.name || '',
-            phone: customer?.phone || ''
+            phone: customer?.phone || '',
+            address: customer?.address || ''
         };
     }, [customers, selectedCustomer]);
 
@@ -572,6 +679,43 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         fetchStores();
     }, []);
 
+    // Sync stale cart products (from localStorage) with newly fetched data
+    useEffect(() => {
+        if (products.length > 0) {
+            setInvoices(prevInvoices => prevInvoices.map(inv => {
+                let updated = false;
+                const newCart = inv.cart.map(item => {
+                    const freshProduct = products.find(p => p.id === item.product.id || p.sku === item.product.sku);
+                    // Compare simple string logic to see if something changed
+                    if (freshProduct && freshProduct.unit !== item.product.unit) {
+                        updated = true;
+                        return {
+                            ...item,
+                            product: { ...item.product, ...freshProduct }
+                        };
+                    }
+                    return item;
+                });
+                return updated ? { ...inv, cart: newCart } : inv;
+            }));
+        }
+    }, [products]);
+
+    // Close dropdowns on click outside
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target.closest('.customer-search-wrapper:not(.pricelist-search-wrapper)')) {
+                setShowCustomerDropdown(false);
+            }
+            if (!target.closest('.pricelist-search-wrapper')) {
+                setShowPriceListDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     // Refetch products when price list changes and update cart prices
     // Updates ALL invoices including those being edited (user explicitly changed price list)
     useEffect(() => {
@@ -589,6 +733,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                 unitPrice: updatedProduct.defaultPrice,
                                 product: {
                                     ...item.product,
+                                    ...updatedProduct, // Sync all missing/stale properties (including `unit`)
                                     defaultPrice: updatedProduct.defaultPrice
                                 }
                             };
@@ -800,6 +945,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     id: p.id.toString(),
                     name: p.name,
                     sku: p.sku || '',
+                    unit: p.unit || undefined,
                     defaultPrice: price,
                     stock: stockMap.get(p.id.toString()) || 0,
                     imageUrl: p.imageUrl,
@@ -833,13 +979,14 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     // Filter products by search
     const filteredProducts = useMemo(() => {
         if (!search.trim()) return products;
-        const term = search.toLowerCase();
-        return products.filter(
-            (p) =>
-                p.name.toLowerCase().includes(term) ||
-                (p.sku && p.sku.toLowerCase().includes(term)) ||
-                (p.categoryName && p.categoryName.toLowerCase().includes(term))
-        );
+        const term = removeAccents(search);
+        return products.filter((p) => {
+            const name = removeAccents(p.name || '');
+            const sku = removeAccents(p.sku || '');
+            const barcode = removeAccents((p as any).barcode || '');
+            const category = removeAccents(p.categoryName || '');
+            return name.includes(term) || sku.includes(term) || barcode.includes(term) || category.includes(term);
+        });
     }, [products, search]);
 
     // Add product to cart
@@ -883,6 +1030,36 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         });
     };
 
+    // Drag and Drop handlers for cart items
+    const handleDragStart = (e: React.DragEvent, index: number) => {
+        setDraggedItemIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        // HTML5 drag image can be a bit clunky, using a simple hack for better feel
+        if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.classList.add('dragging');
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        if (draggedItemIndex === null || draggedItemIndex === index) return;
+
+        const newCart = [...cart];
+        const itemToMove = newCart[draggedItemIndex];
+        newCart.splice(draggedItemIndex, 1);
+        newCart.splice(index, 0, itemToMove);
+
+        setDraggedItemIndex(index);
+        updateActiveInvoice({ cart: newCart });
+    };
+
+    const handleDragEnd = (e: React.DragEvent) => {
+        setDraggedItemIndex(null);
+        if (e.currentTarget instanceof HTMLElement) {
+            e.currentTarget.classList.remove('dragging');
+        }
+    };
+
     // Update unit price for cart item
     const updateUnitPrice = (productId: string, newPrice: number) => {
         const currentCart = activeInvoice?.cart || [];
@@ -923,11 +1100,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         ? Math.round(subtotal * discountPercent / 100)
         : discountAmount;
     const total = Math.max(0, subtotal - calculatedDiscount);
-
-    // Format currency
-    const formatCurrency = (value: number) => {
-        return new Intl.NumberFormat('vi-VN').format(value);
-    };
+    
 
     // Save changed prices to price list
     const savePricesToPriceList = async (): Promise<boolean> => {
@@ -983,10 +1156,12 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     cashAmount: paymentMethod === 'CASH' ? total : 0,
                     cardAmount: paymentMethod === 'CARD' ? total : 0,
                     transferAmount: paymentMethod === 'TRANSFER' ? total : 0,
+                    issuedAt: activeInvoice?.createdAt?.toISOString(),
+                    createdAt: activeInvoice?.createdAt?.toISOString(),
                     items: cart.map((item) => ({
                         productCode: item.product.sku || '',
                         productName: item.product.name,
-                        unit: 'Cái',
+                        unit: item.product.unit || 'Cái',
                         quantity: item.quantity,
                         unitPrice: item.unitPrice,
                         discountAmount: 0,
@@ -998,6 +1173,13 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 await invoicesAPI.update(activeInvoice.editingInvoiceId!, updatePayload);
 
                 toast.success(`Đã cập nhật hóa đơn thành công!`);
+                setLastCheckoutData({
+                    invoice: { ...activeInvoice, cart: [...activeInvoice.cart] },
+                    sellerName: sellers.find(s => s.id === selectedSeller)?.name || 'Người bán',
+                    customerName: selectedCustomerData.name,
+                    customerPhone: selectedCustomerData.phone,
+                    customerAddress: selectedCustomerData.address || '',
+                });
                 setShowSuccess(true);
             } else {
                 // Create new order
@@ -1015,6 +1197,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                         amount: total,
                         method: paymentMethod,
                     },
+                    createdAt: activeInvoice?.createdAt?.toISOString(),
                 };
 
                 console.log('Sending checkout request:', requestBody);
@@ -1022,9 +1205,17 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
 
                 setLastOrderNumber(response.data?.orderNumber || 'N/A');
 
+                setLastCheckoutData({
+                    invoice: { ...activeInvoice, cart: [...activeInvoice.cart] },
+                    sellerName: sellers.find(s => s.id === selectedSeller)?.name || 'Người bán',
+                    customerName: selectedCustomerData.name,
+                    customerPhone: selectedCustomerData.phone,
+                    customerAddress: selectedCustomerData.address || '',
+                });
+
                 // Quick sale: auto-print and skip success modal
                 if (saleMode === 'quick') {
-                    window.print();
+                    setTimeout(() => window.print(), 100);
                     toast.success(`Đã thanh toán: ${response.data?.orderNumber || 'N/A'}`);
                 } else {
                     setShowSuccess(true);
@@ -1190,6 +1381,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
 
     const closeSuccess = () => {
         setShowSuccess(false);
+        setTimeout(() => setLastCheckoutData(null), 300); // Wait for modal animation
     };
 
     if (loading) {
@@ -1220,13 +1412,15 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={handleSearchKeyDown}
+                                onFocus={() => setSearchFocused(true)}
+                                onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
                                 className="search-input"
                                 autoFocus
                             />
                             {/* Search Dropdown */}
-                            {search.trim() && filteredProducts.length > 0 && (
+                            {searchFocused && filteredProducts.length > 0 && (
                                 <div className="search-dropdown">
-                                    {filteredProducts.slice(0, 8).map((product) => (
+                                    {filteredProducts.slice(0, 50).map((product) => (
                                         <div
                                             key={product.id}
                                             className="search-item"
@@ -1237,6 +1431,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         >
                                             <span className="item-sku">{product.sku || '---'}</span>
                                             <span className="item-name">{product.name}</span>
+                                            <span className="item-unit">{product.unit || 'Cái'}</span>
                                             <span className="item-price">{formatCurrency(Number(product.defaultPrice))}đ</span>
                                         </div>
                                     ))}
@@ -1272,6 +1467,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                         <table className="cart-table">
                             <thead>
                                 <tr>
+                                    <th className="col-drag"></th>
                                     <th className="col-stt">STT</th>
                                     <th className="col-delete"></th>
                                     <th className="col-sku">Mã hàng</th>
@@ -1295,7 +1491,19 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                     </tr>
                                 ) : (
                                     cart.map((item, index) => (
-                                        <tr key={item.product.id}>
+                                        <tr 
+                                            key={item.product.id}
+                                            draggable
+                                            onDragStart={(e) => handleDragStart(e, index)}
+                                            onDragOver={(e) => handleDragOver(e, index)}
+                                            onDragEnd={handleDragEnd}
+                                            className={draggedItemIndex === index ? 'dragging' : ''}
+                                        >
+                                            <td className="col-drag">
+                                                <div className="drag-handle">
+                                                    <MdDragIndicator />
+                                                </div>
+                                            </td>
                                             <td className="col-stt">{cart.length - index}</td>
                                             <td className="col-delete">
                                                 <button onClick={() => removeFromCart(item.product.id)}>
@@ -1304,7 +1512,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                             </td>
                                             <td className="col-sku">{item.product.sku || '---'}</td>
                                             <td className="col-name">{item.product.name}</td>
-                                            <td className="col-unit">Cái</td>
+                                            <td className="col-unit">{item.product.unit || 'Cái'}</td>
                                             <td className="col-qty">
                                                 <input
                                                     type="number"
@@ -1320,11 +1528,29 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                             <td className="col-price">
                                                 <input
                                                     type="text"
-                                                    value={formatCurrency(item.unitPrice)}
+                                                    value={editingPrice?.id === item.product.id ? editingPrice.value : formatCurrency(item.unitPrice)}
+                                                    onFocus={(e) => {
+                                                        const currentVal = formatCurrency(item.unitPrice);
+                                                        setEditingPrice({ id: item.product.id, value: currentVal });
+                                                        setTimeout(() => e.target.select(), 0);
+                                                    }}
                                                     onChange={(e) => {
-                                                        const value = e.target.value.replace(/\./g, '');
-                                                        const num = parseInt(value) || 0;
-                                                        updateUnitPrice(item.product.id, num);
+                                                        const formatted = formatWhileTyping(e.target.value);
+                                                        setEditingPrice({ id: item.product.id, value: formatted });
+                                                    }}
+                                                    onBlur={() => {
+                                                        if (editingPrice?.id === item.product.id) {
+                                                            const val = editingPrice.value.replace(/\./g, '').replace(',', '.');
+                                                            const num = parseFloat(val) || 0;
+                                                            updateUnitPrice(item.product.id, num);
+                                                            setEditingPrice(null);
+                                                        }
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            const target = e.target as HTMLInputElement;
+                                                            target.blur();
+                                                        }
                                                     }}
                                                     className="price-input"
                                                 />
@@ -1460,7 +1686,17 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                 )}
                             </div>
 
-                            <span className="time">{new Date().toLocaleDateString('vi-VN')} {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                            <input
+                                type="datetime-local"
+                                className="invoice-date-picker"
+                                value={activeInvoice ? new Date(activeInvoice.createdAt.getTime() - activeInvoice.createdAt.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                                onChange={(e) => {
+                                    const newDate = new Date(e.target.value);
+                                    if (!isNaN(newDate.getTime())) {
+                                        updateActiveInvoice({ createdAt: newDate });
+                                    }
+                                }}
+                            />
                         </div>
 
                         {/* Customer & Price List Row */}
@@ -1522,17 +1758,68 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                             >
                                 +
                             </button>
-                            <select
-                                className="pricelist-select"
-                                value={selectedPriceList}
-                                onChange={(e) => setSelectedPriceList(e.target.value)}
-                            >
-                                {priceLists.map((pl) => (
-                                    <option key={pl.id} value={pl.id}>
-                                        {pl.name}
-                                    </option>
-                                ))}
-                            </select>
+                            <div className="customer-search-wrapper pricelist-search-wrapper">
+                                <div className="customer-search-box">
+                                    <MdSearch className="search-icon" />
+                                    <input
+                                        type="text"
+                                        placeholder="Tìm bảng giá..."
+                                        value={priceListSearch || (selectedPriceList ? (priceLists.find(pl => pl.id === selectedPriceList)?.name || '') : '')}
+                                        onChange={(e) => {
+                                            setPriceListSearch(e.target.value);
+                                            setShowPriceListDropdown(true);
+                                        }}
+                                        onFocus={() => {
+                                            setPriceListSearch('');
+                                            setShowPriceListDropdown(true);
+                                        }}
+                                        className="customer-search-input"
+                                    />
+                                    {selectedPriceList && (
+                                        <button
+                                            className="clear-customer-btn"
+                                            onClick={() => {
+                                                setSelectedPriceList('');
+                                                setPriceListSearch('');
+                                            }}
+                                            title="Xóa bảng giá"
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                </div>
+                                {showPriceListDropdown && (
+                                    <div className="customer-dropdown">
+                                        {priceLists
+                                            .filter(pl => {
+                                                if (!priceListSearch.trim()) return true;
+                                                return pl.name.toLowerCase().includes(priceListSearch.toLowerCase());
+                                            })
+                                            .length === 0 ? (
+                                            <div className="dropdown-empty">Không tìm thấy bảng giá</div>
+                                        ) : (
+                                            priceLists
+                                                .filter(pl => {
+                                                    if (!priceListSearch.trim()) return true;
+                                                    return pl.name.toLowerCase().includes(priceListSearch.toLowerCase());
+                                                })
+                                                .map((pl) => (
+                                                    <div
+                                                        key={pl.id}
+                                                        className={`dropdown-item ${pl.id === selectedPriceList ? 'active' : ''}`}
+                                                        onClick={() => {
+                                                            setSelectedPriceList(pl.id);
+                                                            setPriceListSearch(pl.name);
+                                                            setShowPriceListDropdown(false);
+                                                        }}
+                                                    >
+                                                        <span className="customer-name">{pl.name}</span>
+                                                    </div>
+                                                ))
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Summary */}
@@ -1733,6 +2020,17 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                     </label>
                                 </div>
                                 <div className="setting-row">
+                                    <span>Hiển thị số lẻ (,00)</span>
+                                    <label className="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            checked={printSettings.showDecimals}
+                                            onChange={(e) => setPrintSettings({ ...printSettings, showDecimals: e.target.checked })}
+                                        />
+                                        <span className="slider round"></span>
+                                    </label>
+                                </div>
+                                <div className="setting-row">
                                     <span>Số bản in (Liên)</span>
                                     <input
                                         type="number"
@@ -1781,6 +2079,107 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         >
                                             Việt Hồng thêm dòng
                                         </button>
+                                        <button
+                                            className={`template-btn ${printSettings.template === 'CUSTOM' ? 'active' : ''}`}
+                                            onClick={() => setPrintSettings({ ...printSettings, template: 'CUSTOM' })}
+                                        >
+                                            Tùy chỉnh
+                                        </button>
+                                        <button
+                                            className={`template-btn ${printSettings.template === 'CUSTOM_EXTRA' ? 'active' : ''}`}
+                                            onClick={() => setPrintSettings({ ...printSettings, template: 'CUSTOM_EXTRA' })}
+                                        >
+                                            Tùy chỉnh thêm dòng
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="template-section" style={{ marginTop: '10px' }}>
+                                    <span className="section-title">Chỉnh sửa thông tin mẫu in "{printSettings.template.replace('_EXTRA', '')}"</span>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Tên Công Ty/Cửa Hàng</span>
+                                        <input
+                                            type="text"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.companyName || ''}
+                                            onChange={(e) => updateStoreConfig('companyName', e.target.value)}
+                                            className="custom-config-input"
+                                        />
+                                    </div>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Địa chỉ</span>
+                                        <input
+                                            type="text"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.address || ''}
+                                            onChange={(e) => updateStoreConfig('address', e.target.value)}
+                                            className="custom-config-input"
+                                        />
+                                    </div>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Số điện thoại</span>
+                                        <input
+                                            type="text"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.phone || ''}
+                                            onChange={(e) => updateStoreConfig('phone', e.target.value)}
+                                            className="custom-config-input"
+                                        />
+                                    </div>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Logo (chữ in lớn)</span>
+                                        <input
+                                            type="text"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.logoText || ''}
+                                            onChange={(e) => updateStoreConfig('logoText', e.target.value)}
+                                            className="custom-config-input"
+                                        />
+                                    </div>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Cỡ chữ tiêu đề (px)</span>
+                                        <input
+                                            type="number"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.titleFontSize || 24}
+                                            onChange={(e) => updateStoreConfig('titleFontSize', parseInt(e.target.value) as any)}
+                                            className="custom-config-input"
+                                            style={{ width: '80px' }}
+                                        />
+                                    </div>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Cỡ chữ Logo (px)</span>
+                                        <input
+                                            type="number"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.logoFontSize || 28}
+                                            onChange={(e) => updateStoreConfig('logoFontSize', parseInt(e.target.value) as any)}
+                                            className="custom-config-input"
+                                            style={{ width: '80px' }}
+                                        />
+                                    </div>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Cỡ chữ Tên CTy (px)</span>
+                                        <input
+                                            type="number"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.companyNameFontSize || 19}
+                                            onChange={(e) => updateStoreConfig('companyNameFontSize', parseInt(e.target.value) as any)}
+                                            className="custom-config-input"
+                                            style={{ width: '80px' }}
+                                        />
+                                    </div>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Cỡ chữ nội dung nhỏ (px)</span>
+                                        <input
+                                            type="number"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.textFontSize || 14}
+                                            onChange={(e) => updateStoreConfig('textFontSize', parseInt(e.target.value) as any)}
+                                            className="custom-config-input"
+                                            style={{ width: '80px' }}
+                                        />
+                                    </div>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Cỡ chữ danh sách Hàng (px)</span>
+                                        <input
+                                            type="number"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.tableFontSize || 15}
+                                            onChange={(e) => updateStoreConfig('tableFontSize', parseInt(e.target.value) as any)}
+                                            className="custom-config-input"
+                                            style={{ width: '80px' }}
+                                        />
                                     </div>
                                 </div>
                                 <div className="popover-footer">
@@ -2287,11 +2686,13 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             {/* Print Template Container - Outside POS Page to persist when printing */}
             <div className="print-container">
                 <PrintInvoice
-                    invoice={activeInvoice}
+                    invoice={lastCheckoutData ? lastCheckoutData.invoice : activeInvoice}
                     settings={printSettings}
-                    sellerName={sellers.find(s => s.id === selectedSeller)?.name || 'Người bán'}
-                    customerName={selectedCustomerData.name}
-                    customerPhone={selectedCustomerData.phone}
+                    sellerName={lastCheckoutData ? lastCheckoutData.sellerName : (sellers.find(s => s.id === selectedSeller)?.name || 'Người bán')}
+                    customerName={lastCheckoutData ? lastCheckoutData.customerName : selectedCustomerData.name}
+                    customerPhone={lastCheckoutData ? lastCheckoutData.customerPhone : selectedCustomerData.phone}
+                    customerAddress={lastCheckoutData ? lastCheckoutData.customerAddress : (selectedCustomerData.address || '')}
+                    storeConfigs={customStoreConfigs}
                 />
             </div>
         </>
