@@ -19,35 +19,56 @@ export class ProductsService {
   }
 
   async create(dto: CreateProductDto) {
-    return this.prisma.$transaction(async (tx) => {
-      const sku = dto.sku || dto.barcode || this.generateCode('SP');
-      const product = await tx.product.create({
-        data: {
-          name: dto.name,
-          sku,
-          categoryId: dto.categoryId ? BigInt(dto.categoryId) : null,
-          defaultPrice: dto.price,
-          defaultCost: dto.cost ?? 0,
-          description: dto.description,
-          images: dto.images,
-          unit: dto.unit || null,
-        },
-        include: { category: true },
-      });
+    console.log('=== CREATE PRODUCT START ===');
+    console.log('DTO:', JSON.stringify(dto));
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const sku = dto.sku || dto.barcode || this.generateCode('SP');
+        console.log('Using SKU:', sku);
 
-      // Create default variant
-      await tx.productVariant.create({
-        data: {
-          productId: product.id,
-          sku: sku || null,
-          price: dto.price ?? 0,
-          cost: dto.cost ?? 0,
-          active: true,
-        },
-      });
+        const categoryId = dto.categoryId && /^\d+$/.test(dto.categoryId) 
+          ? BigInt(dto.categoryId) 
+          : null;
 
-      return product;
-    });
+        const product = await tx.product.create({
+          data: {
+            name: dto.name,
+            sku,
+            categoryId,
+            defaultPrice: dto.price,
+            defaultCost: dto.cost ?? 0,
+            description: dto.description,
+            images: dto.images,
+            unit: dto.unit || null,
+          } as any,
+          include: { category: true },
+        });
+
+        console.log('Product created:', product.id.toString());
+
+        // Create default variant
+        await tx.productVariant.create({
+          data: {
+            productId: product.id,
+            sku: sku || null,
+            price: dto.price ?? 0,
+            cost: dto.cost ?? 0,
+            active: true,
+          },
+        });
+
+        console.log('Default variant created');
+
+        return product;
+      });
+    } catch (error: any) {
+      console.error('=== CREATE PRODUCT ERROR ===');
+      console.error('Error message:', error.message);
+      if (error.code) console.error('Error code:', error.code);
+      if (error.meta) console.error('Error meta:', JSON.stringify(error.meta));
+      console.error('Stack:', error.stack);
+      throw error;
+    }
   }
 
   async findAll(query: ProductQueryDto) {

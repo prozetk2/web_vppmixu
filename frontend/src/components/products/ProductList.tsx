@@ -689,12 +689,14 @@ export default function ProductList() {
                                         <td className="text-center col-stock-out">{calculateStockOutDays(product.totalStock)}</td>
                                         <td className="col-date">{formatDate(product.createdAt)}</td>
                                         <td className="col-actions">
-                                            <button className="btn-icon btn-edit" onClick={() => handleEdit(product)} title="Sửa">
-                                                <MdEdit />
-                                            </button>
-                                            <button className="btn-icon btn-delete" onClick={() => handleDeleteClick(product)} title="Xóa">
-                                                <MdDelete />
-                                            </button>
+                                            <span className="actions-cell">
+                                                <button className="btn-icon btn-edit" onClick={() => handleEdit(product)} title="Sửa">
+                                                    <MdEdit />
+                                                </button>
+                                                <button className="btn-icon btn-delete" onClick={() => handleDeleteClick(product)} title="Xóa">
+                                                    <MdDelete />
+                                                </button>
+                                            </span>
                                         </td>
                                     </tr>
                                 ))}

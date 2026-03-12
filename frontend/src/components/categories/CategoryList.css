@@ -184,17 +184,18 @@
 
 .actions {
     display: flex;
-    gap: 8px;
+    gap: 12px;
     justify-content: center;
+    align-items: center;
 }
 
 .btn-icon {
-    width: 32px;
-    height: 32px;
-    border: none;
-    border-radius: 6px;
+    width: 45px;
+    height: 45px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -205,8 +206,8 @@
 
 .btn-icon svg {
     display: block;
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
 }
 
 .btn-edit {

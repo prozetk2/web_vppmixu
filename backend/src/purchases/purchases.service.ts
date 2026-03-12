@@ -189,11 +189,11 @@ export class PurchasesService {
                 });
             }
 
-            // Update supplier debt
+            // Update supplier debt: totalPurchase increases by full amount, currentDebt increases by net amount
             await tx.supplier.update({
                 where: { id: BigInt(dto.supplierId) },
                 data: {
-                    currentDebt: { increment: totalAmount },
+                    currentDebt: { increment: totalAmount - prepaymentAmount },
                     totalPurchase: { increment: totalAmount },
                 },
             });
@@ -209,7 +209,10 @@ export class PurchasesService {
         const where: any = {};
 
         if (search) {
-            where.orderNumber = { contains: search, mode: 'insensitive' };
+            where.OR = [
+                { orderNumber: { contains: search, mode: 'insensitive' } },
+                { supplier: { name: { contains: search, mode: 'insensitive' } } },
+            ];
         }
 
         if (supplierId) {
@@ -288,11 +291,13 @@ export class PurchasesService {
             throw new BadRequestException('CANNOT_UPDATE_CANCELLED_ORDER');
         }
 
-        const isConfirmed = order.status === 'CONFIRMED';
+        // All non-cancelled statuses (CONFIRMED, PAID, PARTIAL) have inventory in stock
+        const hasInventory = ['CONFIRMED', 'PAID', 'PARTIAL'].includes(order.status);
 
         // Build update data
         const updateData: any = {};
-        if (dto.supplierId) updateData.supplierId = BigInt(dto.supplierId);
+        const newSupplierId = dto.supplierId ? BigInt(dto.supplierId) : null;
+        if (newSupplierId) updateData.supplierId = newSupplierId;
         if (dto.warehouseId !== undefined) {
             updateData.warehouseId = dto.warehouseId ? BigInt(dto.warehouseId) : null;
         }
@@ -338,9 +343,20 @@ export class PurchasesService {
 
             updateData.totalAmount = totalAmount;
 
+            // Recalculate payment status based on existing amountPaid vs new totalAmount
+            const amountPaid = Number(order.amountPaid || 0);
+            if (amountPaid >= totalAmount && amountPaid > 0) {
+                updateData.status = 'PAID';
+            } else if (amountPaid > 0) {
+                updateData.status = 'PARTIAL';
+            } else {
+                updateData.status = 'CONFIRMED';
+            }
+            updateData.amountDue = totalAmount - amountPaid;
+
             return this.prisma.$transaction(async (tx) => {
-                // If order was CONFIRMED, reverse old inventory first
-                if (isConfirmed) {
+                // If order has inventory, reverse old inventory first
+                if (hasInventory) {
                     let warehouseId = order.warehouseId;
                     if (!warehouseId) {
                         const firstWh = await tx.warehouse.findFirst({ orderBy: { createdAt: 'asc' } });
@@ -373,11 +389,12 @@ export class PurchasesService {
                         });
                     }
 
-                    // Reverse supplier debt
+                    // Reverse supplier debt for the OLD supplier
+                    const oldNetAmt = Number(order.totalAmount) - Number(order.amountPaid || 0);
                     await tx.supplier.update({
                         where: { id: order.supplierId },
                         data: {
-                            currentDebt: { decrement: Number(order.totalAmount) },
+                            currentDebt: { decrement: oldNetAmt },
                             totalPurchase: { decrement: Number(order.totalAmount) },
                         },
                     });
@@ -396,8 +413,8 @@ export class PurchasesService {
                     },
                 });
 
-                // If order was CONFIRMED, re-apply inventory with new items
-                if (isConfirmed) {
+                // If order has inventory, re-apply inventory with new items
+                if (hasInventory) {
                     let warehouseId = order.warehouseId;
                     if (!warehouseId) {
                         const firstWh = await tx.warehouse.findFirst({ orderBy: { createdAt: 'asc' } });
@@ -441,11 +458,13 @@ export class PurchasesService {
                         }
                     }
 
-                    // Re-apply supplier debt with new total
+                    // Re-apply supplier debt for the NEW supplier (or same supplier if unchanged)
+                    const targetSupplierId = newSupplierId || order.supplierId;
+                    const newNetAmt = totalAmount - amountPaid;
                     await tx.supplier.update({
-                        where: { id: order.supplierId },
+                        where: { id: targetSupplierId },
                         data: {
-                            currentDebt: { increment: totalAmount },
+                            currentDebt: { increment: newNetAmt },
                             totalPurchase: { increment: totalAmount },
                         },
                     });
@@ -571,27 +590,63 @@ export class PurchasesService {
     async delete(id: string) {
         const order = await this.findOne(id);
 
-        // Delete items first, then order
         await this.prisma.$transaction(async (tx) => {
-            // If confirmed, also delete related stock movements
-            if (order.status === 'CONFIRMED') {
-                await tx.stockMovement.deleteMany({
-                    where: {
-                        note: { contains: order.orderNumber || '' },
-                        movementType: 'PURCHASE',
+            // If confirmed, reverse the effects (inventory and supplier debt)
+            if (order.status === 'CONFIRMED' || order.status === 'PAID' || order.status === 'PARTIAL') {
+                let warehouseId = order.warehouseId;
+                if (!warehouseId) {
+                    const firstWh = await tx.warehouse.findFirst({ orderBy: { createdAt: 'asc' } });
+                    if (firstWh) warehouseId = firstWh.id;
+                }
+
+                if (warehouseId) {
+                    // Reverse inventory: decrement stock for each item
+                    for (const item of order.purchaseItems) {
+                        const inv = await tx.inventory.findFirst({
+                            where: {
+                                variantId: item.variantId,
+                                warehouseId: warehouseId,
+                            },
+                        });
+                        if (inv) {
+                            await tx.inventory.update({
+                                where: { id: inv.id },
+                                data: { quantity: { decrement: Number(item.quantity) } },
+                            });
+                        }
+                    }
+
+                    // Delete related stock movements
+                    await tx.stockMovement.deleteMany({
+                        where: {
+                            note: { contains: order.orderNumber || '' },
+                            movementType: 'PURCHASE',
+                        },
+                    });
+                }
+
+                // Reverse supplier debt: decrement currentDebt and totalPurchase
+                await tx.supplier.update({
+                    where: { id: order.supplierId },
+                    data: {
+                        currentDebt: { decrement: Number(order.totalAmount) },
+                        totalPurchase: { decrement: Number(order.totalAmount) },
                     },
                 });
             }
 
+            // Delete order items
             await tx.purchaseItem.deleteMany({
                 where: { purchaseOrderId: BigInt(id) },
             });
+
+            // Delete the purchase order itself
             await tx.purchaseOrder.delete({
                 where: { id: BigInt(id) },
             });
         });
 
-        return { success: true, message: 'Đã xóa đơn nhập hàng' };
+        return { success: true, message: 'Đã xóa đơn nhập hàng thành công và cập nhật lại tồn kho' };
     }
 
     async exportToExcel(query: PurchaseQueryDto) {
@@ -599,7 +654,10 @@ export class PurchasesService {
         const where: any = {};
 
         if (search) {
-            where.orderNumber = { contains: search, mode: 'insensitive' };
+            where.OR = [
+                { orderNumber: { contains: search, mode: 'insensitive' } },
+                { supplier: { name: { contains: search, mode: 'insensitive' } } },
+            ];
         }
         if (supplierId) {
             where.supplierId = BigInt(supplierId);

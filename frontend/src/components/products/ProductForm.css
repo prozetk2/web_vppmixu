@@ -211,3 +211,72 @@
     font-size: 14px;
     font-style: italic;
 }
+/* Image Upload UI */
+.image-upload-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.image-upload-box {
+    width: 120px;
+    height: 120px;
+    border: 2px dashed #d1d5db;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s;
+    background: #f9fafb;
+}
+
+.image-upload-box:hover {
+    border-color: #667eea;
+    background: #f5f3ff;
+}
+
+.image-upload-box.uploading {
+    cursor: wait;
+    opacity: 0.8;
+}
+
+.upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.upload-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #667eea;
+}
+
+.uploaded-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 10;
+}
+
+.hint {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.hint.success {
+    color: #10b981;
+}

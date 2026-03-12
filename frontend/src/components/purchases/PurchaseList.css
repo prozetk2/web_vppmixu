@@ -137,9 +137,50 @@
     font-size: 0.875rem;
 }
 
-.action-btns {
+.col-actions {
+    width: 120px;
+    text-align: center !important;
+}
+
+.actions-cell {
     display: flex;
-    gap: 0.5rem;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+}
+
+.col-actions .btn-icon {
+    width: 45px;
+    height: 45px;
+    border: 1px solid #e0e0e0;
+    margin: 0;
+    font-size: 24px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.col-actions .btn-edit {
+    color: #6366f1;
+}
+
+.col-actions .btn-delete {
+    color: #ef4444;
+}
+
+.col-actions .btn-edit:hover {
+    background: #e3f2fd;
+    color: #2196f3;
+}
+
+.col-actions .btn-delete:hover {
+    background: #ffebee;
+    color: #f44336;
 }
 
 .btn-confirm {
@@ -2964,6 +3005,41 @@
 
 .btn-edit-purchase svg {
     font-size: 12px;
+}
+
+.btn-delete-purchase {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-left: 6px;
+}
+
+.btn-delete-purchase:hover {
+    background: #dc2626;
+}
+
+.btn-delete-purchase svg {
+    font-size: 12px;
+}
+
+.btn-danger {
+    background: #ef4444 !important;
+    color: white !important;
+    border: none !important;
+    transition: background 0.2s;
+}
+
+.btn-danger:hover {
+    background: #dc2626 !important;
 }
 
 .unit-input {

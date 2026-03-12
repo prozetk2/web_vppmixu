@@ -195,21 +195,23 @@ export default function CategoryList() {
                                     <td className="category-desc">
                                         {category.description || '—'}
                                     </td>
-                                    <td className="text-center actions">
-                                        <button
-                                            className="btn-icon btn-edit"
-                                            onClick={() => handleEdit(category)}
-                                            title="Sửa"
-                                        >
-                                            <MdEdit />
-                                        </button>
-                                        <button
-                                            className="btn-icon btn-delete"
-                                            onClick={() => handleDeleteClick(category)}
-                                            title="Xóa"
-                                        >
-                                            <MdDelete />
-                                        </button>
+                                    <td className="text-center">
+                                        <div className="actions">
+                                            <button
+                                                className="btn-icon btn-edit"
+                                                onClick={() => handleEdit(category)}
+                                                title="Sửa"
+                                            >
+                                                <MdEdit />
+                                            </button>
+                                            <button
+                                                className="btn-icon btn-delete"
+                                                onClick={() => handleDeleteClick(category)}
+                                                title="Xóa"
+                                            >
+                                                <MdDelete />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}

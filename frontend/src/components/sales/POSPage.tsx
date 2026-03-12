@@ -461,6 +461,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     }
     const [priceChanges, setPriceChanges] = useState<Map<string, PriceChange>>(new Map());
     const [editingPrice, setEditingPrice] = useState<{ id: string, value: string } | null>(null);
+    const [editingQty, setEditingQty] = useState<{ id: string, value: string } | null>(null);
     const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
 
     // Generate VietQR URL
@@ -1022,6 +1023,19 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         });
     };
 
+    // Set cart item quantity directly (for input field)
+    const setQuantityDirect = (productId: string, newQty: number) => {
+        const currentCart = activeInvoice?.cart || [];
+        updateActiveInvoice({
+            cart: currentCart
+                .map((item) =>
+                    item.product.id === productId
+                        ? { ...item, quantity: Math.max(1, newQty) }
+                        : item
+                )
+        });
+    };
+
     // Remove from cart
     const removeFromCart = (productId: string) => {
         const currentCart = activeInvoice?.cart || [];
@@ -1515,12 +1529,28 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                             <td className="col-unit">{item.product.unit || 'Cái'}</td>
                                             <td className="col-qty">
                                                 <input
-                                                    type="number"
-                                                    min="1"
-                                                    value={item.quantity}
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    value={editingQty?.id === item.product.id ? editingQty.value : item.quantity.toString()}
+                                                    onFocus={(e) => {
+                                                        setEditingQty({ id: item.product.id, value: item.quantity.toString() });
+                                                        setTimeout(() => e.target.select(), 0);
+                                                    }}
                                                     onChange={(e) => {
-                                                        const newQty = parseInt(e.target.value) || 1;
-                                                        updateQuantity(item.product.id, newQty - item.quantity);
+                                                        const val = e.target.value.replace(/[^0-9]/g, '');
+                                                        setEditingQty({ id: item.product.id, value: val });
+                                                    }}
+                                                    onBlur={() => {
+                                                        if (editingQty?.id === item.product.id) {
+                                                            const num = parseInt(editingQty.value) || 1;
+                                                            setQuantityDirect(item.product.id, num);
+                                                            setEditingQty(null);
+                                                        }
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            (e.target as HTMLInputElement).blur();
+                                                        }
                                                     }}
                                                     className="qty-input"
                                                 />

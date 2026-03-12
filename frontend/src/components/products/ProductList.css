@@ -394,15 +394,25 @@
 }
 
 .col-actions {
-    width: 100px;
+    width: 120px;
     text-align: center !important;
 }
 
+.actions-cell {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+}
+
 .col-actions .btn-icon {
-    width: 30px;
-    height: 30px;
-    border: none;
-    margin: 0 2px;
+    width: 45px;
+    height: 45px;
+    border: 1px solid #e0e0e0;
+    margin: 0;
+    font-size: 24px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .btn-edit:hover {

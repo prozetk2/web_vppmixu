@@ -45,6 +45,8 @@ export default function ProductForm({
   const [importNote, setImportNote] = useState<string>('');
   const [categorySearch, setCategorySearch] = useState('');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
 
   // Helper to remove accents for searching
   const removeAccents = (str: string) => {
@@ -119,18 +121,78 @@ export default function ProductForm({
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.75): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
 
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return reject(new Error('Canvas context not found'));
+          
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          canvas.toBlob((blob) => {
+            if (!blob) return reject(new Error('Blob creation failed'));
+            const compressedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          }, 'image/jpeg', quality);
+        };
+        img.onerror = reject;
+      };
+      reader.onerror = reject;
+    });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const originalFile = e.target.files?.[0];
+    if (!originalFile) return;
+
+    // Local preview immediately
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setLocalPreview(reader.result as string);
+    };
+    reader.readAsDataURL(originalFile);
+
+    setIsUploading(true);
     try {
+      // Compress before upload
+      const fileToUpload = originalFile.size > 200 * 1024 
+          ? await compressImage(originalFile) 
+          : originalFile;
+      
+      console.log(`Image size: original=${(originalFile.size/1024).toFixed(1)}KB, final=${(fileToUpload.size/1024).toFixed(1)}KB`);
+
       const { productsAPI } = await import('../../services/api');
-      const response = await productsAPI.uploadImage(file);
+      const response = await productsAPI.uploadImage(fileToUpload);
       const url = response.data.data?.url || response.data.url;
       setFormData((prev) => ({ ...prev, images: url }));
-    } catch (error) {
+      setLocalPreview(null); // Clear local once server url is ready
+    } catch (error: any) {
       console.error('Upload failed', error);
-      alert('Không thể tải ảnh lên, vui lòng thử lại');
+      const msg = error.response?.data?.message || 'Không thể tải ảnh lên, file có thể quá lớn hoặc lỗi server';
+      alert(msg);
+      setLocalPreview(null);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -402,28 +464,35 @@ export default function ProductForm({
 
       <div className="form-group">
         <label className="form-label">Ảnh sản phẩm</label>
-        <div className="image-upload-content">
-          <input
-            type="file"
-            onChange={handleImageUpload}
-            accept="image/*"
-            className="form-input"
-          />
-          {formData.images && (
-            <div className="image-preview" style={{ marginTop: '10px' }}>
+        <div className="image-upload-wrapper">
+          <label className={`image-upload-box ${isUploading ? 'uploading' : ''}`}>
+            <input
+              type="file"
+              onChange={handleImageUpload}
+              accept="image/*"
+              style={{ display: 'none' }}
+              disabled={isUploading}
+            />
+            {isUploading ? (
+              <div className="upload-loading">
+                <div className="spinner-small" style={{ borderTopColor: '#667eea' }}></div>
+                <span>Đang tải...</span>
+              </div>
+            ) : (
+              <div className="upload-placeholder">
+                <span style={{ fontSize: '24px' }}>+</span>
+                <span>Tải ảnh</span>
+              </div>
+            )}
+            {(localPreview || formData.images) && (
               <img
-                src={formData.images}
-                alt="Product Preview"
-                style={{
-                  width: '100px',
-                  height: '100px',
-                  objectFit: 'cover',
-                  borderRadius: '4px',
-                  border: '1px solid #ddd',
-                }}
+                src={localPreview || formData.images}
+                alt="Product"
+                className="uploaded-image"
               />
-            </div>
-          )}
+            )}
+          </label>
+          <small className="hint">Dung lượng tối đa 50MB. Hỗ trợ JPG, PNG, WEBP.</small>
         </div>
       </div>
 

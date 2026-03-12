@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { purchasesAPI, suppliersAPI, productsAPI, warehousesAPI, priceListsAPI } from '../../services/api';
+import { purchasesAPI, suppliersAPI, productsAPI, warehousesAPI, priceListsAPI, categoriesAPI } from '../../services/api';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import CurrencyInput from '../shared/CurrencyInput';
@@ -83,6 +83,7 @@ export default function PurchaseList() {
     const [page, setPage] = useState(1);
     const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
     const [itemsPerPage, setItemsPerPage] = useState(15);
+    const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
     // Sidebar Filters - Status checkboxes
     const [statusConfirmed, setStatusConfirmed] = useState(true);
@@ -259,19 +260,20 @@ export default function PurchaseList() {
     ].filter(Boolean).join(',');
 
     useEffect(() => {
-        fetchData();
+        fetchInitialData();
     }, []);
 
     useEffect(() => {
         fetchPurchases();
     }, [page, statusConfirmed, statusPaid, statusPartial, statusCancelled, searchQuery, fromDate, toDate]);
 
-    const fetchData = async () => {
+    const fetchInitialData = async () => {
         try {
-            const [suppliersRes, productsRes, warehousesRes, priceListsRes] = await Promise.all([
+            const [suppliersRes, productsRes, warehousesRes, categoriesRes, priceListsRes] = await Promise.all([
                 suppliersAPI.getAll({ limit: 10000 }),
                 productsAPI.getAll({ limit: 10000 }),
                 warehousesAPI.getAll(),
+                categoriesAPI.getAll(),
                 priceListsAPI.getAll(),
             ]);
             const rawSuppliers = (suppliersRes.data?.data || suppliersRes.data || []).map((s: any) => ({
@@ -296,6 +298,10 @@ export default function PurchaseList() {
             if (fetchedPriceLists.length > 0) {
                 setPriceLists(fetchedPriceLists);
             }
+            setCategories((categoriesRes.data?.data || categoriesRes.data || []).map((c: any) => ({
+                id: c.id.toString(),
+                name: c.name,
+            })));
         } catch (error) {
             console.error('Failed to fetch data:', error);
         }
@@ -871,7 +877,7 @@ export default function PurchaseList() {
                         <MdSearch className="search-icon" />
                         <input
                             type="text"
-                            placeholder="Theo mã phiếu nhập"
+                            placeholder="Theo mã phiếu nhập, tên nhà cung cấp"
                             value={searchQuery}
                             onChange={(e) => {
                                 setSearchQuery(e.target.value);
@@ -1086,58 +1092,70 @@ export default function PurchaseList() {
                                         <th>Nhà cung cấp</th>
                                         <th className="col-amount">Cần trả NCC</th>
                                         <th>Trạng thái</th>
-                                        <th className="col-actions">Thao tác</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {purchases.map((p) => (
-                                        <tr key={p.id} className={selectedIds.has(p.id) ? 'selected' : ''}>
-                                            <td className="col-checkbox">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedIds.has(p.id)}
-                                                    onChange={() => toggleSelection(p.id)}
-                                                />
-                                            </td>
-                                            <td className="col-star">
-                                                <button className="btn-star" onClick={() => toggleStar(p.id)}>
-                                                    {starredIds.has(p.id) ? <MdStar className="starred" /> : <MdStarBorder />}
-                                                </button>
-                                            </td>
-                                            <td>
-                                                <span
-                                                    className="order-number-v2"
-                                                    onClick={() => openDetailModal(p)}
-                                                >
-                                                    {p.orderNumber}
-                                                </span>
-                                            </td>
-                                            <td className="col-date">{formatDate(p.createdAt)}</td>
-                                            <td className="col-supplier-code">{p.supplier?.code || 'NCC' + p.supplier?.id?.slice(-6)}</td>
-                                            <td className="col-supplier">{p.supplier?.name}</td>
-                                            <td className="col-amount">{formatCurrency(Number(p.totalAmount))}</td>
-                                            <td>
-                                                <span className={`status-badge-v2 ${p.status}`}>
-                                                    {STATUS_LABELS[p.status] || p.status}
-                                                </span>
-                                            </td>
-                                            <td className="col-actions">
-                                                {p.status !== 'CANCELLED' && (
-                                                    <button
-                                                        className="btn-edit-purchase"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            openEditModal(p);
-                                                        }}
-                                                        title="Sửa đơn nhập"
-                                                    >
-                                                        <MdEdit /> Sửa
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
+                                            <th className="text-center col-actions">Thao tác</th>
+                                         </tr>
+                                     </thead>
+                                     <tbody>
+                                         {purchases.map((p) => (
+                                             <tr key={p.id} className={selectedIds.has(p.id) ? 'selected' : ''}>
+                                                 <td className="col-checkbox">
+                                                     <input
+                                                         type="checkbox"
+                                                         checked={selectedIds.has(p.id)}
+                                                         onChange={() => toggleSelection(p.id)}
+                                                     />
+                                                 </td>
+                                                 <td className="col-star">
+                                                     <button className="btn-star" onClick={() => toggleStar(p.id)}>
+                                                         {starredIds.has(p.id) ? <MdStar className="starred" /> : <MdStarBorder />}
+                                                     </button>
+                                                 </td>
+                                                 <td>
+                                                     <span
+                                                         className="order-number-v2"
+                                                         onClick={() => openDetailModal(p)}
+                                                     >
+                                                         {p.orderNumber}
+                                                     </span>
+                                                 </td>
+                                                 <td className="col-date">{formatDate(p.createdAt)}</td>
+                                                 <td className="col-supplier-code">{p.supplier?.code || 'NCC' + p.supplier?.id?.slice(-6)}</td>
+                                                 <td className="col-supplier">{p.supplier?.name}</td>
+                                                 <td className="col-amount">{formatCurrency(Number(p.totalAmount))}</td>
+                                                 <td>
+                                                     <span className={`status-badge-v2 ${p.status}`}>
+                                                         {STATUS_LABELS[p.status] || p.status}
+                                                     </span>
+                                                 </td>
+                                                 <td className="col-actions">
+                                                     <div className="actions-cell">
+                                                         {p.status !== 'CANCELLED' && (
+                                                             <button
+                                                                 className="btn-icon btn-edit"
+                                                                 onClick={(e) => {
+                                                                     e.stopPropagation();
+                                                                     openEditModal(p);
+                                                                 }}
+                                                                 title="Sửa đơn nhập"
+                                                             >
+                                                                 <MdEdit />
+                                                             </button>
+                                                         )}
+                                                         <button
+                                                             className="btn-icon btn-delete"
+                                                             onClick={(e) => {
+                                                                 e.stopPropagation();
+                                                                 handleDelete(p.id, p.orderNumber);
+                                                             }}
+                                                             title="Xóa đơn nhập"
+                                                         >
+                                                             <MdDelete />
+                                                         </button>
+                                                     </div>
+                                                 </td>
+                                             </tr>
+                                         ))}
+                                     </tbody>
                             </table>
                         )}
                     </div>
@@ -1384,7 +1402,7 @@ export default function PurchaseList() {
                                 type="button"
                                 className="btn-add-row-below"
                                 onClick={addItem}
-                                title="Thêm hàng mới"
+                                title="Thêm dòng mới"
                             >
                                 <MdAdd /> Thêm dòng
                             </button>
@@ -1721,6 +1739,15 @@ export default function PurchaseList() {
                                     <MdEdit /> Sửa đơn
                                 </button>
                             )}
+                            <button
+                                onClick={() => {
+                                    handleDelete(selectedPurchase.id, selectedPurchase.orderNumber);
+                                    closeDetailModal();
+                                }}
+                                className="btn btn-danger"
+                            >
+                                <MdDelete /> Xóa đơn
+                            </button>
                         </div>
                     </div>
                 )}
@@ -2209,8 +2236,9 @@ export default function PurchaseList() {
                                         className="form-input"
                                     >
                                         <option value="">Chọn nhóm hàng (Bắt buộc)</option>
-                                        <option value="vpp">Văn phòng phẩm</option>
-                                        <option value="dctb">Dụng cụ thiết bị</option>
+                                        {categories.map(cat => (
+                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                        ))}
                                     </select>
                                 </div>
                                 <div className="form-group">
