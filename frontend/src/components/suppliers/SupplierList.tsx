@@ -371,6 +371,19 @@ export default function SupplierList() {
         }
     };
 
+    const handleDeletePayment = async (supplierId: string, paymentId: string, amount: number) => {
+        if (!window.confirm(`Xác nhận xóa thanh toán ${formatCurrency(amount)}đ? Nợ NCC sẽ tăng lại.`)) return;
+        try {
+            await suppliersAPI.deletePayment(supplierId, paymentId);
+            toast.success('Đã xóa thanh toán thành công');
+            fetchPayments(supplierId);
+            fetchSuppliers();
+        } catch (error: any) {
+            console.error('Failed to delete payment:', error);
+            toast.error(error.response?.data?.message || 'Không thể xóa thanh toán');
+        }
+    };
+
     const formatDate = (dateString: string) => {
         if (!dateString) return '-';
         const date = new Date(dateString);
@@ -1590,6 +1603,7 @@ export default function SupplierList() {
                                                                                             <th>Phương thức</th>
                                                                                             <th>Ghi chú</th>
                                                                                             <th className="text-right">Số tiền</th>
+                                                                                            <th className="text-center" style={{ width: '60px' }}>Thao tác</th>
                                                                                         </tr>
                                                                                     </thead>
                                                                                     <tbody>
@@ -1600,6 +1614,15 @@ export default function SupplierList() {
                                                                                                 <td>{payment.method === 'transfer' ? 'Chuyển khoản' : payment.method === 'card' ? 'Thẻ' : 'Tiền mặt'}</td>
                                                                                                 <td>{payment.note || '-'}</td>
                                                                                                 <td className="text-right">{formatCurrency(payment.amount)}</td>
+                                                                                                <td className="text-center">
+                                                                                                    <button
+                                                                                                        className="btn-delete"
+                                                                                                        onClick={(e) => { e.stopPropagation(); handleDeletePayment(supplier.id, payment.id, payment.amount); }}
+                                                                                                        title="Xóa thanh toán"
+                                                                                                    >
+                                                                                                        <MdDelete />
+                                                                                                    </button>
+                                                                                                </td>
                                                                                             </tr>
                                                                                         ))}
                                                                                     </tbody>

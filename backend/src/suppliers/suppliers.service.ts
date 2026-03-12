@@ -234,6 +234,36 @@ export class SuppliersService {
         });
     }
 
+    async deletePayment(supplierId: string, paymentId: string) {
+        const payment = await this.prisma.supplierPayment.findFirst({
+            where: {
+                id: BigInt(paymentId),
+                supplierId: BigInt(supplierId),
+            },
+        });
+
+        if (!payment) {
+            throw new NotFoundException('PAYMENT_NOT_FOUND');
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Cộng lại nợ NCC (xóa thanh toán = nợ tăng lại)
+            await tx.supplier.update({
+                where: { id: BigInt(supplierId) },
+                data: {
+                    currentDebt: { increment: Number(payment.amount) },
+                },
+            });
+
+            // 2. Xóa payment record
+            await tx.supplierPayment.delete({
+                where: { id: BigInt(paymentId) },
+            });
+
+            return { success: true, message: 'Đã xóa thanh toán thành công' };
+        });
+    }
+
     async getPayments(id: string) {
         return this.prisma.supplierPayment.findMany({
             where: { supplierId: BigInt(id) },

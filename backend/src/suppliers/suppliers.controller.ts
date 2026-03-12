@@ -38,6 +38,12 @@ export class SuppliersController {
         return this.suppliersService.getPayments(id);
     }
 
+    @Delete(':id/payments/:paymentId')
+    @Roles('ADMIN', 'MANAGER')
+    deletePayment(@Param('id') id: string, @Param('paymentId') paymentId: string) {
+        return this.suppliersService.deletePayment(id, paymentId);
+    }
+
 
     @Put(':id')
     @Roles('ADMIN', 'MANAGER', 'ACCOUNTANT')

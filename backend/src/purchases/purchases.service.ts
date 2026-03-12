@@ -553,11 +553,12 @@ export class PurchasesService {
                 });
             }
 
-            // 4. Update supplier debt (add totalAmount to currentDebt)
+            // 4. Update supplier debt (add net amount to currentDebt)
+            const amountPaid = Number(order.amountPaid || 0);
             await tx.supplier.update({
                 where: { id: order.supplierId },
                 data: {
-                    currentDebt: { increment: Number(order.totalAmount) },
+                    currentDebt: { increment: Number(order.totalAmount) - amountPaid },
                     totalPurchase: { increment: Number(order.totalAmount) }
                 }
             });
@@ -625,11 +626,12 @@ export class PurchasesService {
                     });
                 }
 
-                // Reverse supplier debt: decrement currentDebt and totalPurchase
+                // Reverse supplier debt: decrement currentDebt by amountDue and totalPurchase by totalAmount
+                const amountPaid = Number(order.amountPaid || 0);
                 await tx.supplier.update({
                     where: { id: order.supplierId },
                     data: {
-                        currentDebt: { decrement: Number(order.totalAmount) },
+                        currentDebt: { decrement: Number(order.totalAmount) - amountPaid },
                         totalPurchase: { decrement: Number(order.totalAmount) },
                     },
                 });

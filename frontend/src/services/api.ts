@@ -121,6 +121,7 @@ export const suppliersAPI = {
     getPurchases: (id: string) => api.get('/purchases', { params: { supplierId: id } }),
     payDebt: (id: string, data: any) => api.post(`/suppliers/${id}/payments`, data),
     getPayments: (id: string) => api.get(`/suppliers/${id}/payments`),
+    deletePayment: (supplierId: string, paymentId: string) => api.delete(`/suppliers/${supplierId}/payments/${paymentId}`),
 
 };
 

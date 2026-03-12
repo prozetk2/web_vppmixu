@@ -3,7 +3,7 @@ import { purchasesAPI, suppliersAPI, productsAPI, warehousesAPI, priceListsAPI, 
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import CurrencyInput from '../shared/CurrencyInput';
-import { MdDownload, MdInventory, MdCheck, MdClose, MdEdit, MdVisibility, MdSearch, MdDelete, MdFileDownload, MdAdd, MdInventory2, MdStar, MdStarBorder, MdSettings, MdHelp, MdChevronLeft, MdChevronRight } from 'react-icons/md';
+import { MdDownload, MdInventory, MdCheck, MdClose, MdEdit, MdVisibility, MdSearch, MdDelete, MdFileDownload, MdAdd, MdInventory2, MdStar, MdStarBorder, MdSettings, MdHelp, MdChevronLeft, MdChevronRight, MdPayments, MdCheckCircle, MdSchedule, MdUploadFile, MdQrCodeScanner } from 'react-icons/md';
 import './PurchaseList.css';
 
 interface PurchaseItem {
@@ -22,6 +22,8 @@ interface Purchase {
     orderNumber: string;
     status: string;
     totalAmount: number;
+    amountPaid?: number;
+    amountDue?: number;
     note?: string;
     createdAt: string;
     confirmedAt?: string;
@@ -1121,7 +1123,7 @@ export default function PurchaseList() {
                                                  <td className="col-date">{formatDate(p.createdAt)}</td>
                                                  <td className="col-supplier-code">{p.supplier?.code || 'NCC' + p.supplier?.id?.slice(-6)}</td>
                                                  <td className="col-supplier">{p.supplier?.name}</td>
-                                                 <td className="col-amount">{formatCurrency(Number(p.totalAmount))}</td>
+                                                 <td className="col-amount">{formatCurrency(Number(p.amountDue))}</td>
                                                  <td>
                                                      <span className={`status-badge-v2 ${p.status}`}>
                                                          {STATUS_LABELS[p.status] || p.status}
@@ -1235,7 +1237,7 @@ export default function PurchaseList() {
                                 />
                             </div>
                             <button className="btn-barcode" title="Quét mã vạch">
-                                <span>⊞</span>
+                                <MdQrCodeScanner />
                             </button>
                             <button
                                 type="button"
@@ -1412,7 +1414,7 @@ export default function PurchaseList() {
                                     <h3>Thêm sản phẩm từ file excel</h3>
                                     <p>(Tải về file mẫu: <a href="#">Excel file</a>)</p>
                                     <button className="btn-import-excel">
-                                        📁 Chọn file dữ liệu
+                                        <MdUploadFile /> Chọn file dữ liệu
                                     </button>
                                 </div>
                             )}
@@ -1575,7 +1577,7 @@ export default function PurchaseList() {
                             {/* Prepayment Section */}
                             <div className="prepayment-section" style={{ marginTop: '16px', padding: '12px', background: '#f8f9fa', borderRadius: '8px' }}>
                                 <div className="info-row" style={{ marginBottom: '10px' }}>
-                                    <span className="info-label" style={{ fontWeight: 600 }}>💰 Thanh toán trước</span>
+                                    <span className="info-label" style={{ fontWeight: 600 }}><MdPayments style={{ verticalAlign: 'middle', marginRight: 4 }} /> Thanh toán trước</span>
                                 </div>
                                 <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
                                     <div style={{ flex: 1 }}>
@@ -1601,10 +1603,10 @@ export default function PurchaseList() {
                                     </div>
                                 </div>
                                 {formData.prepaymentAmount > 0 && (
-                                    <div style={{ marginTop: '8px', fontSize: '13px', color: formData.prepaymentAmount >= totalAmount ? '#28a745' : '#856404' }}>
+                                    <div style={{ marginTop: '8px', fontSize: '13px', color: formData.prepaymentAmount >= totalAmount ? '#28a745' : '#856404', display: 'flex', alignItems: 'center', gap: 4 }}>
                                         {formData.prepaymentAmount >= totalAmount
-                                            ? '✅ Thanh toán đủ - Trạng thái: Đã thanh toán'
-                                            : `⏳ Còn nợ: ${formatCurrency(totalAmount - formData.prepaymentAmount)}`
+                                            ? <><MdCheckCircle /> Thanh toán đủ - Trạng thái: Đã thanh toán</>
+                                            : <><MdSchedule /> Còn nợ: {formatCurrency(totalAmount - formData.prepaymentAmount)}</>
                                         }
                                     </div>
                                 )}
@@ -1629,7 +1631,7 @@ export default function PurchaseList() {
                             className="btn-complete"
                             disabled={submitting}
                         >
-                            ✓ Hoàn thành
+                            <MdCheck /> Hoàn thành
                         </button>
                     </div>
                 </div>
