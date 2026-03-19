@@ -901,13 +901,20 @@ export default function SupplierList() {
                 amount,
                 paymentMethod: paymentForm.paymentMethod,
                 note: paymentForm.note,
-                allocateToPurchases: false, // UI doesn't support manual allocation yet
+                allocateToPurchases: paymentForm.allocateToPurchases,
                 allocations: []
             });
 
             toast.success('Tạo phiếu chi thành công!');
             setPaymentModalOpen(false);
-            fetchSuppliers();
+            await fetchSuppliers();
+
+            if (expandedSupplierId === selectedSupplierForDebt.id) {
+                await fetchSupplierPurchases(selectedSupplierForDebt.id);
+                if (activeDetailTab === 'payments') {
+                    await fetchPayments(selectedSupplierForDebt.id);
+                }
+            }
 
             if (print) {
                 // TODO: Implement print logic

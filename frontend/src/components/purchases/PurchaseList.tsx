@@ -65,6 +65,7 @@ const STATUS_LABELS: Record<string, string> = {
     CANCELLED: 'Đã hủy',
     PAID: 'Đã thanh toán',
     PARTIAL: 'Thanh toán 1 phần',
+    PENDING: 'Chờ xác nhận',
 };
 
 const removeAccents = (str: string) => {

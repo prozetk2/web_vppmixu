@@ -52,7 +52,9 @@ interface Invoice {
     paymentMethod: PaymentMethod;
     customerPayment: number;
     createdAt: Date;
+    dateManuallyChanged?: boolean; // Track if user manually changed the date picker
     editingInvoiceId?: string; // Original invoice ID when editing
+    orderNumber?: string; // Backend-generated order number (after checkout)
 }
 
 type PaymentMethod = 'CASH' | 'TRANSFER' | 'CARD';
@@ -153,6 +155,7 @@ const createNewInvoice = (index: number): Invoice => ({
     paymentMethod: 'CASH',
     customerPayment: 0,
     createdAt: new Date(),
+    dateManuallyChanged: false,
 });
 
 // Print Invoice Component
@@ -185,12 +188,15 @@ const PrintInvoice = ({
 
     // Check if template has extra rows
     const hasExtraRows = settings.template.includes('_EXTRA');
-    const extraRowCount = hasExtraRows ? 5 : 0;
+    const extraRowCount = hasExtraRows ? (settings.paperSize === 'A4' ? 10 : 5) : 0;
+    const paperClass = settings.paperSize === 'A4' ? 'paper-a4' : 'paper-a5';
+    const fontScale = settings.paperSize === 'A5' ? 0.82 : 1;
+    const scaledPx = (size: number) => `${Math.round(size * fontScale)}px`;
 
     return (
-        <div className="print-template template-a4">
+        <div className={`print-template ${paperClass}`}>
             {/* Top bar */}
-            <div className="print-topbar" style={{ fontSize: storeInfo.textFontSize ? `${storeInfo.textFontSize - 1}px` : '13px' }}>
+            <div className="print-topbar" style={{ fontSize: scaledPx((storeInfo.textFontSize || 14) - 1) }}>
                 <span>{printTime}</span>
                 <span>Chi nhánh trung tâm - Bán hàng</span>
             </div>
@@ -198,12 +204,12 @@ const PrintInvoice = ({
             {/* Header: Centered */}
             <div className="print-header-centered">
                 {storeInfo.logoText && (
-                    <div className="store-name-centered" style={{ fontSize: storeInfo.logoFontSize ? `${storeInfo.logoFontSize}px` : '28px' }}>
-                        {storeInfo.logoText} {storeInfo.logoSub && <small style={{ fontSize: storeInfo.logoFontSize ? `${storeInfo.logoFontSize / 2}px` : '14px' }}>{storeInfo.logoSub}</small>}
+                    <div className="store-name-centered" style={{ fontSize: scaledPx(storeInfo.logoFontSize || 28) }}>
+                        {storeInfo.logoText} {storeInfo.logoSub && <small style={{ fontSize: scaledPx((storeInfo.logoFontSize || 28) / 2) }}>{storeInfo.logoSub}</small>}
                     </div>
                 )}
-                <div className="company-name-centered" style={{ fontSize: storeInfo.companyNameFontSize ? `${storeInfo.companyNameFontSize}px` : '19px' }}>{storeInfo.companyName}</div>
-                <div className="company-details-centered" style={{ fontSize: storeInfo.textFontSize ? `${storeInfo.textFontSize + 1}px` : '15px' }}>
+                <div className="company-name-centered" style={{ fontSize: scaledPx(storeInfo.companyNameFontSize || 19) }}>{storeInfo.companyName}</div>
+                <div className="company-details-centered" style={{ fontSize: scaledPx((storeInfo.textFontSize || 14) + 1) }}>
                     <span className="label-red">A</span> - {storeInfo.address}.<br />
                     <span className="label-red">T</span> - {storeInfo.phone}.<br />
                     <span className="label-red">W</span> - {storeInfo.website} - <span className="label-red">E</span> - {storeInfo.email}.
@@ -211,19 +217,19 @@ const PrintInvoice = ({
             </div>
 
             {/* Invoice Title: Centered */}
-            <div className="print-invoice-title" style={{ fontSize: storeInfo.titleFontSize ? `${storeInfo.titleFontSize}px` : '24px' }}>HÓA ĐƠN BÁN HÀNG</div>
+            <div className="print-invoice-title" style={{ fontSize: scaledPx(storeInfo.titleFontSize || 24) }}>HÓA ĐƠN BÁN HÀNG</div>
 
             {/* Order Info: Two columns */}
             <div className="print-order-section">
-                <div className="order-left" style={{ fontSize: storeInfo.textFontSize ? `${storeInfo.textFontSize}px` : '14px' }}>
-                    <span>Mã đơn hàng: <strong>{invoice.id}</strong></span><br />
+                <div className="order-left" style={{ fontSize: scaledPx(storeInfo.textFontSize || 14) }}>
+                    <span>Mã đơn hàng: <strong>{invoice.orderNumber || invoice.id}</strong></span><br />
                     <span>{invoiceDate}</span>
                 </div>
                 <div className="order-right">
                 </div>
             </div>
 
-            <div className="customer-info-print" style={{ fontSize: storeInfo.textFontSize ? `${storeInfo.textFontSize + 1}px` : '15px' }}>
+            <div className="customer-info-print" style={{ fontSize: scaledPx((storeInfo.textFontSize || 14) + 1) }}>
                 <div className="row">
                     <span className="label">Khách hàng:</span>
                     <span className="value">{customerName || 'Khách lẻ'}</span>
@@ -238,7 +244,7 @@ const PrintInvoice = ({
                 </div>
             </div>
 
-            <table className="print-table" style={{ fontSize: storeInfo.tableFontSize ? `${storeInfo.tableFontSize}px` : '15px' }}>
+            <table className="print-table" style={{ fontSize: scaledPx(storeInfo.tableFontSize || 15) }}>
                 <thead>
                     <tr>
                         <th style={{ width: '40px' }}>STT</th>
@@ -390,13 +396,15 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         copies: number;
         template: 'MIXU' | 'MIXU_EXTRA' | 'THANH_VAN' | 'THANH_VAN_EXTRA' | 'VIET_HONG' | 'VIET_HONG_EXTRA' | 'CUSTOM' | 'CUSTOM_EXTRA';
         showDecimals: boolean;
+        paperSize: 'A5' | 'A4';
     }
     const [printSettings, setPrintSettings] = useState<PrintSettings>({
         autoPrint: true,
         mergeItems: false,
         copies: 1,
         template: 'MIXU',
-        showDecimals: true
+        showDecimals: true,
+        paperSize: 'A5'
     });
     const [showPrintSettings, setShowPrintSettings] = useState(false);
 
@@ -1170,8 +1178,13 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     cashAmount: paymentMethod === 'CASH' ? total : 0,
                     cardAmount: paymentMethod === 'CARD' ? total : 0,
                     transferAmount: paymentMethod === 'TRANSFER' ? total : 0,
-                    issuedAt: activeInvoice?.createdAt?.toISOString(),
-                    createdAt: activeInvoice?.createdAt?.toISOString(),
+                    // Use current time unless user manually changed the date picker
+                    issuedAt: activeInvoice?.dateManuallyChanged
+                        ? activeInvoice.createdAt.toISOString()
+                        : new Date().toISOString(),
+                    createdAt: activeInvoice?.dateManuallyChanged
+                        ? activeInvoice.createdAt.toISOString()
+                        : new Date().toISOString(),
                     items: cart.map((item) => ({
                         productCode: item.product.sku || '',
                         productName: item.product.name,
@@ -1187,8 +1200,19 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 await invoicesAPI.update(activeInvoice.editingInvoiceId!, updatePayload);
 
                 toast.success(`Đã cập nhật hóa đơn thành công!`);
+
+                // Use current time for print (not stale localStorage date)
+                const editCheckoutTime = activeInvoice?.dateManuallyChanged
+                    ? activeInvoice.createdAt
+                    : new Date();
+
                 setLastCheckoutData({
-                    invoice: { ...activeInvoice, cart: [...activeInvoice.cart] },
+                    invoice: {
+                        ...activeInvoice,
+                        cart: [...activeInvoice.cart],
+                        orderNumber: activeInvoice.id,
+                        createdAt: editCheckoutTime,
+                    },
                     sellerName: sellers.find(s => s.id === selectedSeller)?.name || 'Người bán',
                     customerName: selectedCustomerData.name,
                     customerPhone: selectedCustomerData.phone,
@@ -1211,16 +1235,34 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                         amount: total,
                         method: paymentMethod,
                     },
-                    createdAt: activeInvoice?.createdAt?.toISOString(),
+                    // Use current time unless user manually changed the date picker
+                    createdAt: activeInvoice?.dateManuallyChanged
+                        ? activeInvoice.createdAt.toISOString()
+                        : new Date().toISOString(),
                 };
 
                 console.log('Sending checkout request:', requestBody);
                 const response = await salesAPI.create(requestBody);
+                const backendOrderNumber =
+                    response.data?.data?.orderNumber ||
+                    response.data?.orderNumber ||
+                    response.data?.data?.invoiceNumber ||
+                    response.data?.invoiceNumber ||
+                    'N/A';
+                setLastOrderNumber(backendOrderNumber);
 
-                setLastOrderNumber(response.data?.orderNumber || 'N/A');
+                // Use current time for print (not stale localStorage date)
+                const checkoutTime = activeInvoice?.dateManuallyChanged
+                    ? activeInvoice.createdAt
+                    : new Date();
 
                 setLastCheckoutData({
-                    invoice: { ...activeInvoice, cart: [...activeInvoice.cart] },
+                    invoice: {
+                        ...activeInvoice,
+                        cart: [...activeInvoice.cart],
+                        orderNumber: backendOrderNumber,
+                        createdAt: checkoutTime,
+                    },
                     sellerName: sellers.find(s => s.id === selectedSeller)?.name || 'Người bán',
                     customerName: selectedCustomerData.name,
                     customerPhone: selectedCustomerData.phone,
@@ -1230,7 +1272,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 // Quick sale: auto-print and skip success modal
                 if (saleMode === 'quick') {
                     setTimeout(() => window.print(), 100);
-                    toast.success(`Đã thanh toán: ${response.data?.orderNumber || 'N/A'}`);
+                    toast.success(`Đã thanh toán: ${backendOrderNumber}`);
                 } else {
                     setShowSuccess(true);
                 }
@@ -1723,7 +1765,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                 onChange={(e) => {
                                     const newDate = new Date(e.target.value);
                                     if (!isNaN(newDate.getTime())) {
-                                        updateActiveInvoice({ createdAt: newDate });
+                                        updateActiveInvoice({ createdAt: newDate, dateManuallyChanged: true });
                                     }
                                 }}
                             />
@@ -1878,10 +1920,10 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                 <span>Khách thanh toán</span>
                                 <input
                                     type="text"
-                                    value={customerPayment > 0 ? formatCurrency(customerPayment) : ''}
+                                    value={customerPayment > 0 ? new Intl.NumberFormat('vi-VN').format(customerPayment) : ''}
                                     onChange={(e) => {
-                                        const value = e.target.value.replace(/\./g, '');
-                                        const num = parseInt(value) || 0;
+                                        const value = e.target.value.replace(/\D/g, '');
+                                        const num = parseInt(value, 10) || 0;
                                         updateActiveInvoice({ customerPayment: num });
                                     }}
                                     placeholder="0"
@@ -2069,6 +2111,17 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         onChange={(e) => setPrintSettings({ ...printSettings, copies: parseInt(e.target.value) || 1 })}
                                         className="copies-input"
                                     />
+                                </div>
+                                <div className="setting-row">
+                                    <span>Khổ giấy in</span>
+                                    <select
+                                        value={printSettings.paperSize}
+                                        onChange={(e) => setPrintSettings({ ...printSettings, paperSize: e.target.value as 'A5' | 'A4' })}
+                                        className="copies-input"
+                                    >
+                                        <option value="A5">A5</option>
+                                        <option value="A4">A4</option>
+                                    </select>
                                 </div>
                                 <div className="template-section">
                                     <span className="section-title">Chọn mẫu in</span>

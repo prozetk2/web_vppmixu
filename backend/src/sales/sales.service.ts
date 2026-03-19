@@ -116,6 +116,7 @@ export class SalesService {
 
             // 4. Create order
             const orderNumber = await this.generateOrderNumber();
+            const orderDate = dto.createdAt ? new Date(dto.createdAt) : new Date();
             const order = await tx.order.create({
                 data: {
                     orderNumber,
@@ -126,7 +127,7 @@ export class SalesService {
                     taxAmount,
                     totalAmount,
                     storeId: dto.storeId ? BigInt(dto.storeId) : undefined,
-                    createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,
+                    createdAt: orderDate,
                     orderItems: {
                         create: orderItems,
                     },
@@ -177,7 +178,8 @@ export class SalesService {
                     customerPhone: customerData?.phone,
                     customerAddress: customerData?.address,
                     customerEmail: customerData?.email,
-                    issuedAt: new Date(),
+                    issuedAt: orderDate,
+                    createdAt: orderDate,
                     paymentMethod: paymentMethod.toString(),
                     status: 'COMPLETED',
                     totalAmount: totalAmount,
