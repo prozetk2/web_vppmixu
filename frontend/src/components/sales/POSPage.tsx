@@ -234,7 +234,7 @@ const PrintInvoice = ({
                     <span className="label">Khách hàng:</span>
                     <span className="value">{customerName || 'Khách lẻ'}</span>
                 </div>
-                <div className="row">
+                <div className="row phone-row">
                     <span className="label">Số điện thoại:</span>
                     <span className="value">{customerPhone}</span>
                 </div>

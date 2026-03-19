@@ -2207,6 +2207,16 @@ tr.dragging {
     .customer-info-print .label {
         font-weight: bold;
         width: 100px;
+        flex-shrink: 0;
+    }
+
+    .customer-info-print .value {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .customer-info-print .phone-row .value {
+        white-space: nowrap;
     }
 
     /* Table */
