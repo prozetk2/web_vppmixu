@@ -104,6 +104,25 @@ interface InvoiceListProps {
     onEditInPOS?: (invoiceData: any) => void;
 }
 
+const PRINT_TEMPLATE_DEFAULTS = {
+    logoText: 'MIXU',
+    logoSub: 'OFFICE SUPPLIES',
+    companyName: 'CÔNG TY TNHH MTV TM VÀ DV MIXU',
+    address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
+    phone: '0932.542.168 - 0934.792.168',
+    website: 'mixuoffice.com',
+    email: 'mixuoffice@gmail.com',
+};
+
+const escapeHtml = (value: string | number | null | undefined) => {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+};
+
 export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
@@ -567,7 +586,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
 
 
 
-    // Print invoice - Template Đặng Thị Việt Hồng (KiotViet style)
+    // Print invoice using the unified sales document layout
     const handlePrintInvoice = async (invoice: Invoice) => {
         try {
             // Fetch invoice detail and settings in parallel
@@ -586,274 +605,371 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
             }
 
             const items = detail.items || [];
-            const itemRows = items.length > 0 ? items.map((item: InvoiceItem, index: number) => `
-                <tr>
-                    <td class="center">${index + 1}</td>
-                    <td>${item.productName || '-'}</td>
-                    <td class="center">${item.unit || 'Cái'}</td>
-                    <td class="center">${item.quantity}</td>
-                    <td class="right">${formatCurrency(Number(item.unitPrice))}</td>
-                    <td class="right">${formatCurrency(Number(item.totalPrice))}</td>
-                </tr>
-            `).join('') : '<tr><td colspan="6" class="center" style="padding:20px;color:#999;">Không có sản phẩm</td></tr>';
-
             const now = new Date();
             const printTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear().toString().slice(-2)}`;
             const invoiceDate = new Date(invoice.createdAt);
             const invoiceDateStr = `${invoiceDate.getDate().toString().padStart(2, '0')}/${(invoiceDate.getMonth() + 1).toString().padStart(2, '0')}/${invoiceDate.getFullYear()} ${invoiceDate.getHours().toString().padStart(2, '0')}:${invoiceDate.getMinutes().toString().padStart(2, '0')}`;
             const totalDue = Number(detail.amountDue) || (Number(detail.totalAmount) - Number(detail.discountAmount));
-
-            // Use settings or defaults
-            const storeName = settings.companyName || 'CỬA HÀNG ĐẶNG THỊ VIỆT HỒNG';
-            const storeAddress = settings.companyAddress || '119 Nguyễn Hữu Thọ Q. Hải Châu Tp. Đà Nẵng';
-            const storePhone = settings.companyPhone || '0236. 6563583 - 0932.542.168';
-            const storeEmail = settings.companyEmail || 'Mixuhoadon@gmail.com';
-            const storeWebsite = settings.companyWebsite || 'Mixuoffice.com';
+            const storeInfo = {
+                ...PRINT_TEMPLATE_DEFAULTS,
+                companyName: settings.companyName || PRINT_TEMPLATE_DEFAULTS.companyName,
+                address: settings.companyAddress || PRINT_TEMPLATE_DEFAULTS.address,
+                phone: settings.companyPhone || PRINT_TEMPLATE_DEFAULTS.phone,
+                website: settings.companyWebsite || PRINT_TEMPLATE_DEFAULTS.website,
+                email: settings.companyEmail || PRINT_TEMPLATE_DEFAULTS.email,
+            };
+            const printField = (value?: string | null, fallback: string = '&nbsp;') => {
+                const normalized = typeof value === 'string' ? value.trim() : '';
+                return normalized ? escapeHtml(normalized) : fallback;
+            };
+            const itemRows = items.length > 0
+                ? items.map((item: InvoiceItem, index: number) => `
+                    <tr class="item-row">
+                        <td class="text-center">${index + 1}</td>
+                        <td>${printField(item.productName, '-')}</td>
+                        <td class="text-center">${printField(item.unit, 'Cái')}</td>
+                        <td class="text-center">${escapeHtml(item.quantity)}</td>
+                        <td class="text-right">${escapeHtml(formatCurrency(Number(item.unitPrice)))}</td>
+                        <td class="text-right">${escapeHtml(formatCurrency(Number(item.totalPrice)))}</td>
+                    </tr>
+                `).join('')
+                : `
+                    <tr class="item-row empty-state-row">
+                        <td colspan="6" class="text-center">Không có sản phẩm</td>
+                    </tr>
+                `;
 
             printWindow.document.write(`
                 <!DOCTYPE html>
                 <html>
                 <head>
                     <meta charset="UTF-8">
-                    <title>Hóa đơn ${invoice.invoiceNumber}</title>
-                    <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+39&display=swap" rel="stylesheet">
+                    <title>Hóa đơn ${escapeHtml(invoice.invoiceNumber)}</title>
                     <style>
                         @media print {
-                            @page { margin: 10mm; size: A4; }
+                            @page { margin: 12mm; size: A4; }
                             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                         }
                         * { box-sizing: border-box; margin: 0; padding: 0; }
                         body { 
                             font-family: 'Times New Roman', Times, serif; 
                             font-size: 13px;
-                            line-height: 1.4;
-                            padding: 15px 20px;
+                            line-height: 1.3;
+                            padding: 0;
                             color: #000;
                         }
-                        
-                        /* Top bar */
-                        .top-bar {
+
+                        .print-template {
+                            width: 100%;
+                        }
+
+                        .print-topbar {
                             display: flex;
                             justify-content: space-between;
-                            font-size: 10px;
+                            font-size: 12px;
                             color: #666;
+                            margin-bottom: 12px;
+                        }
+
+                        .print-header-centered {
+                            text-align: center;
                             margin-bottom: 10px;
                         }
-                        
-                        /* Header - Centered */
-                        .header-section {
-                            text-align: center;
-                            margin-bottom: 5px;
-                        }
-                        .store-name {
-                            color: #c00000;
-                            font-size: 20px;
+
+                        .store-name-centered {
+                            color: #65a30d;
+                            font-size: 28px;
                             font-weight: bold;
                             margin-bottom: 5px;
                         }
-                        .store-info {
-                            font-size: 13px;
-                            line-height: 1.5;
+
+                        .store-name-centered small {
+                            color: #555;
+                            font-size: 14px;
+                            font-weight: normal;
+                            margin-left: 6px;
                         }
-                        .store-info span {
+
+                        .company-name-centered {
+                            font-size: 19px;
+                            font-weight: bold;
+                            margin-bottom: 6px;
+                            text-transform: uppercase;
+                        }
+
+                        .company-details-centered {
+                            font-size: 15px;
+                            line-height: 1.6;
+                        }
+
+                        .label-red {
                             color: #c00000;
                             font-weight: bold;
                         }
-                        
-                        /* Invoice Title */
-                        .invoice-title {
+
+                        .print-invoice-title {
                             text-align: center;
-                            font-size: 20px;
+                            font-size: 24px;
                             font-weight: bold;
-                            margin: 10px 0;
+                            margin: 20px 0;
+                            text-transform: uppercase;
                         }
-                        
-                        /* Order info - Two columns */
-                        .order-section {
+
+                        .print-order-section {
                             display: flex;
                             justify-content: space-between;
                             align-items: flex-start;
+                            width: 86%;
                             margin-bottom: 15px;
                             padding-bottom: 10px;
                             border-bottom: 1px solid #000;
+                            margin-left: auto;
+                            margin-right: auto;
                         }
-                        .order-left {
-                            font-size: 13px;
-                        }
-                        .order-right {
-                            text-align: right;
-                        }
-                        .barcode {
-                            font-family: 'Libre Barcode 39', cursive;
-                            font-size: 48px;
-                            line-height: 1;
-                        }
-                        .order-code {
-                            font-weight: bold;
-                            text-decoration: underline;
-                            font-size: 13px;
-                        }
-                        
-                        /* Customer info - Left aligned */
-                        .customer-section {
-                            margin-bottom: 15px;
-                            font-size: 13px;
-                        }
-                        .customer-section p {
-                            margin: 3px 0;
-                        }
-                        
-                        /* Table */
-                        table {
-                            width: 100%;
-                            border-collapse: collapse;
-                            margin-bottom: 15px;
-                        }
-                        th, td {
-                            border: 1px solid #000;
-                            padding: 6px 8px;
-                            font-size: 13px;
-                        }
-                        th {
-                            background: #f5f5f5;
-                            font-weight: bold;
-                            text-align: center;
-                        }
-                        td.center { text-align: center; }
-                        td.right { text-align: right; }
-                        .col-stt { width: 6%; }
-                        .col-name { width: 36%; }
-                        .col-unit { width: 10%; }
-                        .col-qty { width: 8%; }
-                        .col-price { width: 18%; }
-                        .col-total { width: 22%; }
-                        
-                        /* Total */
-                        .total-section {
-                            text-align: right;
-                            margin: 15px 0;
+
+                        .print-order-section .order-left {
                             font-size: 14px;
                         }
-                        .total-section strong {
+
+                        .customer-info-print {
+                            width: 86%;
+                            margin-bottom: 15px;
+                            margin-left: auto;
+                            margin-right: auto;
+                            font-size: 15px;
+                        }
+
+                        .customer-info-print .row {
+                            display: flex;
+                            align-items: flex-start;
+                            margin-bottom: 4px;
+                        }
+
+                        .customer-info-print .label {
+                            width: 100px;
+                            flex-shrink: 0;
+                            font-weight: bold;
+                        }
+
+                        .customer-info-print .value {
+                            flex: 1;
+                            min-height: 1em;
+                        }
+
+                        .print-table {
+                            width: 86%;
+                            border-collapse: collapse;
+                            margin-bottom: 15px;
+                            margin-left: auto;
+                            margin-right: auto;
+                            table-layout: auto;
+                        }
+
+                        .print-table thead {
+                            display: table-header-group;
+                        }
+
+                        .print-table tbody {
+                            display: table-row-group;
+                        }
+
+                        .print-table tr {
+                            display: table-row !important;
+                            break-inside: avoid;
+                            page-break-inside: avoid;
+                        }
+
+                        .print-table th,
+                        .print-table td {
+                            display: table-cell !important;
+                            border: 1px solid #000;
+                            padding: 5px 8px;
+                            vertical-align: middle;
+                        }
+
+                        .print-table th {
+                            font-weight: bold;
+                            text-align: center;
+                            padding-top: 8px;
+                            padding-bottom: 8px;
+                        }
+
+                        .invoice-print-table .col-stt-print { width: 7%; }
+                        .invoice-print-table .col-name-print { width: 39%; }
+                        .invoice-print-table .col-unit-print { width: 10%; }
+                        .invoice-print-table .col-qty-print { width: 8%; }
+                        .invoice-print-table .col-price-print { width: 18%; }
+                        .invoice-print-table .col-total-print { width: 18%; }
+
+                        .invoice-print-table tbody tr.item-row td {
+                            line-height: 1.25;
+                            padding-top: 6px;
+                            padding-bottom: 6px;
+                        }
+
+                        .invoice-print-table tbody tr.item-row td:nth-child(2) {
+                            text-align: left;
+                            overflow-wrap: break-word;
+                        }
+
+                        .invoice-print-table tbody tr.item-row td:nth-child(1),
+                        .invoice-print-table tbody tr.item-row td:nth-child(3),
+                        .invoice-print-table tbody tr.item-row td:nth-child(4),
+                        .invoice-print-table tbody tr.item-row td:nth-child(5),
+                        .invoice-print-table tbody tr.item-row td:nth-child(6),
+                        .invoice-print-table tbody tr.summary-row td:last-child {
+                            white-space: nowrap;
+                        }
+
+                        .invoice-print-table .summary-label {
+                            padding-right: 14px;
+                            white-space: nowrap;
+                        }
+
+                        .empty-state-row td {
+                            padding: 20px;
+                            color: #666;
+                        }
+
+                        .text-center { text-align: center; }
+                        .text-right { text-align: right; }
+                        .total-amount {
                             color: #c00000;
                         }
-                        
-                        /* Signature */
-                        .signature-section {
+
+                        .print-footer {
                             display: flex;
                             justify-content: space-between;
-                            margin-top: 50px;
+                            width: 86%;
+                            margin: 30px auto 50px;
+                            break-inside: avoid;
+                            page-break-inside: avoid;
+                        }
+
+                        .signature-block {
+                            width: 33.333%;
                             text-align: center;
                         }
-                        .signature-box {
-                            width: 30%;
-                        }
-                        .signature-title {
+
+                        .signature-block .role {
                             font-weight: bold;
-                            font-size: 13px;
+                            font-size: 15px;
+                            margin-bottom: 40px;
                         }
-                        
-                        /* Footer */
-                        .footer-section {
-                            position: fixed;
-                            bottom: 10px;
-                            left: 20px;
-                            right: 20px;
+
+                        .print-footer-url {
                             display: flex;
                             justify-content: space-between;
-                            font-size: 10px;
+                            gap: 16px;
+                            width: 86%;
+                            margin: 0 auto;
+                            padding-top: 5px;
+                            border-top: 1px solid #ccc;
+                            font-size: 13px;
                             color: #666;
+                            break-inside: avoid;
+                            page-break-inside: avoid;
                         }
                     </style>
                 </head>
                 <body>
-                    <!-- Top bar: time and branch -->
-                    <div class="top-bar">
-                        <span>${printTime}</span>
-                        <span>Chi nhánh trung tâm - Bán hàng</span>
-                    </div>
-                    
-                    <!-- Header: Store info (CENTERED) -->
-                    <div class="header-section">
-                        <div class="store-name">${storeName}</div>
-                        <div class="store-info">
-                            <span>A</span> - ${storeAddress}.<br>
-                            <span>T</span> - ${storePhone}.<br>
-                            <span>W</span> - ${storeWebsite}- <span>E</span> - ${storeEmail}.
+                    <div class="print-template">
+                        <div class="print-topbar">
+                            <span>${escapeHtml(printTime)}</span>
+                            <span>Chi nhánh trung tâm - Bán hàng</span>
                         </div>
-                    </div>
-                    
-                    <!-- Invoice Title (CENTERED) -->
-                    <div class="invoice-title">HÓA ĐƠN BÁN HÀNG</div>
-                    
-                    <!-- Order Section: Two columns -->
-                    <div class="order-section">
-                        <div class="order-left">
-                            Mã đơn hàng: <strong>${invoice.invoiceNumber}</strong><br>
-                            ${invoiceDateStr}
+
+                        <div class="print-header-centered">
+                            <div class="store-name-centered">
+                                ${escapeHtml(storeInfo.logoText)}
+                                <small>${escapeHtml(storeInfo.logoSub)}</small>
+                            </div>
+                            <div class="company-name-centered">${escapeHtml(storeInfo.companyName)}</div>
+                            <div class="company-details-centered">
+                                <span class="label-red">A</span> - ${escapeHtml(storeInfo.address)}.<br>
+                                <span class="label-red">T</span> - ${escapeHtml(storeInfo.phone)}.<br>
+                                <span class="label-red">W</span> - ${escapeHtml(storeInfo.website)} - <span class="label-red">E</span> - ${escapeHtml(storeInfo.email)}.
+                            </div>
                         </div>
-                        <div class="order-right">
-                            <div class="barcode">*${invoice.invoiceNumber}*</div>
-                            <div class="order-code">${invoice.invoiceNumber}</div>
+
+                        <div class="print-invoice-title">HÓA ĐƠN BÁN HÀNG</div>
+
+                        <div class="print-order-section">
+                            <div class="order-left">
+                                <span>Mã đơn hàng: <strong>${escapeHtml(invoice.invoiceNumber)}</strong></span><br>
+                                <span>${escapeHtml(invoiceDateStr)}</span>
+                            </div>
                         </div>
-                    </div>
-                    
-                    <!-- Customer info (LEFT aligned) -->
-                    <div class="customer-section">
-                        <p>Khách hàng: <strong>${invoice.customerName || 'Khách lẻ'}</strong></p>
-                        <p>Số điện thoại: ${invoice.customerPhone || ''}</p>
-                        <p>Địa chỉ: ${invoice.customerAddress || ''}</p>
-                    </div>
-                    
-                    <!-- Products table -->
-                    <table>
-                        <thead>
-                            <tr>
-                                <th class="col-stt">STT</th>
-                                <th class="col-name">Tên hàng</th>
-                                <th class="col-unit">ĐVT</th>
-                                <th class="col-qty">SL</th>
-                                <th class="col-price">Đơn giá</th>
-                                <th class="col-total">Thành tiền</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${itemRows}
-                        </tbody>
-                    </table>
-                    
-                    <!-- Total -->
-                    <div class="total-section">
-                        Số tiền cần phải thanh toán: <strong>${formatCurrency(totalDue)}</strong>
-                    </div>
-                    
-                    <!-- Signature area -->
-                    <div class="signature-section">
-                        <div class="signature-box">
-                            <div class="signature-title">Người mua hàng</div>
+
+                        <div class="customer-info-print">
+                            <div class="row">
+                                <span class="label">Khách hàng:</span>
+                                <span class="value">${printField(detail.customerName || invoice.customerName || 'Khách lẻ', 'Khách lẻ')}</span>
+                            </div>
+                            <div class="row">
+                                <span class="label">Số điện thoại:</span>
+                                <span class="value">${printField(detail.customerPhone || invoice.customerPhone)}</span>
+                            </div>
+                            <div class="row">
+                                <span class="label">Địa chỉ:</span>
+                                <span class="value">${printField(detail.customerAddress || invoice.customerAddress)}</span>
+                            </div>
                         </div>
-                        <div class="signature-box">
-                            <div class="signature-title">Đã thanh toán</div>
+
+                        <table class="print-table invoice-print-table">
+                            <colgroup>
+                                <col class="col-stt-print">
+                                <col class="col-name-print">
+                                <col class="col-unit-print">
+                                <col class="col-qty-print">
+                                <col class="col-price-print">
+                                <col class="col-total-print">
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th>STT</th>
+                                    <th>Tên hàng</th>
+                                    <th>DVT</th>
+                                    <th>SL</th>
+                                    <th>Đơn giá</th>
+                                    <th>Thành tiền</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemRows}
+                                <tr class="summary-row">
+                                    <td colspan="5" class="text-right summary-label"><strong>Số tiền cần phải thanh toán:</strong></td>
+                                    <td class="text-right total-amount"><strong>${escapeHtml(formatCurrency(totalDue))}</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div class="print-footer">
+                            <div class="signature-block">
+                                <div class="role">Người mua hàng</div>
+                            </div>
+                            <div class="signature-block">
+                                <div class="role">Đã thanh toán</div>
+                            </div>
+                            <div class="signature-block">
+                                <div class="role">Người bán hàng</div>
+                            </div>
                         </div>
-                        <div class="signature-box">
-                            <div class="signature-title">Người bán hàng</div>
+
+                        <div class="print-footer-url">
+                            <span>https://vppmixuri.com/</span>
+                            <span>1/1</span>
                         </div>
-                    </div>
-                    
-                    <!-- Footer -->
-                    <div class="footer-section">
-                        <span>https://vppmixu.kiotviet.vn/sale#/</span>
-                        <span>1/1</span>
                     </div>
                 </body>
                 </html>
             `);
             printWindow.document.close();
 
-            // Wait for barcode font to load then print
             setTimeout(() => {
+                printWindow.focus();
                 printWindow.print();
-            }, 800);
+            }, 250);
         } catch (error) {
             toast.error('Không thể in hóa đơn');
         }

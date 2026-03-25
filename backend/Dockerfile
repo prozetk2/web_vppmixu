@@ -3,7 +3,7 @@ ARG DIRECT_URL="postgresql://app:app@localhost:5432/appdb?schema=public"
 
 FROM node:20-alpine AS deps
 WORKDIR /app
-RUN apk add --no-cache openssl libc6-compat
+RUN apk add --no-cache openssl libc6-compat python3 make g++
 ARG DATABASE_URL
 ARG DIRECT_URL
 ENV DATABASE_URL=${DATABASE_URL}
@@ -25,7 +25,7 @@ RUN npm run build
 
 FROM node:20-alpine AS prod-deps
 WORKDIR /app
-RUN apk add --no-cache openssl libc6-compat
+RUN apk add --no-cache openssl libc6-compat python3 make g++
 COPY package*.json ./
 RUN npm ci
 

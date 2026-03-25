@@ -158,11 +158,18 @@ const createNewInvoice = (index: number): Invoice => ({
     dateManuallyChanged: false,
 });
 
+const formatPrintCurrency = (value: number, showDecimals: boolean) => {
+    return new Intl.NumberFormat('vi-VN', {
+        minimumFractionDigits: showDecimals ? 2 : 0,
+        maximumFractionDigits: 2
+    }).format(value);
+};
+
 // Print Invoice Component
 const PrintInvoice = ({
     invoice,
     settings,
-    sellerName,
+    sellerName: _sellerName,
     customerName,
     customerPhone,
     customerAddress,
@@ -192,6 +199,12 @@ const PrintInvoice = ({
     const paperClass = settings.paperSize === 'A4' ? 'paper-a4' : 'paper-a5';
     const fontScale = settings.paperSize === 'A5' ? 0.82 : 1;
     const scaledPx = (size: number) => `${Math.round(size * fontScale)}px`;
+    const formatAmount = (value: number) => formatPrintCurrency(value, settings.showDecimals);
+    const orderNumber = invoice.orderNumber || invoice.id;
+    const emptyText = '\u00A0';
+    const customerDisplayName = customerName || 'Khách lẻ';
+    const customerPhoneDisplay = customerPhone || emptyText;
+    const customerAddressDisplay = customerAddress || emptyText;
 
     return (
         <div className={`print-template ${paperClass}`}>
@@ -222,7 +235,7 @@ const PrintInvoice = ({
             {/* Order Info: Two columns */}
             <div className="print-order-section">
                 <div className="order-left" style={{ fontSize: scaledPx(storeInfo.textFontSize || 14) }}>
-                    <span>Mã đơn hàng: <strong>{invoice.orderNumber || invoice.id}</strong></span><br />
+                    <span>Mã đơn hàng: <strong>{orderNumber}</strong></span><br />
                     <span>{invoiceDate}</span>
                 </div>
                 <div className="order-right">
@@ -232,49 +245,57 @@ const PrintInvoice = ({
             <div className="customer-info-print" style={{ fontSize: scaledPx((storeInfo.textFontSize || 14) + 1) }}>
                 <div className="row">
                     <span className="label">Khách hàng:</span>
-                    <span className="value">{customerName || 'Khách lẻ'}</span>
+                    <span className="value">{customerDisplayName}</span>
                 </div>
                 <div className="row phone-row">
                     <span className="label">Số điện thoại:</span>
-                    <span className="value">{customerPhone}</span>
+                    <span className="value">{customerPhoneDisplay}</span>
                 </div>
                 <div className="row">
                     <span className="label">Địa chỉ:</span>
-                    <span className="value">{customerAddress}</span>
+                    <span className="value">{customerAddressDisplay}</span>
                 </div>
             </div>
 
-            <table className="print-table" style={{ fontSize: scaledPx(storeInfo.tableFontSize || 15) }}>
+            <table className="print-table invoice-print-table" style={{ fontSize: scaledPx(storeInfo.tableFontSize || 15) }}>
+                <colgroup>
+                    <col className="col-stt-print" />
+                    <col className="col-name-print" />
+                    <col className="col-unit-print" />
+                    <col className="col-qty-print" />
+                    <col className="col-price-print" />
+                    <col className="col-total-print" />
+                </colgroup>
                 <thead>
                     <tr>
-                        <th style={{ width: '40px' }}>STT</th>
+                        <th>STT</th>
                         <th>Tên hàng</th>
-                        <th style={{ width: '60px' }}>DVT</th>
-                        <th style={{ width: '50px' }}>SL</th>
-                        <th style={{ width: '90px' }}>Đơn giá</th>
-                        <th style={{ width: '100px' }}>Thành tiền</th>
+                        <th>DVT</th>
+                        <th>SL</th>
+                        <th>Đơn giá</th>
+                        <th>Thành tiền</th>
                     </tr>
                 </thead>
                 <tbody>
                     {invoice.cart.map((item, index) => (
-                        <tr key={index}>
+                        <tr key={index} className="item-row">
                             <td className="text-center">{index + 1}</td>
                             <td>{item.product.name}</td>
                             <td className="text-center">{item.product.unit || 'Cái'}</td>
                             <td className="text-center">{item.quantity}</td>
-                            <td className="text-right">{new Intl.NumberFormat('vi-VN', { minimumFractionDigits: settings.showDecimals ? 2 : 0, maximumFractionDigits: 2 }).format(item.unitPrice)}</td>
-                            <td className="text-right">{new Intl.NumberFormat('vi-VN', { minimumFractionDigits: settings.showDecimals ? 2 : 0, maximumFractionDigits: 2 }).format(item.unitPrice * item.quantity)}</td>
+                            <td className="text-right">{formatAmount(item.unitPrice)}</td>
+                            <td className="text-right">{formatAmount(item.unitPrice * item.quantity)}</td>
                         </tr>
                     ))}
                     {/* Extra filler rows for "_EXTRA" templates */}
                     {Array.from({ length: extraRowCount }).map((_, i) => (
-                        <tr key={`extra-${i}`} className="empty-row">
+                        <tr key={`extra-${i}`} className="print-empty-row">
                             <td></td><td></td><td></td><td></td><td></td><td></td>
                         </tr>
                     ))}
-                    <tr>
-                        <td colSpan={5} className="text-right font-bold">Số tiền cần phải thanh toán:</td>
-                        <td className="text-right font-bold total-amount">{new Intl.NumberFormat('vi-VN', { minimumFractionDigits: settings.showDecimals ? 2 : 0, maximumFractionDigits: 2 }).format(total)}</td>
+                    <tr className="summary-row">
+                        <td colSpan={5} className="text-right font-bold summary-label">Số tiền cần phải thanh toán:</td>
+                        <td className="text-right font-bold total-amount">{formatAmount(total)}</td>
                     </tr>
                 </tbody>
             </table>
@@ -441,7 +462,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         const parts = clean.split(',');
         let integerPart = parts[0];
         let decimalPart = parts.length > 1 ? ',' + parts[1].slice(0, 2) : '';
-        
+
         if (integerPart) {
             const num = parseInt(integerPart, 10);
             if (isNaN(num)) return decimalPart ? '0' + decimalPart : '';
@@ -449,7 +470,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         } else if (parts.length > 1) {
             integerPart = '0';
         }
-        
+
         return integerPart + decimalPart;
     };
 
@@ -1122,7 +1143,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         ? Math.round(subtotal * discountPercent / 100)
         : discountAmount;
     const total = Math.max(0, subtotal - calculatedDiscount);
-    
+
 
     // Save changed prices to price list
     const savePricesToPriceList = async (): Promise<boolean> => {
@@ -1547,7 +1568,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                     </tr>
                                 ) : (
                                     cart.map((item, index) => (
-                                        <tr 
+                                        <tr
                                             key={item.product.id}
                                             draggable
                                             onDragStart={(e) => handleDragStart(e, index)}

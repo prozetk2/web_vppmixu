@@ -168,6 +168,15 @@ export default function DashboardOverview() {
     const getMaxProductValue = () => topProducts.length > 0 ? Math.max(...topProducts.map((p) => p.totalValue), 1) : 1;
     const getMaxCustomerValue = () => topCustomers.length > 0 ? Math.max(...topCustomers.map((c) => c.totalValue), 1) : 1;
     const chartTotal = chartData.length > 0 ? chartData.reduce((sum, d) => sum + d.value, 0) : 0;
+    const getRevenueBarHeight = (value: number) => {
+        const maxValue = getMaxChartValue();
+        if (maxValue <= 0) {
+            return 16;
+        }
+
+        const ratio = value / maxValue;
+        return Math.max(18, Math.round(ratio * 220));
+    };
 
     const fetchReportData = async () => {
         setReportsLoading(true);
@@ -512,13 +521,15 @@ export default function DashboardOverview() {
                                     {chartData.map((item, idx) => (
                                         <div key={idx} className="bar-container">
                                             <div className="bar-value">{formatCurrency(item.value)}</div>
-                                            <div
-                                                className="bar"
-                                                style={{
-                                                    height: `${(item.value / getMaxChartValue()) * 250} px`,
-                                                }}
-                                                title={`${item.date}: ${formatFullCurrency(item.value)} `}
-                                            />
+                                            <div className="bar-track">
+                                                <div
+                                                    className="bar"
+                                                    style={{
+                                                        height: `${getRevenueBarHeight(item.value)}px`,
+                                                    }}
+                                                    title={`${item.date}: ${formatFullCurrency(item.value)}`}
+                                                />
+                                            </div>
                                             <div className="bar-label">{item.label}</div>
                                         </div>
                                     ))}
