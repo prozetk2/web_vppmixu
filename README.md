@@ -11,6 +11,18 @@
 
 ---
 
+## 🆕 Cập nhật gần đây (2026-03-29)
+
+- Tách riêng layout in `A4` và `A5`, không còn dùng chung một mẫu rồi scale.
+- Chuẩn hóa báo cáo tồn kho để hiểu `SALE` là xuất, `RETURN` là nhập; bổ sung drill-down chi tiết khi click vào sản phẩm.
+- Thêm metadata cho `stock_movement` để truy vết `đã bán theo đơn vị nào`, `từ chứng từ nào`.
+- Bổ sung mô hình đa đơn vị: `đơn vị bán`, `đơn vị cơ bản`, `tỷ lệ quy đổi`; POS tự quy đổi về tồn kho cơ bản.
+- Sửa runtime Prisma để backend ưu tiên `DIRECT_URL` và fail-fast khi không kết nối được database.
+
+Xem chi tiết thay đổi và checklist test ở [update.md](update.md).
+
+---
+
 ## 🛠️ Công nghệ sử dụng (Tech Stack)
 
 ### Backend
@@ -226,17 +238,21 @@ cp .env.example .env
 
 # 4. Điều chỉnh thông tin trong .env
 # DATABASE_URL=<supabase_db_url>
+# DIRECT_URL=<supabase_direct_db_url>
 # JWT_SECRET=<your_secret>
 # SUPABASE_URL=<supabase_project_url>
 # SUPABASE_KEY=<supabase_service_role_key>
 
-# 5. Chạy Prisma migration
+# 5. Generate Prisma client
+npx prisma generate
+
+# 6. Chạy Prisma migration
 npx prisma migrate dev
 
-# 6. Tạo tài khoản admin mặc định
+# 7. Tạo tài khoản admin mặc định
 npm run seed:admin
 
-# 7. Khởi chạy dev server
+# 8. Khởi chạy dev server
 npm run start:dev
 ```
 
@@ -278,6 +294,27 @@ Kiến trúc Docker production:
 | Tài khoản | Mật khẩu |
 |---|---|
 | `admin` | `admin123` |
+
+---
+
+## ✅ Kiểm thử nhanh sau cập nhật
+
+### 1. In hóa đơn A4/A5
+- Trong phần cài đặt in của POS, chọn `Khổ giấy in` là `A4`, tạo một đơn ngắn và bấm in.
+- Trong popup in của trình duyệt, cũng chọn `A4`, `Tỷ lệ 100`, nên tắt `Đầu trang và chân trang`.
+- Lặp lại với `A5`.
+- Kết quả mong đợi: bố cục `A4` và `A5` khác nhau thật, không còn cảm giác một mẫu bị co/phóng.
+
+### 2. Chi tiết xuất nhập kho
+- Vào `Tồn kho`, click vào một dòng sản phẩm.
+- Kết quả mong đợi: mở modal chi tiết có `thời gian`, `loại`, `chứng từ`, `công ty`, `kho`, `số lượng`, `ghi chú`; với giao dịch bán hàng sẽ có thêm thông tin khách hàng nếu hóa đơn có dữ liệu.
+
+### 3. Đa đơn vị và quy đổi tồn kho
+- Tạo hoặc sửa một sản phẩm có `ĐVT bán`, `ĐVT cơ bản` và `Tỷ lệ quy đổi`.
+- Bán sản phẩm đó trên POS bằng đơn vị bán.
+- Kết quả mong đợi: hóa đơn hiển thị theo đơn vị bán, còn tồn kho giảm theo đơn vị cơ bản; báo cáo tồn kho hiển thị được cả số lượng cơ bản và số lượng quy đổi.
+
+Checklist đầy đủ hơn nằm ở [update.md](update.md).
 
 ---
 
@@ -498,6 +535,7 @@ Commit → Deploy (Docker rebuild)
 |---|---|
 | [Hướng dẫn sử dụng](docs/HUONG_DAN_SU_DUNG.md) | User manual đầy đủ cho người dùng cuối |
 | [API Contract](docs/api-contract.md) | Chi tiết các API endpoint |
+| [update.md](update.md) | Tổng hợp thay đổi mới nhất và kịch bản test |
 | [Git Flow Guide](gitflow.md) | Quy trình quản lý Git branch |
 | [Task List](task.md) | Roadmap & task tracking |
 

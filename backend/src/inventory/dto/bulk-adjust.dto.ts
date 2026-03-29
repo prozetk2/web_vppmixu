@@ -35,6 +35,26 @@ export class BulkAdjustItemDto {
     @IsOptional()
     @IsString()
     unit?: string;
+
+    @IsOptional()
+    @Type(() => Number)
+    displayQuantity?: number;
+
+    @IsOptional()
+    @IsString()
+    displayUnit?: string;
+
+    @IsOptional()
+    @IsString()
+    referenceType?: string;
+
+    @IsOptional()
+    @IsString()
+    referenceId?: string;
+
+    @IsOptional()
+    @IsString()
+    referenceCode?: string;
 }
 
 export class BulkAdjustStockDto {

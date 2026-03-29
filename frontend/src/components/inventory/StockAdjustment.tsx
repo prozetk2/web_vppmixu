@@ -30,6 +30,7 @@ interface Product {
   name: string;
   sku?: string;
   unit?: string;
+  baseUnitCode?: string;
 }
 
 interface Category {
@@ -249,7 +250,7 @@ export default function StockAdjustment({
       productId: matchedProduct ? matchedProduct.id : prev.productId,
       warehouseId: matchedWarehouse ? matchedWarehouse.id : prev.warehouseId,
       quantity: qty > 0 ? String(qty) : prev.quantity,
-      unit: data.unit || (matchedProduct?.unit) || prev.unit,
+      unit: data.unit || matchedProduct?.baseUnitCode || matchedProduct?.unit || prev.unit,
       note: data.note || prev.note,
     }));
 
@@ -617,7 +618,7 @@ export default function StockAdjustment({
                           setFormData((prev) => ({
                             ...prev,
                             productId: p.id,
-                            unit: p.unit || prev.unit || 'Cái'
+                            unit: p.baseUnitCode || p.unit || prev.unit || 'Cái'
                           }));
                           setSelectedProductName(
                             `${p.name}${p.sku ? ` [${p.sku}]` : ""}`,
@@ -701,7 +702,7 @@ export default function StockAdjustment({
                 className="form-input"
                 placeholder="VD: Cái, Ram, Hộp..."
               />
-              <p className="field-hint">Nếu thay đổi, hệ thống sẽ cập nhật ĐVT của sản phẩm.</p>
+              <p className="field-hint">ĐVT này sẽ được lưu cho chứng từ kho. Nếu sản phẩm có đa đơn vị, nên dùng đơn vị cơ bản.</p>
             </div>
           </div>
         </div>

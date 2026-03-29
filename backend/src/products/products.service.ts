@@ -40,6 +40,8 @@ export class ProductsService {
             description: dto.description,
             images: dto.images,
             unit: dto.unit || null,
+            baseUnitCode: dto.baseUnitCode || dto.unit || null,
+            conversionRate: dto.conversionRate ?? 1,
           } as any,
           include: { category: true },
         });
@@ -174,6 +176,8 @@ export class ProductsService {
     if (dto.description !== undefined) data.description = dto.description;
     if (dto.images !== undefined) data.images = dto.images;
     if (dto.unit !== undefined) data.unit = dto.unit;
+    if (dto.baseUnitCode !== undefined) data.baseUnitCode = dto.baseUnitCode;
+    if (dto.conversionRate !== undefined) data.conversionRate = dto.conversionRate;
 
     if (dto.categoryId !== undefined) {
       data.category = dto.categoryId

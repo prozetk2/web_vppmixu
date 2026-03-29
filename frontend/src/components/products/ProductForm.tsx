@@ -12,6 +12,8 @@ interface ProductFormData {
   sku?: string;
   categoryId?: string;
   unit?: string;
+  baseUnitCode?: string;
+  conversionRate?: number;
   defaultPrice: number;
   defaultCost?: number;
   images?: string;
@@ -37,6 +39,8 @@ export default function ProductForm({
     sku: '',
     categoryId: '',
     unit: 'Cái',
+    baseUnitCode: 'Cái',
+    conversionRate: 1,
     defaultPrice: 0,
     defaultCost: 0,
     images: '',
@@ -66,9 +70,23 @@ export default function ProductForm({
         sku: product.sku || '',
         categoryId: product.categoryId || '',
         unit: product.unit || 'Cái',
+        baseUnitCode: product.baseUnitCode || product.unit || 'Cái',
+        conversionRate: product.conversionRate || 1,
         defaultPrice: product.defaultPrice || 0,
         defaultCost: product.defaultCost || 0,
         images: product.images || '',
+      });
+    } else {
+      setFormData({
+        name: '',
+        sku: '',
+        categoryId: '',
+        unit: 'Cái',
+        baseUnitCode: 'Cái',
+        conversionRate: 1,
+        defaultPrice: 0,
+        defaultCost: 0,
+        images: '',
       });
     }
   }, [product]);
@@ -88,6 +106,10 @@ export default function ProductForm({
       newErrors.defaultCost = 'Giá vốn không được âm';
     }
 
+    if ((formData.conversionRate ?? 1) < 1) {
+      newErrors.conversionRate = 'Tỷ lệ quy đổi phải từ 1 trở lên';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -102,18 +124,33 @@ export default function ProductForm({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
 
-    if (name === 'defaultPrice' || name === 'defaultCost') {
+    if (name === 'defaultPrice' || name === 'defaultCost' || name === 'conversionRate') {
       const digitsOnly = value.replace(/[^0-9]/g, '');
-      const numericValue = digitsOnly === '' ? 0 : Number(digitsOnly);
+      const numericValue = digitsOnly === '' ? (name === 'conversionRate' ? 1 : 0) : Number(digitsOnly);
       setFormData((prev) => ({
         ...prev,
         [name]: numericValue,
       }));
     } else {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: type === 'number' ? parseFloat(value) || 0 : value,
-      }));
+      setFormData((prev) => {
+        const nextValue = type === 'number' ? parseFloat(value) || 0 : value;
+        const nextState = {
+          ...prev,
+          [name]: nextValue,
+        } as ProductFormData;
+
+        if (
+          name === 'unit' &&
+          (
+            !prev.baseUnitCode ||
+            prev.baseUnitCode === prev.unit
+          )
+        ) {
+          nextState.baseUnitCode = String(nextValue || '');
+        }
+
+        return nextState;
+      });
     }
 
     if (errors[name]) {
@@ -304,7 +341,11 @@ export default function ProductForm({
     e.preventDefault();
     if (!validate()) return;
 
-    await onSubmit(formData);
+    await onSubmit({
+      ...formData,
+      baseUnitCode: formData.baseUnitCode || formData.unit || 'Cái',
+      conversionRate: formData.conversionRate || 1,
+    });
   };
 
   const toNumber = (val: unknown) => {
@@ -407,7 +448,7 @@ export default function ProductForm({
 
       <div className="form-group">
         <label htmlFor="unit" className="form-label">
-          Đơn vị tính
+          Đơn vị bán / hiển thị
         </label>
         <input
           type="text"
@@ -418,6 +459,49 @@ export default function ProductForm({
           className="form-input"
           placeholder="VD: Cái, Hộp, Thùng, Kg..."
         />
+        <small className="hint">
+          Đây là đơn vị mặc định khi bán hàng hoặc in hóa đơn.
+        </small>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label htmlFor="baseUnitCode" className="form-label">
+            Đơn vị cơ bản
+          </label>
+          <input
+            type="text"
+            id="baseUnitCode"
+            name="baseUnitCode"
+            value={formData.baseUnitCode || ''}
+            onChange={handleChange}
+            className="form-input"
+            placeholder="VD: Cái, Chiếc, Gam..."
+          />
+          <small className="hint">
+            Tồn kho sẽ được quản lý theo đơn vị này.
+          </small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="conversionRate" className="form-label">
+            Quy đổi sang đơn vị cơ bản
+          </label>
+          <input
+            type="text"
+            inputMode="numeric"
+            id="conversionRate"
+            name="conversionRate"
+            value={Number(formData.conversionRate || 1) <= 1 ? '' : Number(formData.conversionRate || 1)}
+            onChange={handleChange}
+            className={`form-input ${errors.conversionRate ? 'error' : ''}`}
+            placeholder="VD: 10"
+          />
+          <small className="hint">
+            1 {formData.unit || 'đơn vị bán'} = {(formData.conversionRate || 1)} {formData.baseUnitCode || formData.unit || 'đơn vị cơ bản'}
+          </small>
+          {errors.conversionRate && <span className="error-text">{errors.conversionRate}</span>}
+        </div>
       </div>
 
       <div className="form-row">

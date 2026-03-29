@@ -143,6 +143,12 @@ export const inventoryAPI = {
         type: 'IMPORT' | 'EXPORT' | 'ADJUST';
         note?: string;
         storeId?: string;
+        unit?: string;
+        displayQuantity?: number;
+        displayUnit?: string;
+        referenceType?: string;
+        referenceId?: string;
+        referenceCode?: string;
     }) => api.post('/inventory/adjust', data),
     bulkAdjust: (data: {
         items: {
@@ -153,6 +159,12 @@ export const inventoryAPI = {
             type: 'IMPORT' | 'EXPORT' | 'ADJUST';
             note?: string;
             storeId?: string;
+            unit?: string;
+            displayQuantity?: number;
+            displayUnit?: string;
+            referenceType?: string;
+            referenceId?: string;
+            referenceCode?: string;
         }[];
     }) => api.post('/inventory/bulk', data),
     getMovements: (params?: Record<string, unknown>) => api.get('/inventory/movements', { params }),
@@ -170,7 +182,15 @@ export const salesAPI = {
     create: (data: {
         customerId?: string;
         warehouseId?: string;
-        items: { productId: string; quantity: number; unitPrice?: number; discount?: number }[];
+        items: {
+            productId: string;
+            quantity: number;
+            displayQuantity?: number;
+            unit?: string;
+            conversionRate?: number;
+            unitPrice?: number;
+            discount?: number;
+        }[];
         payment?: { amount: number; method?: string; reference?: string };
         discountAmount?: number;
         note?: string;
@@ -184,7 +204,7 @@ export const purchasesAPI = {
     create: (data: {
         supplierId: string;
         warehouseId?: string;
-        items: { productId: string; quantity: number; unitCost: number }[];
+        items: { productId: string; quantity: number; unitCost: number; unit?: string; displayQuantity?: number }[];
         note?: string;
     }) => api.post('/purchases', data),
     getAll: (params?: Record<string, unknown>) => api.get('/purchases', { params }),
@@ -192,7 +212,7 @@ export const purchasesAPI = {
     update: (id: string, data: {
         supplierId?: string;
         warehouseId?: string;
-        items?: { productId: string; quantity: number; unitCost: number }[];
+        items?: { productId: string; quantity: number; unitCost: number; unit?: string; displayQuantity?: number }[];
         note?: string;
     }) => api.put(`/purchases/${id}`, data),
     delete: (id: string) => api.delete(`/purchases/${id}`),

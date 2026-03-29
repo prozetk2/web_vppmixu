@@ -27,12 +27,19 @@ interface InventoryReportItem {
   productCode: string;
   productName: string;
   unit: string;
+  baseUnit?: string;
+  displayUnit?: string;
+  conversionRate?: number;
+  beginningDisplayQty?: number;
   beginningQty: number;
   beginningValue: number;
+  importDisplayQty?: number;
   importQty: number;
   importValue: number;
+  exportDisplayQty?: number;
   exportQty: number;
   exportValue: number;
+  endingDisplayQty?: number;
   endingQty: number;
   endingValue: number;
   unitCost: number;
@@ -42,6 +49,45 @@ interface Warehouse {
   id: string;
   name: string;
   code?: string;
+}
+
+interface MovementWarehouse {
+  id: string;
+  name: string;
+}
+
+interface InventoryMovementItem {
+  id: string;
+  type: string;
+  normalizedType: string;
+  label: string;
+  direction: "IN" | "OUT";
+  productId: string;
+  productName: string;
+  sku?: string;
+  unit: string;
+  displayUnit?: string;
+  displayQuantity?: number;
+  baseUnit?: string;
+  baseQuantity?: number;
+  conversionRate?: number;
+  quantity: number;
+  signedQuantity: number;
+  unitCost: number;
+  storeName?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  fromWarehouse?: MovementWarehouse | null;
+  toWarehouse?: MovementWarehouse | null;
+  performedBy?: string | null;
+  performedAt: string;
+  note?: string | null;
+  referenceType?: string | null;
+  referenceId?: string | null;
+  reference?: string | null;
+  referenceCode?: string | null;
+  rawReference?: string | null;
+  documentNumber?: string | null;
 }
 
 interface PaginationMeta {
@@ -102,6 +148,16 @@ export default function InventoryOverview() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toast = useToast();
+  const [isMovementOpen, setIsMovementOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] =
+    useState<InventoryReportItem | null>(null);
+  const [movementData, setMovementData] = useState<InventoryMovementItem[]>([]);
+  const [movementLoading, setMovementLoading] = useState(false);
+  const [movementMeta, setMovementMeta] = useState<PaginationMeta>({
+    page: 1,
+    limit: 50,
+    total: 0,
+  });
 
   // Filtered data based on stock filter
   const filteredReportData = reportData.filter((item) => {
@@ -190,6 +246,59 @@ export default function InventoryOverview() {
     pagination.page,
     pagination.limit,
   ]);
+
+  const fetchMovements = useCallback(
+    async (product: InventoryReportItem) => {
+      setMovementLoading(true);
+      try {
+        const response = await inventoryAPI.getMovements({
+          productId: product.id,
+          warehouseId: warehouseFilter || undefined,
+          storeId: storeFilter || undefined,
+          fromDate,
+          toDate,
+          page: 1,
+          limit: 100,
+        });
+
+        const apiResponse = response.data?.data ? response.data : response.data;
+        const movementItems = apiResponse?.data || [];
+
+        setMovementData(Array.isArray(movementItems) ? movementItems : []);
+        setMovementMeta(
+          apiResponse?.meta || {
+            page: 1,
+            limit: 100,
+            total: Array.isArray(movementItems) ? movementItems.length : 0,
+          },
+        );
+      } catch (error) {
+        console.error("Failed to fetch inventory movements:", error);
+        toast.error("Không thể tải chi tiết xuất nhập kho");
+        setMovementData([]);
+      } finally {
+        setMovementLoading(false);
+      }
+    },
+    [fromDate, storeFilter, toDate, warehouseFilter],
+  );
+
+  useEffect(() => {
+    if (isMovementOpen && selectedProduct) {
+      fetchMovements(selectedProduct);
+    }
+  }, [fetchMovements, fromDate, isMovementOpen, selectedProduct, storeFilter, toDate, warehouseFilter]);
+
+  const openMovementModal = (product: InventoryReportItem) => {
+    setSelectedProduct(product);
+    setIsMovementOpen(true);
+  };
+
+  const closeMovementModal = () => {
+    setIsMovementOpen(false);
+    setSelectedProduct(null);
+    setMovementData([]);
+  };
 
   const handleAdjustSubmit = async (data: {
     warehouseId: string;
@@ -620,6 +729,75 @@ export default function InventoryOverview() {
     return new Intl.NumberFormat("vi-VN").format(value);
   };
 
+  const formatQuantity = (value: number) => {
+    return new Intl.NumberFormat("vi-VN", {
+      minimumFractionDigits: Number.isInteger(value) ? 0 : 0,
+      maximumFractionDigits: 3,
+    }).format(value);
+  };
+
+  const hasConvertedUnit = (
+    baseUnit?: string,
+    displayUnit?: string,
+    conversionRate?: number,
+  ) =>
+    Boolean(
+      baseUnit &&
+      displayUnit &&
+      baseUnit !== displayUnit &&
+      Number(conversionRate || 1) > 1,
+    );
+
+  const renderReportQuantity = (
+    baseQty: number,
+    displayQty: number | undefined,
+    item: InventoryReportItem,
+  ) => (
+    <div className="inventory-qty-cell">
+      <span>{formatCurrency(baseQty)}</span>
+      {hasConvertedUnit(item.baseUnit, item.displayUnit, item.conversionRate) && (
+        <small>
+          {formatQuantity(displayQty || 0)} {item.displayUnit}
+        </small>
+      )}
+    </div>
+  );
+
+  const formatDateTime = (value: string) => {
+    const date = new Date(value);
+    return new Intl.DateTimeFormat("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(date);
+  };
+
+  const getMovementQuantityClass = (movement: InventoryMovementItem) =>
+    movement.direction === "IN"
+      ? "movement-qty movement-qty-in"
+      : "movement-qty movement-qty-out";
+
+  const renderMovementQuantity = (movement: InventoryMovementItem) => (
+    <div className="movement-qty-stack">
+      <span>
+        {movement.direction === "IN" ? "+" : "-"}
+        {formatQuantity(Math.abs(movement.displayQuantity ?? movement.quantity))}
+      </span>
+      {hasConvertedUnit(
+        movement.baseUnit,
+        movement.displayUnit || movement.unit,
+        movement.conversionRate,
+      ) && (
+        <small>
+          = {formatQuantity(Math.abs(movement.baseQuantity ?? movement.signedQuantity))}{" "}
+          {movement.baseUnit}
+        </small>
+      )}
+    </div>
+  );
+
   const openAdjustModal = (type: "IMPORT" | "EXPORT" | "ADJUST") => {
     if (type === "IMPORT") setIsImportOpen(true);
     else if (type === "EXPORT") setIsExportOpen(true);
@@ -922,29 +1100,56 @@ export default function InventoryOverview() {
               <tbody>
                 {filteredReportData.map((item) => (
                   <tr key={item.id} className={item.endingQty <= 0 ? 'out-of-stock-row' : ''}>
-                    <td className="code-cell">{item.productCode}</td>
-                    <td className="name-cell">{item.productName}</td>
-                    <td className="unit-cell">{item.unit}</td>
+                    <td className="code-cell">
+                      <button
+                        type="button"
+                        className="inventory-detail-trigger"
+                        onClick={() => openMovementModal(item)}
+                        title="Xem chi tiết xuất nhập kho"
+                      >
+                        {item.productCode}
+                      </button>
+                    </td>
+                    <td className="name-cell">
+                      <button
+                        type="button"
+                        className="inventory-detail-trigger inventory-detail-name"
+                        onClick={() => openMovementModal(item)}
+                        title="Xem chi tiết xuất nhập kho"
+                      >
+                        {item.productName}
+                      </button>
+                    </td>
+                    <td className="unit-cell">
+                      <div className="inventory-unit-display">
+                        <strong>{item.baseUnit || item.unit}</strong>
+                        {hasConvertedUnit(item.baseUnit, item.displayUnit, item.conversionRate) && (
+                          <small>
+                            Hiển thị: {item.displayUnit} x{item.conversionRate}
+                          </small>
+                        )}
+                      </div>
+                    </td>
                     <td className="num-col">
-                      {formatCurrency(item.beginningQty)}
+                      {renderReportQuantity(item.beginningQty, item.beginningDisplayQty, item)}
                     </td>
                     <td className="num-col">
                       {formatCurrency(item.beginningValue)}
                     </td>
                     <td className="num-col import-cell">
-                      {formatCurrency(item.importQty)}
+                      {renderReportQuantity(item.importQty, item.importDisplayQty, item)}
                     </td>
                     <td className="num-col import-cell">
                       {formatCurrency(item.importValue)}
                     </td>
                     <td className="num-col export-cell">
-                      {formatCurrency(item.exportQty)}
+                      {renderReportQuantity(item.exportQty, item.exportDisplayQty, item)}
                     </td>
                     <td className="num-col export-cell">
                       {formatCurrency(item.exportValue)}
                     </td>
                     <td className="num-col ending-cell">
-                      {formatCurrency(item.endingQty)}
+                      {renderReportQuantity(item.endingQty, item.endingDisplayQty, item)}
                     </td>
                     <td className="num-col ending-cell">
                       {formatCurrency(item.endingValue)}
@@ -1138,6 +1343,139 @@ export default function InventoryOverview() {
           onCancel={() => setIsAdjustOpen(false)}
           isLoading={isSubmitting}
         />
+      </Modal>
+
+      <Modal
+        isOpen={isMovementOpen}
+        onClose={closeMovementModal}
+        title={
+          selectedProduct
+            ? `Chi tiết xuất nhập kho - ${selectedProduct.productName}`
+            : "Chi tiết xuất nhập kho"
+        }
+        size="xl"
+      >
+        <div className="movement-detail-modal">
+          {selectedProduct && (
+            <div className="movement-detail-summary">
+              <div className="movement-summary-card">
+                <span className="movement-summary-label">Mã hàng</span>
+                <strong>{selectedProduct.productCode || "--"}</strong>
+              </div>
+              <div className="movement-summary-card">
+                <span className="movement-summary-label">ĐVT</span>
+                <strong>
+                  {selectedProduct.displayUnit && selectedProduct.displayUnit !== selectedProduct.unit
+                    ? `${selectedProduct.displayUnit} | cơ bản ${selectedProduct.unit || "Cái"}`
+                    : selectedProduct.unit || "Cái"}
+                </strong>
+              </div>
+              <div className="movement-summary-card">
+                <span className="movement-summary-label">Tồn cuối kỳ</span>
+                <strong>{formatCurrency(selectedProduct.endingQty)}</strong>
+              </div>
+              <div className="movement-summary-card">
+                <span className="movement-summary-label">Khoảng xem</span>
+                <strong>
+                  {fromDate} đến {toDate}
+                </strong>
+              </div>
+            </div>
+          )}
+
+          <div className="movement-detail-toolbar">
+            <span className="movement-detail-note">
+              Click từ báo cáo tồn kho để xem luồng nhập, xuất, bán và trả hàng
+              của từng sản phẩm.
+            </span>
+            {selectedProduct && (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => fetchMovements(selectedProduct)}
+              >
+                <MdRefresh /> Làm mới
+              </button>
+            )}
+          </div>
+
+          {movementLoading ? (
+            <div className="movement-detail-loading">
+              <div className="spinner-large"></div>
+              <p>Đang tải chi tiết xuất nhập kho...</p>
+            </div>
+          ) : movementData.length === 0 ? (
+            <div className="movement-detail-empty">
+              <MdInventory size={48} />
+              <h4>Không có giao dịch trong khoảng đã chọn</h4>
+              <p>Thử đổi thời gian, kho hàng hoặc công ty để xem thêm dữ liệu.</p>
+            </div>
+          ) : (
+            <>
+              <div className="movement-detail-meta">
+                Hiển thị <strong>{movementData.length}</strong> giao dịch
+                {movementMeta.total > movementData.length
+                  ? ` trên tổng ${movementMeta.total} giao dịch`
+                  : ""}
+              </div>
+              <div className="movement-table-wrapper">
+                <table className="movement-detail-table">
+                  <thead>
+                    <tr>
+                      <th>Thời gian</th>
+                      <th>Loại</th>
+                      <th>SL</th>
+                      <th>ĐVT</th>
+                      <th>Kho</th>
+                      <th>Công ty</th>
+                      <th>Khách hàng</th>
+                      <th>Chứng từ</th>
+                      <th>Người thực hiện</th>
+                      <th>Ghi chú</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {movementData.map((movement) => (
+                      <tr key={movement.id}>
+                        <td>{formatDateTime(movement.performedAt)}</td>
+                        <td>
+                          <span
+                            className={`movement-type-pill movement-type-${movement.direction.toLowerCase()}`}
+                          >
+                            {movement.label}
+                          </span>
+                        </td>
+                        <td className={getMovementQuantityClass(movement)}>
+                          {renderMovementQuantity(movement)}
+                        </td>
+                        <td>{movement.displayUnit || movement.unit || selectedProduct?.displayUnit || selectedProduct?.unit || "Cái"}</td>
+                        <td>
+                          <div className="movement-warehouse-cell">
+                            <span>{movement.fromWarehouse?.name || "--"}</span>
+                            <span className="movement-arrow">→</span>
+                            <span>{movement.toWarehouse?.name || "--"}</span>
+                          </div>
+                        </td>
+                        <td>{movement.storeName || "--"}</td>
+                        <td>
+                          <div className="movement-customer-cell">
+                            <span>{movement.customerName || "--"}</span>
+                            {movement.customerPhone && (
+                              <small>{movement.customerPhone}</small>
+                            )}
+                          </div>
+                        </td>
+                        <td>{movement.documentNumber || movement.reference || "--"}</td>
+                        <td>{movement.performedBy || "--"}</td>
+                        <td>{movement.note || "--"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
       </Modal>
     </div>
   );

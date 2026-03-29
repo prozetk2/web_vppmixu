@@ -7,6 +7,146 @@ import { Prisma } from '@prisma/client';
 export class InventoryService {
     constructor(private readonly prisma: PrismaService) { }
 
+    private getMovementDelta(movementType: string, quantity: number) {
+        const absoluteQuantity = Math.abs(quantity);
+
+        switch (movementType) {
+            case 'IMPORT':
+            case 'PURCHASE':
+            case 'RETURN':
+                return absoluteQuantity;
+            case 'EXPORT':
+            case 'SALE':
+                return -absoluteQuantity;
+            case 'ADJUST':
+                return quantity;
+            default:
+                return quantity;
+        }
+    }
+
+    private getNormalizedMovementType(movementType: string, quantity: number) {
+        if (movementType === 'SALE') {
+            return 'EXPORT';
+        }
+
+        if (movementType === 'RETURN' || movementType === 'PURCHASE') {
+            return 'IMPORT';
+        }
+
+        if (movementType === 'ADJUST') {
+            return quantity >= 0 ? 'IMPORT' : 'EXPORT';
+        }
+
+        return movementType;
+    }
+
+    private getMovementLabel(movementType: string, quantity: number) {
+        switch (movementType) {
+            case 'IMPORT':
+                return 'Nhập kho';
+            case 'PURCHASE':
+                return 'Nhập hàng';
+            case 'EXPORT':
+                return 'Xuất kho';
+            case 'SALE':
+                return 'Bán hàng';
+            case 'RETURN':
+                return 'Trả hàng';
+            case 'ADJUST':
+                return quantity >= 0 ? 'Điều chỉnh tăng' : 'Điều chỉnh giảm';
+            default:
+                return movementType;
+        }
+    }
+
+    private extractReferenceCode(reference?: string | null, note?: string | null) {
+        if (reference?.trim()) {
+            return reference.trim();
+        }
+
+        if (!note) {
+            return null;
+        }
+
+        const matched = note.match(/(?:Bán hàng|Trả hàng|Xuất kho cho|Nhập hàng)\s*:\s*([A-Z0-9-]+)/i);
+        return matched?.[1]?.trim() || null;
+    }
+
+    private matchMovementToInvoiceItem(
+        movement: {
+            variant: {
+                sku?: string | null;
+                product: { sku?: string | null; name: string };
+            };
+        },
+        item: {
+            productCode?: string | null;
+            productName?: string | null;
+        },
+    ) {
+        const movementCodes = [movement.variant.sku, movement.variant.product.sku]
+            .filter(Boolean)
+            .map((code) => String(code).trim().toLowerCase());
+        const itemCode = item.productCode?.trim().toLowerCase();
+
+        if (itemCode && movementCodes.includes(itemCode)) {
+            return true;
+        }
+
+        return (item.productName || '').trim().toLowerCase() === movement.variant.product.name.trim().toLowerCase();
+    }
+
+    private getProductBaseUnit(product: { baseUnitCode?: string | null; unit?: string | null }) {
+        return product.baseUnitCode?.trim() || product.unit?.trim() || 'Cái';
+    }
+
+    private getProductDisplayUnit(product: { baseUnitCode?: string | null; unit?: string | null }) {
+        return product.unit?.trim() || this.getProductBaseUnit(product);
+    }
+
+    private getProductConversionRate(product: { conversionRate?: Prisma.Decimal | number | null }) {
+        const conversionRate = Number(product.conversionRate || 1);
+        return Number.isFinite(conversionRate) && conversionRate > 0 ? conversionRate : 1;
+    }
+
+    private deriveDisplayQuantity(
+        baseQuantity: number,
+        product: { baseUnitCode?: string | null; unit?: string | null; conversionRate?: Prisma.Decimal | number | null },
+        preferredUnit?: string | null,
+    ) {
+        const absoluteBaseQuantity = Math.abs(baseQuantity);
+        const baseUnit = this.getProductBaseUnit(product);
+        const displayUnit = this.getProductDisplayUnit(product);
+        const conversionRate = this.getProductConversionRate(product);
+        const normalizedPreferredUnit = preferredUnit?.trim();
+
+        if (normalizedPreferredUnit && normalizedPreferredUnit === baseUnit) {
+            return {
+                baseUnit,
+                displayUnit: baseUnit,
+                displayQuantity: absoluteBaseQuantity,
+                conversionRate: 1,
+            };
+        }
+
+        if (displayUnit !== baseUnit && conversionRate > 1) {
+            return {
+                baseUnit,
+                displayUnit,
+                displayQuantity: absoluteBaseQuantity / conversionRate,
+                conversionRate,
+            };
+        }
+
+        return {
+            baseUnit,
+            displayUnit: normalizedPreferredUnit || baseUnit,
+            displayQuantity: absoluteBaseQuantity,
+            conversionRate: 1,
+        };
+    }
+
     /**
      * Get stock levels with optional filters
      */
@@ -89,7 +229,21 @@ export class InventoryService {
      * Uses transaction to ensure data integrity
      */
     async adjustStock(dto: AdjustStockDto, performedBy?: bigint) {
-        const { warehouseId, productId, quantity, type, note, storeId, unit } = dto;
+        const {
+            warehouseId,
+            productId,
+            quantity,
+            type,
+            note,
+            reference,
+            storeId,
+            unit,
+            displayQuantity,
+            displayUnit,
+            referenceType,
+            referenceId,
+            referenceCode,
+        } = dto;
 
         // Validate warehouse exists
         const warehouse = await this.prisma.warehouse.findUnique({
@@ -182,12 +336,19 @@ export class InventoryService {
 
             // Calculate unit cost from DTO or product default
             const unitCost = dto.unitCost ?? Number(product.defaultCost || product.defaultPrice || 0);
+            const movementBaseQuantity = Math.abs(Number(movementQuantity));
+            const persistedDisplayUnit = displayUnit || unit || this.getProductBaseUnit(product);
+            const persistedDisplayQuantity = displayQuantity ?? movementBaseQuantity;
 
             // Create stock movement record
             // ADJUST type should also set toWarehouseId so it appears in warehouse-filtered reports
             const movement = await tx.stockMovement.create({
                 data: {
                     movementType: type,
+                    reference: reference || referenceCode || null,
+                    referenceType: referenceType || null,
+                    referenceId: referenceId ? BigInt(referenceId) : null,
+                    referenceCode: referenceCode || reference || null,
                     variantId: variant.id,
                     fromWarehouseId: type === MovementType.EXPORT ? BigInt(warehouseId) : null,
                     toWarehouseId: (type === MovementType.IMPORT || type === MovementType.ADJUST) ? BigInt(warehouseId) : null,
@@ -196,20 +357,14 @@ export class InventoryService {
                     quantity: type === MovementType.ADJUST
                         ? movementQuantity  // Keep sign for ADJUST
                         : (movementQuantity > 0 ? movementQuantity : -movementQuantity),
+                    displayQuantity: persistedDisplayQuantity,
+                    displayUnit: persistedDisplayUnit,
                     unitCost: unitCost,
                     performedBy: performedBy || null,
                     note: note || null,
                     storeId: storeId ? BigInt(storeId) : null,
                 },
             });
-
-            // Update product unit if provided
-            if (unit) {
-                await tx.product.update({
-                    where: { id: BigInt(productId) },
-                    data: { unit }
-                });
-            }
 
             return {
                 inventory: {
@@ -244,8 +399,20 @@ export class InventoryService {
             where.storeId = BigInt(storeId);
         }
 
+        if (productId) {
+            where.variant = {
+                productId: BigInt(productId),
+            };
+        }
+
         if (type) {
-            where.movementType = type;
+            if (type === 'IMPORT') {
+                where.movementType = { in: ['IMPORT', 'PURCHASE', 'RETURN'] };
+            } else if (type === 'EXPORT') {
+                where.movementType = { in: ['EXPORT', 'SALE'] };
+            } else {
+                where.movementType = type;
+            }
         }
 
         if (fromDate || toDate) {
@@ -270,6 +437,7 @@ export class InventoryService {
                     fromWarehouse: true,
                     toWarehouse: true,
                     performer: true,
+                    store: true,
                 },
                 skip: (page - 1) * limit,
                 take: limit,
@@ -278,32 +446,98 @@ export class InventoryService {
             this.prisma.stockMovement.count({ where }),
         ]);
 
-        // Filter by productId if specified (post-filter due to nested relation)
-        let filtered = movements;
-        if (productId) {
-            filtered = filtered.filter(
-                (m) => m.variant.productId === BigInt(productId),
-            );
-        }
+        const movementReferences = Array.from(
+            new Set(
+                movements
+                    .map((movement) => movement.referenceCode || this.extractReferenceCode(movement.reference, movement.note))
+                    .filter((reference): reference is string => Boolean(reference)),
+            ),
+        );
 
-        const data = filtered.map((m) => ({
-            id: m.id.toString(),
-            type: m.movementType,
-            productId: m.variant.productId.toString(),
-            productName: m.variant.product.name,
-            sku: m.variant.sku,
-            fromWarehouse: m.fromWarehouse
-                ? { id: m.fromWarehouse.id.toString(), name: m.fromWarehouse.name }
-                : null,
-            toWarehouse: m.toWarehouse
-                ? { id: m.toWarehouse.id.toString(), name: m.toWarehouse.name }
-                : null,
-            quantity: Number(m.quantity),
-            performedBy: m.performer?.fullName || m.performer?.username || null,
-            performedAt: m.performedAt,
-            note: m.note,
-            reference: m.reference,
-        }));
+        const invoices = movementReferences.length > 0
+            ? await this.prisma.invoice.findMany({
+                where: {
+                    OR: [
+                        { invoiceNumber: { in: movementReferences } },
+                        { orderCode: { in: movementReferences } },
+                    ],
+                },
+                include: {
+                    items: true,
+                    store: true,
+                },
+            })
+            : [];
+
+        const invoiceMap = new Map<string, (typeof invoices)[number]>();
+        invoices.forEach((invoice) => {
+            if (invoice.invoiceNumber) {
+                invoiceMap.set(invoice.invoiceNumber, invoice);
+            }
+            if (invoice.orderCode) {
+                invoiceMap.set(invoice.orderCode, invoice);
+            }
+        });
+
+        const data = movements.map((m) => {
+            const signedQuantity = this.getMovementDelta(m.movementType, Number(m.quantity));
+            const referenceCode = m.referenceCode || this.extractReferenceCode(m.reference, m.note);
+            const relatedInvoice = referenceCode ? invoiceMap.get(referenceCode) : undefined;
+            const relatedInvoiceItem = relatedInvoice?.items.find((item) =>
+                this.matchMovementToInvoiceItem(m, item),
+            );
+            const derivedDisplay = this.deriveDisplayQuantity(signedQuantity, m.variant.product, m.displayUnit);
+            const resolvedDisplayUnit =
+                m.displayUnit ||
+                relatedInvoiceItem?.unit ||
+                derivedDisplay.displayUnit;
+            const resolvedDisplayQuantity =
+                m.displayQuantity !== null && m.displayQuantity !== undefined
+                    ? Number(m.displayQuantity)
+                    : relatedInvoiceItem?.quantity
+                        ? Number(relatedInvoiceItem.quantity)
+                        : derivedDisplay.displayQuantity;
+
+            return {
+                id: m.id.toString(),
+                type: m.movementType,
+                normalizedType: this.getNormalizedMovementType(m.movementType, Number(m.quantity)),
+                label: this.getMovementLabel(m.movementType, Number(m.quantity)),
+                direction: signedQuantity >= 0 ? 'IN' : 'OUT',
+                productId: m.variant.productId.toString(),
+                productName: m.variant.product.name,
+                sku: m.variant.sku || m.variant.product.sku,
+                unit: resolvedDisplayUnit,
+                displayUnit: resolvedDisplayUnit,
+                displayQuantity: resolvedDisplayQuantity,
+                quantity: resolvedDisplayQuantity,
+                baseUnit: this.getProductBaseUnit(m.variant.product),
+                baseQuantity: Math.abs(signedQuantity),
+                signedQuantity,
+                conversionRate: resolvedDisplayUnit === this.getProductBaseUnit(m.variant.product)
+                    ? 1
+                    : derivedDisplay.conversionRate,
+                fromWarehouse: m.fromWarehouse
+                    ? { id: m.fromWarehouse.id.toString(), name: m.fromWarehouse.name }
+                    : null,
+                toWarehouse: m.toWarehouse
+                    ? { id: m.toWarehouse.id.toString(), name: m.toWarehouse.name }
+                    : null,
+                unitCost: Number(m.unitCost || 0),
+                storeName: m.store?.name || relatedInvoice?.store?.name || null,
+                customerName: relatedInvoice?.customerName || (relatedInvoice ? 'Khách lẻ' : null),
+                customerPhone: relatedInvoice?.customerPhone || null,
+                performedBy: m.performer?.fullName || m.performer?.username || null,
+                performedAt: m.performedAt,
+                note: m.note,
+                referenceType: m.referenceType,
+                referenceId: m.referenceId?.toString() || null,
+                reference: referenceCode,
+                referenceCode,
+                rawReference: m.reference,
+                documentNumber: relatedInvoice?.invoiceNumber || relatedInvoice?.orderCode || referenceCode,
+            };
+        });
 
         return {
             data,
@@ -442,11 +676,7 @@ export class InventoryService {
             priorMovements
                 .filter((m) => variantIds.includes(m.variantId))
                 .forEach((m) => {
-                    if (m.movementType === 'IMPORT' || m.movementType === 'ADJUST') {
-                        historicalBeginningQty += Number(m.quantity);
-                    } else if (m.movementType === 'EXPORT') {
-                        historicalBeginningQty -= Number(m.quantity);
-                    }
+                    historicalBeginningQty += this.getMovementDelta(m.movementType, Number(m.quantity));
                 });
 
             // Calculate period imports and exports
@@ -456,17 +686,12 @@ export class InventoryService {
             movements
                 .filter((m) => variantIds.includes(m.variantId))
                 .forEach((m) => {
-                    if (m.movementType === 'IMPORT') {
-                        importQty += Number(m.quantity);
-                    } else if (m.movementType === 'EXPORT') {
-                        exportQty += Number(m.quantity);
-                    } else if (m.movementType === 'ADJUST') {
-                        // Positive adjustment = import, negative = export
-                        if (Number(m.quantity) > 0) {
-                            importQty += Number(m.quantity);
-                        } else {
-                            exportQty += Math.abs(Number(m.quantity));
-                        }
+                    const movementDelta = this.getMovementDelta(m.movementType, Number(m.quantity));
+
+                    if (movementDelta > 0) {
+                        importQty += movementDelta;
+                    } else if (movementDelta < 0) {
+                        exportQty += Math.abs(movementDelta);
                     }
                 });
 
@@ -475,11 +700,7 @@ export class InventoryService {
             postMovements
                 .filter((m) => variantIds.includes(m.variantId))
                 .forEach((m) => {
-                    if (m.movementType === 'IMPORT' || m.movementType === 'ADJUST') {
-                        postPeriodNetQty += Number(m.quantity);
-                    } else if (m.movementType === 'EXPORT') {
-                        postPeriodNetQty -= Number(m.quantity);
-                    }
+                    postPeriodNetQty += this.getMovementDelta(m.movementType, Number(m.quantity));
                 });
 
             // Identify initial stock without movements
@@ -494,18 +715,31 @@ export class InventoryService {
 
             // Get unit cost for value calculation
             const unitCost = Number(product.defaultCost || product.defaultPrice || 0);
+            const baseUnit = this.getProductBaseUnit(product);
+            const displayUnit = this.getProductDisplayUnit(product);
+            const conversionRate = this.getProductConversionRate(product);
+            const hasDisplayConversion = displayUnit !== baseUnit && conversionRate > 1;
+            const toDisplayQty = (qty: number) =>
+                hasDisplayConversion ? qty / conversionRate : qty;
 
             return {
                 id: product.id.toString(),
                 productCode: product.sku || '',
                 productName: product.name,
-                unit: product.unit || 'Cái',
+                unit: baseUnit,
+                baseUnit,
+                displayUnit,
+                conversionRate,
+                beginningDisplayQty: toDisplayQty(beginningQty),
                 beginningQty,
                 beginningValue: beginningQty * unitCost,
+                importDisplayQty: toDisplayQty(importQty),
                 importQty,
                 importValue: importQty * unitCost,
+                exportDisplayQty: toDisplayQty(exportQty),
                 exportQty,
                 exportValue: exportQty * unitCost,
+                endingDisplayQty: toDisplayQty(endingQty),
                 endingQty,
                 endingValue: endingQty * unitCost,
                 unitCost,
@@ -598,6 +832,11 @@ export class InventoryService {
                         note: item.note || `Bulk ${item.type.toLowerCase()}`,
                         storeId: item.storeId,
                         unit: item.unit,
+                        displayQuantity: item.displayQuantity ?? item.quantity,
+                        displayUnit: item.displayUnit || item.unit,
+                        referenceType: item.referenceType,
+                        referenceId: item.referenceId,
+                        referenceCode: item.referenceCode,
                     },
                     performedBy,
                 );
@@ -636,6 +875,11 @@ export class InventoryService {
             productCode: string;
             quantity: number;
             unitPrice?: number;
+            unit?: string;
+            displayQuantity?: number;
+            referenceType?: string;
+            referenceId?: string;
+            referenceCode?: string;
         }>,
         reference: string,  // e.g., "INV-001"
         warehouseId?: string,
@@ -696,8 +940,14 @@ export class InventoryService {
                     productId: product.id.toString(),
                     quantity: item.quantity,
                     type: MovementType.EXPORT,
+                    reference,
                     note: `Xuất kho cho ${reference}`,
                     storeId: storeId,
+                    displayQuantity: item.displayQuantity ?? item.quantity,
+                    displayUnit: item.unit,
+                    referenceType: item.referenceType,
+                    referenceId: item.referenceId,
+                    referenceCode: item.referenceCode || reference,
                     unitCost: item.unitPrice, // Use sale price as cost reference
                 },
                 performedBy,

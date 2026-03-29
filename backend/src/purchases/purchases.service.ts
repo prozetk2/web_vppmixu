@@ -74,14 +74,16 @@ export class PurchasesService {
                 throw new BadRequestException(`PRODUCT_NOT_FOUND: ${item.productId}`);
             }
 
-            const totalCost = item.unitCost * item.quantity;
+            const displayQuantity = item.displayQuantity ?? item.quantity;
+            const totalCost = item.unitCost * displayQuantity;
             totalAmount += totalCost;
 
             purchaseItems.push({
                 variantId: info.variant.id,
                 quantity: BigInt(item.quantity),
                 unitCost: item.unitCost,
-                unit: item.unit,
+                unit: item.unit || info.product.baseUnitCode || info.product.unit || 'Cái',
+                displayQuantity,
                 totalCost,
             });
         }
@@ -112,7 +114,7 @@ export class PurchasesService {
                     createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,
                     confirmedAt: new Date(),
                     purchaseItems: {
-                        create: purchaseItems,
+                        create: purchaseItems.map(({ displayQuantity, ...item }) => item),
                     },
                 },
                 include: {
@@ -180,9 +182,15 @@ export class PurchasesService {
                 await tx.stockMovement.create({
                     data: {
                         movementType: 'PURCHASE',
+                        reference: orderNumber,
+                        referenceType: 'PURCHASE',
+                        referenceId: order.id,
+                        referenceCode: orderNumber,
                         variantId: item.variantId,
                         toWarehouseId: warehouseId,
                         quantity: Number(item.quantity),
+                        displayQuantity: item.displayQuantity ?? Number(item.quantity),
+                        displayUnit: item.unit || 'Cái',
                         unitCost: item.unitCost,
                         note: `Nhập hàng: ${orderNumber}`,
                     },
@@ -330,13 +338,15 @@ export class PurchasesService {
                 if (!info) {
                     throw new BadRequestException(`PRODUCT_NOT_FOUND: ${item.productId}`);
                 }
-                const totalCost = item.unitCost * item.quantity;
+                const displayQuantity = item.displayQuantity ?? item.quantity;
+                const totalCost = item.unitCost * displayQuantity;
                 totalAmount += totalCost;
                 purchaseItems.push({
                     variantId: info.variant.id,
                     quantity: BigInt(item.quantity),
                     unitCost: item.unitCost,
-                    unit: item.unit,
+                    unit: item.unit || info.product.baseUnitCode || info.product.unit || 'Cái',
+                    displayQuantity,
                     totalCost,
                 });
             }
@@ -381,12 +391,19 @@ export class PurchasesService {
                         }
 
                         // Delete old stock movements for this order
-                        await tx.stockMovement.deleteMany({
-                            where: {
-                                note: { contains: order.orderNumber || '' },
-                                movementType: 'PURCHASE',
-                            },
-                        });
+                        const movementDeleteWhere: any = {
+                            movementType: 'PURCHASE',
+                            OR: [{ referenceId: order.id }],
+                        };
+
+                        if (order.orderNumber) {
+                            movementDeleteWhere.OR.push(
+                                { referenceCode: order.orderNumber },
+                                { note: { contains: order.orderNumber } },
+                            );
+                        }
+
+                        await tx.stockMovement.deleteMany({ where: movementDeleteWhere });
                     }
 
                     // Reverse supplier debt for the OLD supplier
@@ -409,7 +426,9 @@ export class PurchasesService {
                     where: { id: BigInt(id) },
                     data: {
                         ...updateData,
-                        purchaseItems: { create: purchaseItems },
+                        purchaseItems: {
+                            create: purchaseItems.map(({ displayQuantity, ...item }) => item),
+                        },
                     },
                 });
 
@@ -448,9 +467,15 @@ export class PurchasesService {
                             await tx.stockMovement.create({
                                 data: {
                                     movementType: 'PURCHASE',
+                                    reference: order.orderNumber,
+                                    referenceType: 'PURCHASE',
+                                    referenceId: order.id,
+                                    referenceCode: order.orderNumber,
                                     variantId: newItem.variantId,
                                     toWarehouseId: warehouseId,
                                     quantity: Number(newItem.quantity),
+                                    displayQuantity: newItem.displayQuantity ?? Number(newItem.quantity),
+                                    displayUnit: newItem.unit || 'Cái',
                                     unitCost: newItem.unitCost,
                                     note: `Nhập hàng: ${order.orderNumber}`,
                                 },
@@ -544,9 +569,15 @@ export class PurchasesService {
                 await tx.stockMovement.create({
                     data: {
                         movementType: 'PURCHASE',
+                        reference: order.orderNumber,
+                        referenceType: 'PURCHASE',
+                        referenceId: order.id,
+                        referenceCode: order.orderNumber,
                         variantId: item.variantId,
                         toWarehouseId: warehouseId,
                         quantity: Number(item.quantity),
+                        displayQuantity: Number((item as any).displayQuantity || item.quantity),
+                        displayUnit: item.unit || item.variant.product.baseUnitCode || item.variant.product.unit || 'Cái',
                         unitCost: item.unitCost,
                         note: `Nhập hàng: ${order.orderNumber}`,
                     },

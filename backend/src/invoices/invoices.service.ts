@@ -288,6 +288,11 @@ export class InvoicesService {
                                 productCode: item.productCode!,
                                 quantity: Number(item.quantity) || 0,
                                 unitPrice: Number(item.unitPrice) || 0,
+                                unit: item.unit,
+                                displayQuantity: Number(item.quantity) || 0,
+                                referenceType: 'INVOICE',
+                                referenceId: invoice.id.toString(),
+                                referenceCode: invoice.invoiceNumber || invoice.orderCode || 'UNKNOWN',
                             })),
                             invoice.invoiceNumber || 'UNKNOWN',
                             undefined, // Use default warehouse

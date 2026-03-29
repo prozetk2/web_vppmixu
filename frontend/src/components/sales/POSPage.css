@@ -268,7 +268,7 @@
 }
 
 .col-unit {
-    width: 60px;
+    width: 96px;
     text-align: center;
 }
 
@@ -319,6 +319,23 @@
     font-weight: 600;
     color: var(--color-primary);
     font-size: 0.875rem;
+}
+
+.unit-select {
+    width: 100%;
+    min-width: 78px;
+    padding: 0.25rem 0.4rem;
+    border: 1px solid #dbe2ea;
+    border-radius: 4px;
+    background: white;
+    font-size: 0.8125rem;
+    color: #1e293b;
+}
+
+.unit-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.12);
 }
 
 .price-input {
@@ -1175,6 +1192,30 @@ tr.dragging {
     font-weight: 500;
 }
 
+.print-sync-warning {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin: -0.125rem 0 1rem;
+    padding: 0.875rem 0.9rem;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1px solid #dbeafe;
+}
+
+.print-sync-warning strong {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: #1e3a8a;
+}
+
+.print-sync-warning span {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: #475569;
+    font-weight: 400;
+}
+
 .custom-config-input {
     flex: 2;
     padding: 0.25rem 0.5rem;
@@ -1945,8 +1986,7 @@ tr.dragging {
 
 @media print {
     @page {
-        size: auto;
-        margin: 12mm;
+        margin: 10mm;
     }
 
     body {
@@ -1984,7 +2024,8 @@ tr.dragging {
 
     /* Template Styles */
     .print-template {
-        --print-content-width: 86%;
+        --print-page-width: 210mm;
+        --print-content-width: 100%;
         width: 100%;
         max-width: none;
         margin: 0 auto;
@@ -1994,43 +2035,248 @@ tr.dragging {
     }
 
     .print-template.paper-a5 {
-        max-width: 148mm;
-        --print-content-width: 92%;
+        --print-page-width: 100%;
+        --print-content-width: 100%;
+        --print-cell-padding-y: 4px;
+        --print-cell-padding-x: 4px;
+        --print-empty-row-height: 18px;
+        --print-title-margin: 12px 0;
+        --print-order-margin-bottom: 10px;
+        --print-order-padding-bottom: 8px;
+        --print-customer-margin-bottom: 12px;
+        --print-table-margin-bottom: 12px;
+        --print-footer-margin-top: 20px;
+        --print-footer-margin-bottom: 24px;
+        --print-label-width: 90px;
+        --print-topbar-margin-bottom: 8px;
     }
 
     .print-template.paper-a4 {
-        max-width: 210mm;
+        --print-page-width: 100%;
+        --print-content-width: 100%;
+        --print-cell-padding-y: 5px;
+        --print-cell-padding-x: 8px;
+        --print-empty-row-height: 28px;
+        --print-title-margin: 20px 0;
+        --print-order-margin-bottom: 15px;
+        --print-order-padding-bottom: 10px;
+        --print-customer-margin-bottom: 20px;
+        --print-table-margin-bottom: 20px;
+        --print-footer-margin-top: 30px;
+        --print-footer-margin-bottom: 50px;
+        --print-label-width: 100px;
+        --print-topbar-margin-bottom: 12px;
     }
 
     .print-template.paper-a5 .print-topbar {
-        margin-bottom: 8px;
+        margin-bottom: var(--print-topbar-margin-bottom);
+    }
+
+    .print-template.paper-a5 .print-header-centered,
+    .print-template.paper-a5 .print-order-section,
+    .print-template.paper-a5 .customer-info-print,
+    .print-template.paper-a5 .print-footer,
+    .print-template.paper-a5 .print-footer-url {
+        display: none;
     }
 
     .print-template.paper-a5 .print-invoice-title {
-        margin: 12px 0;
+        margin: var(--print-title-margin);
     }
 
     .print-template.paper-a5 .print-order-section {
-        margin-bottom: 10px;
-        padding-bottom: 8px;
+        margin-bottom: var(--print-order-margin-bottom);
+        padding-bottom: var(--print-order-padding-bottom);
     }
 
     .print-template.paper-a5 .customer-info-print {
-        margin-bottom: 12px;
+        margin-bottom: var(--print-customer-margin-bottom);
     }
 
     .print-template.paper-a5 .print-table {
-        margin-bottom: 12px;
+        margin-bottom: var(--print-table-margin-bottom);
     }
 
     .print-template.paper-a5 .print-table th,
     .print-template.paper-a5 .print-table td {
-        padding: 4px;
+        padding: var(--print-cell-padding-y) var(--print-cell-padding-x);
     }
 
     .print-template.paper-a5 .print-footer {
-        margin-top: 18px;
-        margin-bottom: 24px;
+        margin-top: var(--print-footer-margin-top);
+        margin-bottom: var(--print-footer-margin-bottom);
+    }
+
+    .print-template.paper-a5 .invoice-print-table .col-stt-print {
+        width: 8%;
+    }
+
+    .print-template.paper-a5 .invoice-print-table .col-name-print {
+        width: 40%;
+    }
+
+    .print-template.paper-a5 .invoice-print-table .col-unit-print {
+        width: 11%;
+    }
+
+    .print-template.paper-a5 .invoice-print-table .col-qty-print {
+        width: 8%;
+    }
+
+    .print-template.paper-a5 .invoice-print-table .col-price-print,
+    .print-template.paper-a5 .invoice-print-table .col-total-print {
+        width: 16.5%;
+    }
+
+    .print-template.paper-a4 .invoice-print-table .col-stt-print {
+        width: 6%;
+    }
+
+    .print-template.paper-a4 .invoice-print-table .col-name-print {
+        width: 46%;
+    }
+
+    .print-template.paper-a4 .invoice-print-table .col-unit-print {
+        width: 8%;
+    }
+
+    .print-template.paper-a4 .invoice-print-table .col-qty-print {
+        width: 7%;
+    }
+
+    .print-template.paper-a4 .invoice-print-table .col-price-print,
+    .print-template.paper-a4 .invoice-print-table .col-total-print {
+        width: 16.5%;
+    }
+
+    .print-a5-shell {
+        width: var(--print-content-width);
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .print-a5-topline {
+        display: flex;
+        justify-content: space-between;
+        color: #475569;
+        border-bottom: 1px solid #cbd5e1;
+        padding-bottom: 4px;
+    }
+
+    .print-a5-brand-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .print-a5-logo {
+        color: #65a30d;
+        font-weight: 700;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .print-a5-logo small {
+        display: block;
+        margin-top: 4px;
+        color: #475569;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+    }
+
+    .print-a5-brand-meta {
+        flex: 1;
+        text-align: right;
+    }
+
+    .print-a5-company {
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .print-a5-contact {
+        line-height: 1.45;
+    }
+
+    .print-a5-title-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: 12px;
+        border-top: 2px solid #0f172a;
+        border-bottom: 1px solid #0f172a;
+        padding: 8px 0 6px;
+    }
+
+    .print-a5-title {
+        font-weight: 700;
+        letter-spacing: 0.04em;
+    }
+
+    .print-a5-date {
+        color: #475569;
+        white-space: nowrap;
+    }
+
+    .print-a5-customer-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px 12px;
+    }
+
+    .print-a5-customer-item {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px 8px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+    }
+
+    .print-a5-customer-item span {
+        color: #64748b;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .print-a5-customer-item strong {
+        color: #0f172a;
+        font-size: 13px;
+        min-height: 1em;
+    }
+
+    .print-a5-customer-full {
+        grid-column: 1 / -1;
+    }
+
+    .print-table-compact {
+        margin-bottom: 0;
+    }
+
+    .print-a5-summary-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 10px;
+        background: #0f172a;
+        color: #fff;
+        font-weight: 700;
+        border-radius: 8px;
+    }
+
+    .print-a5-footer {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 12px;
+        font-weight: 700;
+        font-size: 13px;
+        color: #0f172a;
     }
 
     /* NEW: Top bar */
@@ -2039,7 +2285,7 @@ tr.dragging {
         justify-content: space-between;
         font-size: 13px;
         color: #666;
-        margin-bottom: 12px;
+        margin-bottom: var(--print-topbar-margin-bottom, 12px);
     }
 
     /* NEW: Centered Header */
@@ -2085,7 +2331,7 @@ tr.dragging {
         font-size: 24px;
         font-weight: bold;
         text-transform: uppercase;
-        margin: 20px 0;
+        margin: var(--print-title-margin, 20px 0);
     }
 
     /* NEW: Order Section Two Columns */
@@ -2094,8 +2340,8 @@ tr.dragging {
         justify-content: space-between;
         align-items: flex-start;
         border-bottom: 1px solid #000;
-        padding-bottom: 10px;
-        margin-bottom: 15px;
+        padding-bottom: var(--print-order-padding-bottom, 10px);
+        margin-bottom: var(--print-order-margin-bottom, 15px);
         width: var(--print-content-width);
         margin-left: auto;
         margin-right: auto;
@@ -2200,7 +2446,7 @@ tr.dragging {
 
     /* Customer Info */
     .customer-info-print {
-        margin-bottom: 20px;
+        margin-bottom: var(--print-customer-margin-bottom, 20px);
         font-size: 15px;
         width: var(--print-content-width);
         margin-left: auto;
@@ -2215,7 +2461,7 @@ tr.dragging {
 
     .customer-info-print .label {
         font-weight: bold;
-        width: 100px;
+        width: var(--print-label-width, 100px);
         flex-shrink: 0;
     }
 
@@ -2259,7 +2505,7 @@ tr.dragging {
     .print-table td {
         display: table-cell !important;
         border: 1px solid #000;
-        padding: 5px 8px;
+        padding: var(--print-cell-padding-y, 5px) var(--print-cell-padding-x, 8px);
         vertical-align: middle;
     }
 
@@ -2339,7 +2585,7 @@ tr.dragging {
     }
 
     .print-empty-row td {
-        height: 28px;
+        height: var(--print-empty-row-height, 28px);
         padding-top: 0;
         padding-bottom: 0;
     }
@@ -2348,8 +2594,8 @@ tr.dragging {
     .print-footer {
         display: flex;
         justify-content: space-between;
-        margin-top: 30px;
-        margin-bottom: 50px;
+        margin-top: var(--print-footer-margin-top, 30px);
+        margin-bottom: var(--print-footer-margin-bottom, 50px);
         width: var(--print-content-width);
         margin-left: auto;
         margin-right: auto;

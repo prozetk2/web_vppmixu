@@ -27,11 +27,35 @@ export class AdjustStockDto {
 
     @IsOptional()
     @IsString()
+    reference?: string;
+
+    @IsOptional()
+    @IsString()
     storeId?: string;
 
     @IsOptional()
     @IsString()
     unit?: string;
+
+    @IsOptional()
+    @Type(() => Number)
+    displayQuantity?: number;
+
+    @IsOptional()
+    @IsString()
+    displayUnit?: string;
+
+    @IsOptional()
+    @IsString()
+    referenceType?: string;
+
+    @IsOptional()
+    @IsString()
+    referenceId?: string;
+
+    @IsOptional()
+    @IsString()
+    referenceCode?: string;
 
     @IsOptional()
     @Type(() => Number)

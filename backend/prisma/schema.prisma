@@ -424,10 +424,15 @@ model StockMovement {
   id              BigInt   @id @default(autoincrement())
   movementType    String   @map("movement_type")
   reference       String?
+  referenceType   String?  @map("reference_type")
+  referenceId     BigInt?  @map("reference_id")
+  referenceCode   String?  @map("reference_code")
   variantId       BigInt   @map("variant_id")
   fromWarehouseId BigInt?  @map("from_warehouse_id")
   toWarehouseId   BigInt?  @map("to_warehouse_id")
   quantity        BigInt
+  displayQuantity Decimal? @map("display_quantity")
+  displayUnit     String?  @map("display_unit")
   unitCost        Decimal? @map("unit_cost")
   performedBy     BigInt?  @map("performed_by")
   performedAt     DateTime @default(now()) @map("performed_at") @db.Timestamptz

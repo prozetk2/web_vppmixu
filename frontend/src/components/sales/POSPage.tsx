@@ -14,12 +14,16 @@ interface Product {
     imageUrl?: string;
     categoryName?: string;
     unit?: string;
+    baseUnitCode?: string;
+    conversionRate?: number;
 }
 
 interface CartItem {
     product: Product;
     quantity: number;
     unitPrice: number;
+    displayUnit: string;
+    conversionRate: number;
 }
 
 interface Customer {
@@ -144,6 +148,50 @@ const removeAccents = (str: string) => {
         .toLowerCase();
 };
 
+const getProductBaseUnit = (product: Product) =>
+    product.baseUnitCode || product.unit || 'Cái';
+
+const getProductSaleUnit = (product: Product) =>
+    product.unit || product.baseUnitCode || 'Cái';
+
+const getProductConversionRate = (product: Product) => {
+    const conversionRate = Number(product.conversionRate || 1);
+    return Number.isFinite(conversionRate) && conversionRate > 0 ? conversionRate : 1;
+};
+
+type ProductUnitOption = {
+    unit: string;
+    conversionRate: number;
+    unitPrice: number;
+};
+
+const getProductUnitOptions = (product: Product): ProductUnitOption[] => {
+    const saleUnit = getProductSaleUnit(product);
+    const baseUnit = getProductBaseUnit(product);
+    const conversionRate = getProductConversionRate(product);
+    const saleUnitPrice = Number(product.defaultPrice || 0);
+    const options: ProductUnitOption[] = [{
+        unit: saleUnit,
+        conversionRate,
+        unitPrice: saleUnitPrice,
+    }];
+
+    if (baseUnit !== saleUnit) {
+        options.push({
+            unit: baseUnit,
+            conversionRate: 1,
+            unitPrice: conversionRate > 1 ? Math.round(saleUnitPrice / conversionRate) : saleUnitPrice,
+        });
+    }
+
+    return options;
+};
+
+const resolveProductUnitOption = (product: Product, preferredUnit?: string): ProductUnitOption => {
+    const options = getProductUnitOptions(product);
+    return options.find((option) => option.unit === preferredUnit) || options[0];
+};
+
 // Create a new empty invoice
 const createNewInvoice = (index: number): Invoice => ({
     id: generateId(),
@@ -164,6 +212,27 @@ const formatPrintCurrency = (value: number, showDecimals: boolean) => {
         maximumFractionDigits: 2
     }).format(value);
 };
+
+const PRINT_LAYOUTS = {
+    A4: {
+        extraRows: 10,
+        pageWidth: '100%',
+        contentWidth: '100%',
+        topbarFontOffset: -1,
+        companyTextOffset: 1,
+        titleFontOffset: 0,
+        tableFontOffset: 0,
+    },
+    A5: {
+        extraRows: 5,
+        pageWidth: '100%',
+        contentWidth: '100%',
+        topbarFontOffset: -2,
+        companyTextOffset: 0,
+        titleFontOffset: -3,
+        tableFontOffset: -1,
+    },
+} as const;
 
 // Print Invoice Component
 const PrintInvoice = ({
@@ -192,24 +261,144 @@ const PrintInvoice = ({
     // Determine which store config to use (strip _EXTRA suffix)
     const templateBase = settings.template.replace('_EXTRA', '');
     const storeInfo = storeConfigs[templateBase] || storeConfigs.MIXU;
+    const layout = PRINT_LAYOUTS[settings.paperSize === 'A4' ? 'A4' : 'A5'];
 
     // Check if template has extra rows
     const hasExtraRows = settings.template.includes('_EXTRA');
-    const extraRowCount = hasExtraRows ? (settings.paperSize === 'A4' ? 10 : 5) : 0;
+    const extraRowCount = hasExtraRows ? layout.extraRows : 0;
     const paperClass = settings.paperSize === 'A4' ? 'paper-a4' : 'paper-a5';
-    const fontScale = settings.paperSize === 'A5' ? 0.82 : 1;
-    const scaledPx = (size: number) => `${Math.round(size * fontScale)}px`;
+    const printSurfaceStyle = {
+        '--print-page-width': layout.pageWidth,
+        '--print-content-width': layout.contentWidth,
+    } as any;
+    const paperPx = (size: number, offset = 0) => `${Math.max(10, Math.round(size + offset))}px`;
     const formatAmount = (value: number) => formatPrintCurrency(value, settings.showDecimals);
     const orderNumber = invoice.orderNumber || invoice.id;
     const emptyText = '\u00A0';
     const customerDisplayName = customerName || 'Khách lẻ';
     const customerPhoneDisplay = customerPhone || emptyText;
     const customerAddressDisplay = customerAddress || emptyText;
+    const tableFontSize = paperPx(storeInfo.tableFontSize || 15, layout.tableFontOffset);
+
+    const renderLineItemsTable = (compactSummary = false) => (
+        <table className={`print-table invoice-print-table ${compactSummary ? 'print-table-compact' : ''}`} style={{ fontSize: tableFontSize }}>
+            <colgroup>
+                <col className="col-stt-print" />
+                <col className="col-name-print" />
+                <col className="col-unit-print" />
+                <col className="col-qty-print" />
+                <col className="col-price-print" />
+                <col className="col-total-print" />
+            </colgroup>
+            <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Tên hàng</th>
+                    <th>DVT</th>
+                    <th>SL</th>
+                    <th>Đơn giá</th>
+                    <th>Thành tiền</th>
+                </tr>
+            </thead>
+            <tbody>
+                {invoice.cart.map((item, index) => (
+                    <tr key={index} className="item-row">
+                        <td className="text-center">{index + 1}</td>
+                        <td>{item.product.name}</td>
+                        <td className="text-center">{item.displayUnit || item.product.unit || item.product.baseUnitCode || 'Cái'}</td>
+                        <td className="text-center">{item.quantity}</td>
+                        <td className="text-right">{formatAmount(item.unitPrice)}</td>
+                        <td className="text-right">{formatAmount(item.unitPrice * item.quantity)}</td>
+                    </tr>
+                ))}
+                {Array.from({ length: extraRowCount }).map((_, i) => (
+                    <tr key={`extra-${i}`} className="print-empty-row">
+                        <td></td><td></td><td></td><td></td><td></td><td></td>
+                    </tr>
+                ))}
+                {!compactSummary && (
+                    <tr className="summary-row">
+                        <td colSpan={5} className="text-right font-bold summary-label">Số tiền cần phải thanh toán:</td>
+                        <td className="text-right font-bold total-amount">{formatAmount(total)}</td>
+                    </tr>
+                )}
+            </tbody>
+        </table>
+    );
+
+    if (settings.paperSize === 'A5') {
+        return (
+            <div className={`print-template ${paperClass}`} style={printSurfaceStyle}>
+                <div className="print-a5-shell">
+                    <div className="print-a5-topline" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, layout.topbarFontOffset) }}>
+                        <span>{printTime}</span>
+                        <span>{orderNumber}</span>
+                    </div>
+
+                    <div className="print-a5-brand-row">
+                        {storeInfo.logoText && (
+                            <div className="print-a5-logo" style={{ fontSize: paperPx(storeInfo.logoFontSize || 28, -2) }}>
+                                {storeInfo.logoText}
+                                {storeInfo.logoSub && <small>{storeInfo.logoSub}</small>}
+                            </div>
+                        )}
+                        <div className="print-a5-brand-meta">
+                            <div className="print-a5-company" style={{ fontSize: paperPx(storeInfo.companyNameFontSize || 19, -2) }}>
+                                {storeInfo.companyName}
+                            </div>
+                            <div className="print-a5-contact" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, -1) }}>
+                                {storeInfo.address}
+                            </div>
+                            <div className="print-a5-contact" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, -1) }}>
+                                {storeInfo.phone}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="print-a5-title-row">
+                        <div className="print-a5-title" style={{ fontSize: paperPx(storeInfo.titleFontSize || 24, -4) }}>
+                            PHIẾU BÁN HÀNG
+                        </div>
+                        <div className="print-a5-date" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, -1) }}>
+                            {invoiceDate}
+                        </div>
+                    </div>
+
+                    <div className="print-a5-customer-grid" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, -1) }}>
+                        <div className="print-a5-customer-item">
+                            <span>Khách hàng</span>
+                            <strong>{customerDisplayName}</strong>
+                        </div>
+                        <div className="print-a5-customer-item">
+                            <span>Số điện thoại</span>
+                            <strong>{customerPhoneDisplay}</strong>
+                        </div>
+                        <div className="print-a5-customer-item print-a5-customer-full">
+                            <span>Địa chỉ</span>
+                            <strong>{customerAddressDisplay}</strong>
+                        </div>
+                    </div>
+
+                    {renderLineItemsTable(true)}
+
+                    <div className="print-a5-summary-bar">
+                        <span>Tổng thanh toán</span>
+                        <strong>{formatAmount(total)}</strong>
+                    </div>
+
+                    <div className="print-a5-footer">
+                        <span>Người mua hàng</span>
+                        <span>Người bán hàng</span>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className={`print-template ${paperClass}`}>
+        <div className={`print-template ${paperClass}`} style={printSurfaceStyle}>
             {/* Top bar */}
-            <div className="print-topbar" style={{ fontSize: scaledPx((storeInfo.textFontSize || 14) - 1) }}>
+            <div className="print-topbar" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, layout.topbarFontOffset) }}>
                 <span>{printTime}</span>
                 <span>Chi nhánh trung tâm - Bán hàng</span>
             </div>
@@ -217,12 +406,12 @@ const PrintInvoice = ({
             {/* Header: Centered */}
             <div className="print-header-centered">
                 {storeInfo.logoText && (
-                    <div className="store-name-centered" style={{ fontSize: scaledPx(storeInfo.logoFontSize || 28) }}>
-                        {storeInfo.logoText} {storeInfo.logoSub && <small style={{ fontSize: scaledPx((storeInfo.logoFontSize || 28) / 2) }}>{storeInfo.logoSub}</small>}
+                    <div className="store-name-centered" style={{ fontSize: paperPx(storeInfo.logoFontSize || 28, settings.paperSize === 'A5' ? -2 : 0) }}>
+                        {storeInfo.logoText} {storeInfo.logoSub && <small style={{ fontSize: paperPx((storeInfo.logoFontSize || 28) / 2, settings.paperSize === 'A5' ? -1 : 0) }}>{storeInfo.logoSub}</small>}
                     </div>
                 )}
-                <div className="company-name-centered" style={{ fontSize: scaledPx(storeInfo.companyNameFontSize || 19) }}>{storeInfo.companyName}</div>
-                <div className="company-details-centered" style={{ fontSize: scaledPx((storeInfo.textFontSize || 14) + 1) }}>
+                <div className="company-name-centered" style={{ fontSize: paperPx(storeInfo.companyNameFontSize || 19, settings.paperSize === 'A5' ? -1 : 0) }}>{storeInfo.companyName}</div>
+                <div className="company-details-centered" style={{ fontSize: paperPx((storeInfo.textFontSize || 14) + 1, layout.companyTextOffset) }}>
                     <span className="label-red">A</span> - {storeInfo.address}.<br />
                     <span className="label-red">T</span> - {storeInfo.phone}.<br />
                     <span className="label-red">W</span> - {storeInfo.website} - <span className="label-red">E</span> - {storeInfo.email}.
@@ -230,11 +419,11 @@ const PrintInvoice = ({
             </div>
 
             {/* Invoice Title: Centered */}
-            <div className="print-invoice-title" style={{ fontSize: scaledPx(storeInfo.titleFontSize || 24) }}>HÓA ĐƠN BÁN HÀNG</div>
+            <div className="print-invoice-title" style={{ fontSize: paperPx(storeInfo.titleFontSize || 24, layout.titleFontOffset) }}>HÓA ĐƠN BÁN HÀNG</div>
 
             {/* Order Info: Two columns */}
             <div className="print-order-section">
-                <div className="order-left" style={{ fontSize: scaledPx(storeInfo.textFontSize || 14) }}>
+                <div className="order-left" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, settings.paperSize === 'A5' ? -1 : 0) }}>
                     <span>Mã đơn hàng: <strong>{orderNumber}</strong></span><br />
                     <span>{invoiceDate}</span>
                 </div>
@@ -242,7 +431,7 @@ const PrintInvoice = ({
                 </div>
             </div>
 
-            <div className="customer-info-print" style={{ fontSize: scaledPx((storeInfo.textFontSize || 14) + 1) }}>
+            <div className="customer-info-print" style={{ fontSize: paperPx((storeInfo.textFontSize || 14) + 1, settings.paperSize === 'A5' ? -1 : 0) }}>
                 <div className="row">
                     <span className="label">Khách hàng:</span>
                     <span className="value">{customerDisplayName}</span>
@@ -257,48 +446,7 @@ const PrintInvoice = ({
                 </div>
             </div>
 
-            <table className="print-table invoice-print-table" style={{ fontSize: scaledPx(storeInfo.tableFontSize || 15) }}>
-                <colgroup>
-                    <col className="col-stt-print" />
-                    <col className="col-name-print" />
-                    <col className="col-unit-print" />
-                    <col className="col-qty-print" />
-                    <col className="col-price-print" />
-                    <col className="col-total-print" />
-                </colgroup>
-                <thead>
-                    <tr>
-                        <th>STT</th>
-                        <th>Tên hàng</th>
-                        <th>DVT</th>
-                        <th>SL</th>
-                        <th>Đơn giá</th>
-                        <th>Thành tiền</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {invoice.cart.map((item, index) => (
-                        <tr key={index} className="item-row">
-                            <td className="text-center">{index + 1}</td>
-                            <td>{item.product.name}</td>
-                            <td className="text-center">{item.product.unit || 'Cái'}</td>
-                            <td className="text-center">{item.quantity}</td>
-                            <td className="text-right">{formatAmount(item.unitPrice)}</td>
-                            <td className="text-right">{formatAmount(item.unitPrice * item.quantity)}</td>
-                        </tr>
-                    ))}
-                    {/* Extra filler rows for "_EXTRA" templates */}
-                    {Array.from({ length: extraRowCount }).map((_, i) => (
-                        <tr key={`extra-${i}`} className="print-empty-row">
-                            <td></td><td></td><td></td><td></td><td></td><td></td>
-                        </tr>
-                    ))}
-                    <tr className="summary-row">
-                        <td colSpan={5} className="text-right font-bold summary-label">Số tiền cần phải thanh toán:</td>
-                        <td className="text-right font-bold total-amount">{formatAmount(total)}</td>
-                    </tr>
-                </tbody>
-            </table>
+            {renderLineItemsTable()}
 
             <div className="print-footer">
                 <div className="signature-block">
@@ -419,15 +567,58 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         showDecimals: boolean;
         paperSize: 'A5' | 'A4';
     }
-    const [printSettings, setPrintSettings] = useState<PrintSettings>({
-        autoPrint: true,
-        mergeItems: false,
-        copies: 1,
-        template: 'MIXU',
-        showDecimals: true,
-        paperSize: 'A5'
+    const [printSettings, setPrintSettings] = useState<PrintSettings>(() => {
+        try {
+            const saved = localStorage.getItem('vppmixu_print_settings');
+            if (saved) {
+                return {
+                    autoPrint: true,
+                    mergeItems: false,
+                    copies: 1,
+                    template: 'MIXU',
+                    showDecimals: true,
+                    paperSize: 'A5',
+                    ...JSON.parse(saved),
+                };
+            }
+        } catch (error) {
+            console.error('Cannot read print settings from local storage', error);
+        }
+
+        return {
+            autoPrint: true,
+            mergeItems: false,
+            copies: 1,
+            template: 'MIXU',
+            showDecimals: true,
+            paperSize: 'A5'
+        };
     });
     const [showPrintSettings, setShowPrintSettings] = useState(false);
+
+    useEffect(() => {
+        localStorage.setItem('vppmixu_print_settings', JSON.stringify(printSettings));
+    }, [printSettings]);
+
+    useEffect(() => {
+        const styleId = 'vppmixu-print-page-style';
+        let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = styleId;
+            document.head.appendChild(styleEl);
+        }
+
+        const margin = printSettings.paperSize === 'A4' ? '12mm' : '8mm';
+        styleEl.textContent = `@media print { @page { size: ${printSettings.paperSize} portrait; margin: ${margin}; } }`;
+
+        return () => {
+            if (styleEl?.parentNode) {
+                styleEl.parentNode.removeChild(styleEl);
+            }
+        };
+    }, [printSettings.paperSize]);
 
     // Editable store configs state
     const [customStoreConfigs, setCustomStoreConfigs] = useState<Record<string, StoreConfigInfo>>(() => {
@@ -703,6 +894,31 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
 
     const toast = useToast();
 
+    const syncCartItemWithProduct = useCallback(
+        (item: CartItem, nextProduct: Product, resetUnitPrice = false): CartItem => {
+            const resolvedOption = resolveProductUnitOption(nextProduct, item.displayUnit);
+            return {
+                ...item,
+                product: { ...item.product, ...nextProduct },
+                displayUnit: resolvedOption.unit,
+                conversionRate: resolvedOption.conversionRate,
+                unitPrice: resetUnitPrice ? resolvedOption.unitPrice : item.unitPrice,
+            };
+        },
+        [],
+    );
+
+    const createCartItem = useCallback((product: Product): CartItem => {
+        const resolvedOption = resolveProductUnitOption(product);
+        return {
+            product,
+            quantity: 1,
+            unitPrice: resolvedOption.unitPrice,
+            displayUnit: resolvedOption.unit,
+            conversionRate: resolvedOption.conversionRate,
+        };
+    }, []);
+
     useEffect(() => {
         fetchData();
         fetchPriceLists();
@@ -716,20 +932,25 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 let updated = false;
                 const newCart = inv.cart.map(item => {
                     const freshProduct = products.find(p => p.id === item.product.id || p.sku === item.product.sku);
-                    // Compare simple string logic to see if something changed
-                    if (freshProduct && freshProduct.unit !== item.product.unit) {
+                    if (
+                        freshProduct &&
+                        (
+                            !item.displayUnit ||
+                            !item.conversionRate ||
+                            freshProduct.unit !== item.product.unit ||
+                            freshProduct.baseUnitCode !== item.product.baseUnitCode ||
+                            Number(freshProduct.conversionRate || 1) !== Number(item.product.conversionRate || 1)
+                        )
+                    ) {
                         updated = true;
-                        return {
-                            ...item,
-                            product: { ...item.product, ...freshProduct }
-                        };
+                        return syncCartItemWithProduct(item, freshProduct);
                     }
                     return item;
                 });
                 return updated ? { ...inv, cart: newCart } : inv;
             }));
         }
-    }, [products]);
+    }, [products, syncCartItemWithProduct]);
 
     // Close dropdowns on click outside
     useEffect(() => {
@@ -758,15 +979,14 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     const newCart = inv.cart.map(item => {
                         const updatedProduct = newProducts.find((p: Product) => p.id === item.product.id);
                         if (updatedProduct) {
-                            return {
-                                ...item,
-                                unitPrice: updatedProduct.defaultPrice,
-                                product: {
-                                    ...item.product,
-                                    ...updatedProduct, // Sync all missing/stale properties (including `unit`)
-                                    defaultPrice: updatedProduct.defaultPrice
-                                }
-                            };
+                            return syncCartItemWithProduct(
+                                item,
+                                {
+                                    ...updatedProduct,
+                                    defaultPrice: updatedProduct.defaultPrice,
+                                },
+                                true,
+                            );
                         }
                         return item;
                     });
@@ -780,7 +1000,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         };
 
         updatePrices();
-    }, [selectedPriceList]);
+    }, [selectedPriceList, syncCartItemWithProduct]);
 
     // Load edit data from InvoiceList when editing an invoice
     useEffect(() => {
@@ -811,10 +1031,13 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 console.log('Found product:', product);
 
                 if (product) {
+                    const resolvedOption = resolveProductUnitOption(product, item.unit);
                     cartItems.push({
                         product: product,
                         quantity: Number(item.quantity) || 1,
                         unitPrice: Number(item.unitPrice) || Number(item.salePrice) || product.defaultPrice || 0,
+                        displayUnit: resolvedOption.unit,
+                        conversionRate: resolvedOption.conversionRate,
                     });
                 } else {
                     // If product not found, still add it but use a valid pattern
@@ -976,6 +1199,8 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     name: p.name,
                     sku: p.sku || '',
                     unit: p.unit || undefined,
+                    baseUnitCode: p.baseUnitCode || p.unit || undefined,
+                    conversionRate: Number(p.conversionRate || 1),
                     defaultPrice: price,
                     stock: stockMap.get(p.id.toString()) || 0,
                     imageUrl: p.imageUrl,
@@ -1033,7 +1258,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             });
         } else {
             updateActiveInvoice({
-                cart: [...currentCart, { product, quantity: 1, unitPrice: Number(product.defaultPrice) || 0 }]
+                cart: [...currentCart, createCartItem(product)]
             });
         }
     };
@@ -1062,6 +1287,25 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                         ? { ...item, quantity: Math.max(1, newQty) }
                         : item
                 )
+        });
+    };
+
+    const updateDisplayUnit = (productId: string, nextUnit: string) => {
+        const currentCart = activeInvoice?.cart || [];
+        updateActiveInvoice({
+            cart: currentCart.map((item) => {
+                if (item.product.id !== productId) {
+                    return item;
+                }
+
+                const resolvedOption = resolveProductUnitOption(item.product, nextUnit);
+                return {
+                    ...item,
+                    displayUnit: resolvedOption.unit,
+                    conversionRate: resolvedOption.conversionRate,
+                    unitPrice: resolvedOption.unitPrice,
+                };
+            }),
         });
     };
 
@@ -1209,7 +1453,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     items: cart.map((item) => ({
                         productCode: item.product.sku || '',
                         productName: item.product.name,
-                        unit: item.product.unit || 'Cái',
+                        unit: item.displayUnit || item.product.unit || item.product.baseUnitCode || 'Cái',
                         quantity: item.quantity,
                         unitPrice: item.unitPrice,
                         discountAmount: 0,
@@ -1249,7 +1493,10 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     discountAmount: calculatedDiscount,
                     items: cart.map((item) => ({
                         productId: item.product.id,
-                        quantity: item.quantity,
+                        quantity: Math.max(1, Math.round(item.quantity * item.conversionRate)),
+                        displayQuantity: item.quantity,
+                        unit: item.displayUnit,
+                        conversionRate: item.conversionRate,
                         unitPrice: item.unitPrice,
                     })),
                     payment: {
@@ -1508,7 +1755,14 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         >
                                             <span className="item-sku">{product.sku || '---'}</span>
                                             <span className="item-name">{product.name}</span>
-                                            <span className="item-unit">{product.unit || 'Cái'}</span>
+                                            <span className="item-unit">
+                                                {product.baseUnitCode &&
+                                                product.unit &&
+                                                product.baseUnitCode !== product.unit &&
+                                                Number(product.conversionRate || 1) > 1
+                                                    ? `${product.unit} / ${product.baseUnitCode}`
+                                                    : product.unit || product.baseUnitCode || 'Cái'}
+                                            </span>
                                             <span className="item-price">{formatCurrency(Number(product.defaultPrice))}đ</span>
                                         </div>
                                     ))}
@@ -1589,7 +1843,19 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                             </td>
                                             <td className="col-sku">{item.product.sku || '---'}</td>
                                             <td className="col-name">{item.product.name}</td>
-                                            <td className="col-unit">{item.product.unit || 'Cái'}</td>
+                                            <td className="col-unit">
+                                                <select
+                                                    className="unit-select"
+                                                    value={item.displayUnit || resolveProductUnitOption(item.product).unit}
+                                                    onChange={(e) => updateDisplayUnit(item.product.id, e.target.value)}
+                                                >
+                                                    {getProductUnitOptions(item.product).map((option) => (
+                                                        <option key={option.unit} value={option.unit}>
+                                                            {option.unit}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </td>
                                             <td className="col-qty">
                                                 <input
                                                     type="text"
@@ -2143,6 +2409,12 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         <option value="A5">A5</option>
                                         <option value="A4">A4</option>
                                     </select>
+                                </div>
+                                <div className="print-sync-warning">
+                                    <strong>Mẹo in đúng khổ</strong>
+                                    <span>Khổ giấy trong app chỉ đổi mẫu in A4/A5 của hệ thống.</span>
+                                    <span>Trong popup in của trình duyệt, hãy chọn đúng khổ {printSettings.paperSize} để tránh nội dung bị co hoặc nằm giữa trang.</span>
+                                    <span>Nếu còn dư khoảng trắng, hãy tắt mục "Đầu trang và chân trang" trong popup in.</span>
                                 </div>
                                 <div className="template-section">
                                     <span className="section-title">Chọn mẫu in</span>

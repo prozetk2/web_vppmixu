@@ -44,6 +44,7 @@ interface Product {
     name: string;
     sku?: string;
     unit?: string;
+    baseUnitCode?: string;
     defaultCost?: number;
 }
 
@@ -360,7 +361,7 @@ export default function PurchaseList() {
                 productSearch: '',
                 quantity: item.quantity,
                 unitCost: Number(item.unitCost),
-                unit: item.unit || product?.unit || 'Cái',
+                unit: item.unit || product?.baseUnitCode || product?.unit || 'Cái',
             };
         }));
         setIsModalOpen(true);
@@ -1322,15 +1323,15 @@ export default function PurchaseList() {
                                                                             onClick={() => {
                                                                                 updateItem(idx, 'productId', p.id);
                                                                                 updateItem(idx, 'productSearch', '');
-                                                                                if (p.unit) {
-                                                                                    updateItem(idx, 'unit', p.unit);
+                                                                                if (p.baseUnitCode || p.unit) {
+                                                                                    updateItem(idx, 'unit', p.baseUnitCode || p.unit || 'Cái');
                                                                                 }
 
                                                                                 // Auto-add new row if this is the last row
                                                                                 if (idx === items.length - 1) {
                                                                                     setItems(prev => [
                                                                                         ...prev,
-                                                                                        { productId: '', productSearch: '', quantity: 1, unitCost: Number(p.defaultCost) || 0, unit: p.unit || 'Cái' }
+                                                                                        { productId: '', productSearch: '', quantity: 1, unitCost: Number(p.defaultCost) || 0, unit: p.baseUnitCode || p.unit || 'Cái' }
                                                                                     ]);
                                                                                 }
 

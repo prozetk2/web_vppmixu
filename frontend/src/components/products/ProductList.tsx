@@ -19,6 +19,8 @@ interface Product {
     defaultCost?: number;
     brand?: string;
     unit?: string;
+    baseUnitCode?: string;
+    conversionRate?: number;
     totalStock?: number;
     active?: boolean;
     directSale?: boolean;
@@ -359,6 +361,8 @@ export default function ProductList() {
                 'Tồn nhỏ nhất': p.minStock,
                 'Tồn lớn nhất': p.maxStock,
                 'ĐVT': p.unit,
+                'ĐVT cơ bản': p.baseUnitCode,
+                'Quy đổi': p.conversionRate,
                 'Trọng lượng': p.weight,
                 'Đang kinh doanh': p.active ? 'Có' : 'Không',
                 'Bán trực tiếp': p.directSale ? 'Có' : 'Không',
@@ -677,7 +681,14 @@ export default function ProductList() {
                                             <span className="product-name">{product.name}</span>
                                             {product.brand && <span className="product-brand">{product.brand}</span>}
                                         </td>
-                                        <td className="text-center">{product.unit || 'Cái'}</td>
+                                        <td className="text-center">
+                                            <div className="product-unit-display">
+                                                <strong>{product.unit || product.baseUnitCode || 'Cái'}</strong>
+                                                {product.baseUnitCode && product.unit && product.baseUnitCode !== product.unit && Number(product.conversionRate || 1) > 1 && (
+                                                    <small>1 {product.unit} = {product.conversionRate} {product.baseUnitCode}</small>
+                                                )}
+                                            </div>
+                                        </td>
                                         <td className="text-right col-price">{formatCurrency(product.defaultPrice)}</td>
                                         <td className="text-right col-cost">{formatCurrency(product.defaultCost)}</td>
                                         <td className="text-right col-stock">

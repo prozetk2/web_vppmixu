@@ -16,6 +16,11 @@ export class UpdatePurchaseItemDto {
     @IsNumber()
     @Min(0)
     unitCost: number;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    displayQuantity?: number;
 }
 
 export class UpdatePurchaseDto {

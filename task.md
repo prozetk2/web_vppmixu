@@ -2,7 +2,7 @@
 
 ---
 
-## 📊 TIẾN ĐỘ HIỆN TẠI (Cập nhật: 28/12/2024)
+## 📊 TIẾN ĐỘ HIỆN TẠI (Cập nhật: 24/01/2026)
 
 ### ✅ Hoàn thành (100%)
 - [x] **Sản phẩm (Product)** - CRUD, Import/Export Excel, Filter sidebar
@@ -22,11 +22,15 @@
 - [x] **Báo cáo Doanh thu** - Revenue report với Lợi nhuận gộp ✨ DONE 28/12
 
 ### ⏳ Đang làm
-- [X] **Top 10 hàng bán chạy** - Cần import data InvoiceItem
-- [X] **Xuất Excel chi tiết** - Phụ thuộc InvoiceItem data
+- [ ] **Multi-Company Frontend** - Dropdown chọn công ty trong 3 trang
+- [ ] **Low Stock Alerts** - Cảnh báo tồn kho thấp
+- [ ] **User Management** - Quản lý người dùng trong Settings
 
-### 📝 Chờ làm
-- [X] Settings
+### ✅ Vừa hoàn thành (01/2026)
+- [x] **Top 10 hàng bán chạy** - Có trong Dashboard
+- [x] **Xuất Excel chi tiết** - Reports có export
+- [x] **Settings** - Backend + Frontend hoàn chỉnh
+- [x] **Reports** - Revenue, Inventory, Debts reports
 
 ---
 
@@ -321,62 +325,62 @@ Thêm dropdown **"Chọn công ty"** trong:
 
 ---
 
-### 📊 Module 3: Reports
+### 📊 Module 3: Reports ✅ DONE (90%)
 
 #### Backend
-- [ ] **Revenue Report Service:**
-  - [ ] Daily/monthly/yearly revenue
-  - [ ] Group by period, store, channel
-  - [ ] Export Excel
-- [ ] **Inventory Report (enhance):**
-  - [ ] ✅ Basic report exists
-  - [ ] Value-based reporting (unitCost)
-  - [ ] Movement history by product
-  - [ ] Low stock alerts
-- [ ] **Top Products Report:**
-  - [ ] Most sold
-  - [ ] Most revenue
-- [ ] **Debt Reports:**
-  - [ ] Customer debts with aging
-  - [ ] Supplier debts with aging
-- [ ] **Controller:**
-  - [ ] `GET /reports/revenue`
-  - [ ] `GET /reports/inventory-value`
-  - [ ] `GET /reports/top-products`
-  - [ ] `GET /reports/customer-debts`
-  - [ ] `GET /reports/supplier-debts`
+- [x] **Revenue Report Service:**
+  - [x] Daily/monthly/yearly revenue
+  - [x] Group by period, store, channel
+  - [x] Export Excel
+- [x] **Inventory Report (enhance):**
+  - [x] ✅ Basic report exists
+  - [x] Value-based reporting (unitCost)
+  - [x] Movement history by product (Backend API ✅, Frontend UI chưa có trang riêng)
+  - [ ] Low stock alerts (có ngưỡng trong Settings, chưa có API + UI cảnh báo)
+- [x] **Top Products Report:**
+  - [x] Most sold (trong Dashboard)
+  - [x] Most revenue
+- [x] **Debt Reports:**
+  - [x] Customer debts with aging
+  - [x] Supplier debts with aging
+- [x] **Controller:**
+  - [x] `GET /reports/revenue`
+  - [x] `GET /reports/inventory-value`
+  - [x] `GET /dashboard/top-products`
+  - [x] `GET /reports/customer-debts`
+  - [x] `GET /reports/supplier-debts`
 
 #### Frontend
-- [ ] **Dashboard:** Charts, stats cards
-- [ ] **Revenue Report:** Date range, charts, export
-- [ ] **Inventory Value:** Total value, by category/warehouse
-- [ ] **Top Products:** Charts + tables
-- [ ] **Debt Reports:** Lists, aging analysis, export
+- [x] **Dashboard:** Charts, stats cards ✨ DashboardOverview.tsx
+- [x] **Revenue Report:** Date range, charts, export ✨ ReportsPage.tsx
+- [x] **Inventory Value:** Total value, by category/warehouse
+- [x] **Top Products:** Charts + tables (trong Dashboard)
+- [x] **Debt Reports:** Lists, aging analysis
 
-**Estimate:** 2-3 days
+**Completed:** 01/2026
 
 ---
 
-### ⚙️ Module 4: Settings
+### ⚙️ Module 4: Settings ✅ DONE
 
 #### Backend
-- [ ] Create `Settings` model (singleton)
-- [ ] **Service:**
-  - [ ] `getSettings()`
-  - [ ] `updateSettings()`
-- [ ] **Controller:**
-  - [ ] `GET /settings`
-  - [ ] `PUT /settings`
-- [ ] User management (if not done)
+- [x] Create `Settings` model (sử dụng Store.settings JSON)
+- [x] **Service:**
+  - [x] `getSettings()`
+  - [x] `updateSettings()`
+- [x] **Controller:**
+  - [x] `GET /settings`
+  - [x] `PUT /settings`
+- [ ] User management (chưa làm)
 
 #### Frontend
-- [ ] **Company Settings:** Name, address, tax, logo
-- [ ] **Tax Settings:** Default VAT %
-- [ ] **Inventory Settings:** Default warehouse, low stock threshold
-- [ ] **Sales Settings:** Invoice format, auto print
-- [ ] **User Management:** List, add, edit, roles
+- [x] **Company Settings:** Name, address, tax, logo ✨ SettingsPage.tsx
+- [x] **Tax Settings:** Default VAT %
+- [x] **Inventory Settings:** Default warehouse, low stock threshold
+- [x] **Sales Settings:** Invoice format, auto print
+- [ ] **User Management:** List, add, edit, roles (chưa làm)
 
-**Estimate:** 1-2 days
+**Completed:** 01/2026
 
 ---
 

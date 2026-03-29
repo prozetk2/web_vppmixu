@@ -30,6 +30,30 @@ export class SalesService {
         return `${prefix}${String(seq).padStart(4, '0')}`;
     }
 
+    private matchInvoiceItemToOrderItem(
+        orderItem: {
+            variant: {
+                sku?: string | null;
+                product: { sku?: string | null; name: string };
+            };
+        },
+        invoiceItem: {
+            productCode?: string | null;
+            productName?: string | null;
+        },
+    ) {
+        const variantCodes = [orderItem.variant.sku, orderItem.variant.product.sku]
+            .filter(Boolean)
+            .map((code) => String(code).trim().toLowerCase());
+        const invoiceCode = invoiceItem.productCode?.trim().toLowerCase();
+
+        if (invoiceCode && variantCodes.includes(invoiceCode)) {
+            return true;
+        }
+
+        return (invoiceItem.productName || '').trim().toLowerCase() === orderItem.variant.product.name.trim().toLowerCase();
+    }
+
     async create(dto: CreateOrderDto, warehouseId?: string) {
         if (!dto.items || dto.items.length === 0) {
             throw new BadRequestException('ORDER_ITEMS_REQUIRED');
@@ -74,6 +98,13 @@ export class SalesService {
             let subtotal = 0;
             const orderItems: any[] = [];
             const invoiceItems: any[] = [];
+            const inventoryMovementItems: Array<{
+                variantId: bigint;
+                quantity: number;
+                displayQuantity: number;
+                displayUnit: string;
+                unitPrice: number;
+            }> = [];
 
             for (const item of dto.items) {
                 const info = productMap.get(item.productId);
@@ -81,16 +112,23 @@ export class SalesService {
                     throw new BadRequestException(`PRODUCT_NOT_FOUND: ${item.productId}`);
                 }
 
+                const inventoryQuantity = item.quantity;
+                const displayQuantity = item.displayQuantity ?? inventoryQuantity;
+                const displayUnit =
+                    item.unit ||
+                    info.product.unit ||
+                    info.product.baseUnitCode ||
+                    'Cái';
                 const unitPrice = item.unitPrice ?? Number(info.price);
                 const discount = item.discount ?? 0;
-                const totalPrice = unitPrice * item.quantity - discount;
+                const totalPrice = unitPrice * displayQuantity - discount;
 
                 subtotal += totalPrice;
 
                 // For Order
                 orderItems.push({
                     variantId: info.variant.id,
-                    quantity: BigInt(item.quantity),
+                    quantity: BigInt(inventoryQuantity),
                     unitPrice,
                     totalPrice,
                     discount,
@@ -98,15 +136,23 @@ export class SalesService {
 
                 // For Invoice
                 invoiceItems.push({
-                    productCode: info.product.code,
+                    productCode: info.product.sku || info.variant.sku || '',
                     productName: info.product.name,
-                    unit: info.product.unit,
-                    quantity: item.quantity,
+                    unit: displayUnit,
+                    quantity: displayQuantity,
                     unitPrice: unitPrice,
                     discountAmount: discount,
                     totalPrice: totalPrice,
                     brand: info.product.brand,
                     salePrice: unitPrice // Assuming sale price is the unit price used
+                });
+
+                inventoryMovementItems.push({
+                    variantId: info.variant.id,
+                    quantity: inventoryQuantity,
+                    displayQuantity,
+                    displayUnit,
+                    unitPrice,
                 });
             }
 
@@ -172,6 +218,7 @@ export class SalesService {
                 data: {
                     invoiceNumber: orderNumber,
                     orderCode: orderNumber,
+                    storeId: dto.storeId ? BigInt(dto.storeId) : null,
                     customerId: dto.customerId ? BigInt(dto.customerId) : null,
                     customerCode: customerData?.code,
                     customerName: customerData?.name || 'Khách lẻ',
@@ -208,7 +255,7 @@ export class SalesService {
             }
 
             if (targetWarehouseId) {
-                for (const item of orderItems) {
+                for (const item of inventoryMovementItems) {
                     // Find or create inventory record in main warehouse
                     let inv = await tx.inventory.findFirst({
                         where: {
@@ -240,9 +287,16 @@ export class SalesService {
                     await tx.stockMovement.create({
                         data: {
                             movementType: 'SALE',
+                            reference: orderNumber,
+                            referenceType: 'ORDER',
+                            referenceId: order.id,
+                            referenceCode: orderNumber,
                             variantId: item.variantId,
                             fromWarehouseId: targetWarehouseId,
                             quantity: -Number(item.quantity),
+                            displayQuantity: item.displayQuantity,
+                            displayUnit: item.displayUnit,
+                            unitCost: item.unitPrice,
                             note: `Bán hàng: ${orderNumber}`,
                             storeId: dto.storeId ? BigInt(dto.storeId) : null,
                         },
@@ -360,6 +414,17 @@ export class SalesService {
             // 2. Find first warehouse
             const warehouse = await tx.warehouse.findFirst({ orderBy: { createdAt: 'asc' } });
             if (!warehouse) return order;
+            const relatedInvoice = order.orderNumber
+                ? await tx.invoice.findFirst({
+                    where: {
+                        OR: [
+                            { invoiceNumber: order.orderNumber },
+                            { orderCode: order.orderNumber },
+                        ],
+                    },
+                    include: { items: true },
+                })
+                : null;
 
             // 3. Restore inventory
             for (const item of order.orderItems) {
@@ -385,14 +450,30 @@ export class SalesService {
                     data: { quantity: { increment: Number(item.quantity) } },
                 });
 
+                const relatedInvoiceItem = relatedInvoice?.items.find((invoiceItem) =>
+                    this.matchInvoiceItemToOrderItem(item, invoiceItem),
+                );
+
                 // Record movement
                 await tx.stockMovement.create({
                     data: {
                         movementType: 'RETURN',
+                        reference: order.orderNumber,
+                        referenceType: 'ORDER',
+                        referenceId: order.id,
+                        referenceCode: order.orderNumber,
                         variantId: item.variantId,
                         toWarehouseId: warehouse.id,
                         quantity: Number(item.quantity),
+                        displayQuantity: Number(relatedInvoiceItem?.quantity || item.quantity),
+                        displayUnit:
+                            relatedInvoiceItem?.unit ||
+                            item.variant.product.unit ||
+                            item.variant.product.baseUnitCode ||
+                            'Cái',
+                        unitCost: Number(relatedInvoiceItem?.unitPrice || item.variant.price || item.variant.product.defaultPrice || 0),
                         note: note || `Trả hàng: ${order.orderNumber}`,
+                        storeId: order.storeId,
                     },
                 });
             }
