@@ -17,6 +17,7 @@
 - Chuẩn hóa báo cáo tồn kho để hiểu `SALE` là xuất, `RETURN` là nhập; bổ sung drill-down chi tiết khi click vào sản phẩm.
 - Thêm metadata cho `stock_movement` để truy vết `đã bán theo đơn vị nào`, `từ chứng từ nào`.
 - Bổ sung mô hình đa đơn vị: `đơn vị bán`, `đơn vị cơ bản`, `tỷ lệ quy đổi`; POS tự quy đổi về tồn kho cơ bản.
+- Ô `SL` trong POS hỗ trợ nhập tối đa `1 số lẻ` và chặn các số lẻ không quy đổi được ra tồn kho cơ bản nguyên.
 - Sửa runtime Prisma để backend ưu tiên `DIRECT_URL` và fail-fast khi không kết nối được database.
 
 Xem chi tiết thay đổi và checklist test ở [update.md](update.md).
@@ -311,8 +312,12 @@ Kiến trúc Docker production:
 
 ### 3. Đa đơn vị và quy đổi tồn kho
 - Tạo hoặc sửa một sản phẩm có `ĐVT bán`, `ĐVT cơ bản` và `Tỷ lệ quy đổi`.
-- Bán sản phẩm đó trên POS bằng đơn vị bán.
+- Bán sản phẩm đó trên POS bằng đơn vị bán và thử nhập `SL = 1,5`.
 - Kết quả mong đợi: hóa đơn hiển thị theo đơn vị bán, còn tồn kho giảm theo đơn vị cơ bản; báo cáo tồn kho hiển thị được cả số lượng cơ bản và số lượng quy đổi.
+
+### 4. Số lượng lẻ trên POS
+- Với sản phẩm có quy đổi phù hợp, ô `SL` chấp nhận `1 số lẻ` như `1,5`.
+- Với sản phẩm không quy đổi được ra số nguyên ở đơn vị cơ bản, POS phải báo lỗi và không tự làm tròn.
 
 Checklist đầy đủ hơn nằm ở [update.md](update.md).
 

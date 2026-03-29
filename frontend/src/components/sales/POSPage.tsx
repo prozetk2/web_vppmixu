@@ -213,6 +213,13 @@ const formatPrintCurrency = (value: number, showDecimals: boolean) => {
     }).format(value);
 };
 
+const formatQuantityValue = (value: number) => {
+    return new Intl.NumberFormat('vi-VN', {
+        minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+        maximumFractionDigits: 1,
+    }).format(value);
+};
+
 const PRINT_LAYOUTS = {
     A4: {
         extraRows: 10,
@@ -306,7 +313,7 @@ const PrintInvoice = ({
                         <td className="text-center">{index + 1}</td>
                         <td>{item.product.name}</td>
                         <td className="text-center">{item.displayUnit || item.product.unit || item.product.baseUnitCode || 'Cái'}</td>
-                        <td className="text-center">{item.quantity}</td>
+                        <td className="text-center">{formatQuantityValue(item.quantity)}</td>
                         <td className="text-right">{formatAmount(item.unitPrice)}</td>
                         <td className="text-right">{formatAmount(item.unitPrice * item.quantity)}</td>
                     </tr>
@@ -663,6 +670,51 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         }
 
         return integerPart + decimalPart;
+    };
+
+    const sanitizeQuantityInput = (value: string) => {
+        const normalized = value.replace(/\./g, ',').replace(/[^0-9,]/g, '');
+        const separatorIndex = normalized.indexOf(',');
+
+        if (separatorIndex === -1) {
+            return normalized;
+        }
+
+        const integerPartRaw = normalized.slice(0, separatorIndex);
+        const decimalPart = normalized
+            .slice(separatorIndex + 1)
+            .replace(/,/g, '')
+            .slice(0, 1);
+        const integerPart = integerPartRaw || '0';
+
+        return decimalPart ? `${integerPart},${decimalPart}` : `${integerPart},`;
+    };
+
+    const parseQuantityInput = (value: string) => {
+        const normalized = value.replace(',', '.').trim();
+        if (!normalized) {
+            return null;
+        }
+
+        const parsed = Number(normalized);
+        if (!Number.isFinite(parsed) || parsed <= 0) {
+            return null;
+        }
+
+        return Math.round(parsed * 10) / 10;
+    };
+
+    const resolveBaseQuantity = (displayQuantity: number, conversionRate: number) => {
+        const rawBaseQuantity = displayQuantity * conversionRate;
+        const roundedBaseQuantity = Math.round(rawBaseQuantity);
+
+        if (!Number.isFinite(rawBaseQuantity) || roundedBaseQuantity <= 0) {
+            return null;
+        }
+
+        return Math.abs(rawBaseQuantity - roundedBaseQuantity) < 1e-9
+            ? roundedBaseQuantity
+            : null;
     };
 
     const formatCurrency = (value: number) => {
@@ -1280,11 +1332,27 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     // Set cart item quantity directly (for input field)
     const setQuantityDirect = (productId: string, newQty: number) => {
         const currentCart = activeInvoice?.cart || [];
+        const targetItem = currentCart.find((item) => item.product.id === productId);
+
+        if (!targetItem) {
+            return;
+        }
+
+        const normalizedQuantity = Math.round(newQty * 10) / 10;
+        const baseQuantity = resolveBaseQuantity(normalizedQuantity, targetItem.conversionRate);
+
+        if (!baseQuantity) {
+            toast.error(
+                `Số lượng ${formatQuantityValue(normalizedQuantity)} ${targetItem.displayUnit} chưa hợp lệ. Chỉ chấp nhận khi quy đổi ra ${getProductBaseUnit(targetItem.product)} là số nguyên.`,
+            );
+            return;
+        }
+
         updateActiveInvoice({
             cart: currentCart
                 .map((item) =>
                     item.product.id === productId
-                        ? { ...item, quantity: Math.max(1, newQty) }
+                        ? { ...item, quantity: normalizedQuantity }
                         : item
                 )
         });
@@ -1486,19 +1554,31 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 setShowSuccess(true);
             } else {
                 // Create new order
+                const requestItems = cart.map((item) => {
+                    const baseQuantity = resolveBaseQuantity(item.quantity, item.conversionRate);
+
+                    if (!baseQuantity) {
+                        throw new Error(
+                            `Số lượng ${formatQuantityValue(item.quantity)} ${item.displayUnit} của ${item.product.name} chưa quy đổi được ra ${getProductBaseUnit(item.product)} nguyên.`,
+                        );
+                    }
+
+                    return {
+                        productId: item.product.id,
+                        quantity: baseQuantity,
+                        displayQuantity: item.quantity,
+                        unit: item.displayUnit,
+                        conversionRate: item.conversionRate,
+                        unitPrice: item.unitPrice,
+                    };
+                });
+
                 const requestBody = {
                     customerId: selectedCustomer || undefined,
                     warehouseId: selectedWarehouse || undefined,
                     storeId: selectedSeller || undefined,
                     discountAmount: calculatedDiscount,
-                    items: cart.map((item) => ({
-                        productId: item.product.id,
-                        quantity: Math.max(1, Math.round(item.quantity * item.conversionRate)),
-                        displayQuantity: item.quantity,
-                        unit: item.displayUnit,
-                        conversionRate: item.conversionRate,
-                        unitPrice: item.unitPrice,
-                    })),
+                    items: requestItems,
                     payment: {
                         amount: total,
                         method: paymentMethod,
@@ -1859,19 +1939,19 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                             <td className="col-qty">
                                                 <input
                                                     type="text"
-                                                    inputMode="numeric"
-                                                    value={editingQty?.id === item.product.id ? editingQty.value : item.quantity.toString()}
+                                                    inputMode="decimal"
+                                                    value={editingQty?.id === item.product.id ? editingQty.value : formatQuantityValue(item.quantity)}
                                                     onFocus={(e) => {
-                                                        setEditingQty({ id: item.product.id, value: item.quantity.toString() });
+                                                        setEditingQty({ id: item.product.id, value: formatQuantityValue(item.quantity) });
                                                         setTimeout(() => e.target.select(), 0);
                                                     }}
                                                     onChange={(e) => {
-                                                        const val = e.target.value.replace(/[^0-9]/g, '');
+                                                        const val = sanitizeQuantityInput(e.target.value);
                                                         setEditingQty({ id: item.product.id, value: val });
                                                     }}
                                                     onBlur={() => {
                                                         if (editingQty?.id === item.product.id) {
-                                                            const num = parseInt(editingQty.value) || 1;
+                                                            const num = parseQuantityInput(editingQty.value) || 1;
                                                             setQuantityDirect(item.product.id, num);
                                                             setEditingQty(null);
                                                         }
@@ -2183,11 +2263,11 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
 
                         {/* Summary */}
                         <div className="payment-summary">
-                            <div className="summary-line">
-                                <span>Tổng tiền hàng</span>
-                                <span className="count">{cart.reduce((sum, i) => sum + i.quantity, 0)}</span>
-                                <span className="amount">{formatCurrency(subtotal)}</span>
-                            </div>
+                                <div className="summary-line">
+                                    <span>Tổng tiền hàng</span>
+                                    <span className="count">{formatQuantityValue(cart.reduce((sum, i) => sum + i.quantity, 0))}</span>
+                                    <span className="amount">{formatCurrency(subtotal)}</span>
+                                </div>
                             <div className="summary-line">
                                 <span>Giảm giá</span>
                                 <input

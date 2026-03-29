@@ -129,6 +129,8 @@ File chính:
 #### POS
 
 - Mỗi dòng hàng trên POS có thể chọn đơn vị bán.
+- Ô `SL` trên POS giờ cho phép nhập tối đa `1 chữ số sau dấu phẩy`, hỗ trợ cả `,` và `.` khi nhập tay.
+- Số lượng lẻ chỉ được chấp nhận khi quy đổi về đơn vị cơ bản ra số nguyên hợp lệ, để không làm sai tồn kho.
 - Khi đổi đơn vị bán, POS cập nhật lại dữ liệu dòng hàng và dùng `conversionRate` để quy đổi về số lượng cơ bản.
 - Khi thanh toán:
   - hóa đơn vẫn hiển thị theo đơn vị bán
@@ -321,17 +323,28 @@ Kết quả mong đợi:
 
 1. Thêm sản phẩm nhiều đơn vị vào giỏ hàng.
 2. Chọn đơn vị bán là `Hộp`.
-3. Bán `2 Hộp`.
+3. Nhập số lượng `1,5` hoặc `1.5`.
+4. Bán hàng.
 
 Kết quả mong đợi:
-- Hóa đơn và giao diện POS hiển thị `2 Hộp`.
-- Tồn kho cơ bản bị trừ `20 Cái`.
+- Ô `SL` chấp nhận tối đa 1 số lẻ.
+- Hóa đơn và giao diện POS hiển thị đúng `1,5 Hộp`.
+- Tồn kho cơ bản bị trừ đúng theo quy đổi, ví dụ tỷ lệ `10` thì trừ `15 Cái`.
 - Chi tiết movement hiển thị được cả:
-  - `displayQuantity = 2`
+  - `displayQuantity = 1.5`
   - `displayUnit = Hộp`
-  - `base quantity = 20`
+  - `base quantity = 15`
 
-### Test 9: Nhập hàng / điều chỉnh kho với metadata
+### Test 9: Chặn số lượng lẻ không hợp lệ
+
+1. Chọn một sản phẩm đang bán trực tiếp theo đúng `ĐVT cơ bản`, ví dụ `Cái`.
+2. Tại POS, nhập số lượng `1,5`.
+
+Kết quả mong đợi:
+- POS báo lỗi và không lưu số lượng mới.
+- Dữ liệu không bị làm tròn âm thầm.
+
+### Test 10: Nhập hàng / điều chỉnh kho với metadata
 
 1. Tạo một phiếu nhập hàng cho sản phẩm có đa đơn vị.
 2. Hoặc tạo một phiếu điều chỉnh kho.
@@ -341,7 +354,7 @@ Kết quả mong đợi:
 - Movement có chứng từ tương ứng.
 - Movement hiển thị đúng `displayUnit` và `displayQuantity` nếu dữ liệu được gửi lên.
 
-### Test 10: Smoke test database
+### Test 11: Smoke test database
 
 1. Mở `Dashboard`, `Sản phẩm`, `Tồn kho`.
 2. Quan sát Network và terminal backend.
