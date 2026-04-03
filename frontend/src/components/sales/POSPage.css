@@ -1986,7 +1986,7 @@ tr.dragging {
 
 @media print {
     @page {
-        margin: 10mm;
+        margin: 5mm;
     }
 
     body {
@@ -2040,7 +2040,7 @@ tr.dragging {
         --print-content-width: 100%;
         --print-cell-padding-y: 1px;
         --print-cell-padding-x: 2px;
-        --print-empty-row-height: 1px;
+        --print-empty-row-height: 20px;
         --print-title-margin: 2px 0;
         --print-order-margin-bottom: 2px;
         --print-order-padding-bottom: 2px;
@@ -2050,8 +2050,8 @@ tr.dragging {
         --print-footer-margin-bottom: 2px;
         --print-label-width: 70px;
         --print-topbar-margin-bottom: 1px;
-        /* Scale fonts down for A5 */
-        font-size: 0.65em;
+        /* Scale fonts up for A5 */
+        font-size: 0.8em;
         line-height: 1.05;
     }
 
@@ -2117,10 +2117,7 @@ tr.dragging {
 
     /* NEW: Top bar */
     .print-topbar {
-        display: flex;
-        justify-content: space-between;
-        color: #666;
-        margin-bottom: var(--print-topbar-margin-bottom, 12px);
+        display: none;
     }
 
     /* NEW: Centered Header */
@@ -2468,17 +2465,7 @@ tr.dragging {
     }
 
     .print-footer-url {
-        border-top: 1px solid #ccc;
-        padding-top: 5px;
-        color: #666;
-        display: flex;
-        justify-content: space-between;
-        gap: 16px;
-        width: var(--print-content-width);
-        margin-left: auto;
-        margin-right: auto;
-        break-inside: avoid;
-        page-break-inside: avoid;
+        display: none;
     }
 
     /* Template C Specifics (Placeholder) */
