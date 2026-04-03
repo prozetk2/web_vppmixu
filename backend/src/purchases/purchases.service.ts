@@ -730,6 +730,7 @@ export class PurchasesService {
                     'Kho nhập': order.warehouse?.name || 'Tự động',
                     'Mã SP': item.variant?.product?.sku || '',
                     'Tên SP': item.variant?.product?.name || '',
+                    'ĐVT': item.unit || item.variant?.product?.unit || item.variant?.product?.baseUnitCode || '',
                     'SL': Number(item.quantity),
                     'Đơn giá': Number(item.unitCost),
                     'Thành tiền': Number(item.totalCost),

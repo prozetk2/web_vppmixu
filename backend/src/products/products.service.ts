@@ -515,12 +515,24 @@ export class ProductsService {
       }, 0);
 
       return {
+        productType: p.productType,
         categoryName: p.category?.name || '',
         sku: p.sku,
+        barcode: p.barcode,
         name: p.name,
+        brand: p.brand,
         price: Number(p.defaultPrice),
         cost: Number(p.defaultCost),
+        unit: p.unit,
+        baseUnitCode: p.baseUnitCode,
+        conversionRate: p.conversionRate ? Number(p.conversionRate) : null,
+        weight: p.weight ? Number(p.weight) : null,
         stock: totalStock,
+        minStock: p.minStock ? Number(p.minStock) : null,
+        maxStock: p.maxStock ? Number(p.maxStock) : null,
+        active: p.active,
+        directSale: p.directSale,
+        location: p.location,
         description: p.description,
         createdAt: p.createdAt,
       };
