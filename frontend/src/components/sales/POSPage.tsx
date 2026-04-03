@@ -288,7 +288,7 @@ const PrintInvoice = ({
     const tableFontSize = paperPx(storeInfo.tableFontSize || 15, layout.tableFontOffset);
 
     const renderLineItemsTable = (compactSummary = false) => (
-        <table className={`print-table invoice-print-table ${compactSummary ? 'print-table-compact' : ''}`} style={{ fontSize: tableFontSize }}>
+        <table className={`print-table invoice-print-table ${compactSummary ? 'print-table-compact' : ''}`}>
             <colgroup>
                 <col className="col-stt-print" />
                 <col className="col-name-print" />
@@ -333,79 +333,11 @@ const PrintInvoice = ({
         </table>
     );
 
-    if (settings.paperSize === 'A5') {
-        return (
-            <div className={`print-template ${paperClass}`} style={printSurfaceStyle}>
-                <div className="print-a5-shell">
-                    <div className="print-a5-topline" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, layout.topbarFontOffset) }}>
-                        <span>{printTime}</span>
-                        <span>{orderNumber}</span>
-                    </div>
-
-                    <div className="print-a5-brand-row">
-                        {storeInfo.logoText && (
-                            <div className="print-a5-logo" style={{ fontSize: paperPx(storeInfo.logoFontSize || 28, -2) }}>
-                                {storeInfo.logoText}
-                                {storeInfo.logoSub && <small>{storeInfo.logoSub}</small>}
-                            </div>
-                        )}
-                        <div className="print-a5-brand-meta">
-                            <div className="print-a5-company" style={{ fontSize: paperPx(storeInfo.companyNameFontSize || 19, -2) }}>
-                                {storeInfo.companyName}
-                            </div>
-                            <div className="print-a5-contact" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, -1) }}>
-                                {storeInfo.address}
-                            </div>
-                            <div className="print-a5-contact" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, -1) }}>
-                                {storeInfo.phone}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="print-a5-title-row">
-                        <div className="print-a5-title" style={{ fontSize: paperPx(storeInfo.titleFontSize || 24, -4) }}>
-                            PHIẾU BÁN HÀNG
-                        </div>
-                        <div className="print-a5-date" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, -1) }}>
-                            {invoiceDate}
-                        </div>
-                    </div>
-
-                    <div className="print-a5-customer-grid" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, -1) }}>
-                        <div className="print-a5-customer-item">
-                            <span>Khách hàng</span>
-                            <strong>{customerDisplayName}</strong>
-                        </div>
-                        <div className="print-a5-customer-item">
-                            <span>Số điện thoại</span>
-                            <strong>{customerPhoneDisplay}</strong>
-                        </div>
-                        <div className="print-a5-customer-item print-a5-customer-full">
-                            <span>Địa chỉ</span>
-                            <strong>{customerAddressDisplay}</strong>
-                        </div>
-                    </div>
-
-                    {renderLineItemsTable(true)}
-
-                    <div className="print-a5-summary-bar">
-                        <span>Tổng thanh toán</span>
-                        <strong>{formatAmount(total)}</strong>
-                    </div>
-
-                    <div className="print-a5-footer">
-                        <span>Người mua hàng</span>
-                        <span>Người bán hàng</span>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
+    // Both A4 and A5 use the same layout structure
     return (
         <div className={`print-template ${paperClass}`} style={printSurfaceStyle}>
             {/* Top bar */}
-            <div className="print-topbar" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, layout.topbarFontOffset) }}>
+            <div className="print-topbar">
                 <span>{printTime}</span>
                 <span>Chi nhánh trung tâm - Bán hàng</span>
             </div>
@@ -413,12 +345,12 @@ const PrintInvoice = ({
             {/* Header: Centered */}
             <div className="print-header-centered">
                 {storeInfo.logoText && (
-                    <div className="store-name-centered" style={{ fontSize: paperPx(storeInfo.logoFontSize || 28, settings.paperSize === 'A5' ? -2 : 0) }}>
-                        {storeInfo.logoText} {storeInfo.logoSub && <small style={{ fontSize: paperPx((storeInfo.logoFontSize || 28) / 2, settings.paperSize === 'A5' ? -1 : 0) }}>{storeInfo.logoSub}</small>}
+                    <div className="store-name-centered">
+                        {storeInfo.logoText} {storeInfo.logoSub && <small>{storeInfo.logoSub}</small>}
                     </div>
                 )}
-                <div className="company-name-centered" style={{ fontSize: paperPx(storeInfo.companyNameFontSize || 19, settings.paperSize === 'A5' ? -1 : 0) }}>{storeInfo.companyName}</div>
-                <div className="company-details-centered" style={{ fontSize: paperPx((storeInfo.textFontSize || 14) + 1, layout.companyTextOffset) }}>
+                <div className="company-name-centered">{storeInfo.companyName}</div>
+                <div className="company-details-centered">
                     <span className="label-red">A</span> - {storeInfo.address}.<br />
                     <span className="label-red">T</span> - {storeInfo.phone}.<br />
                     <span className="label-red">W</span> - {storeInfo.website} - <span className="label-red">E</span> - {storeInfo.email}.
@@ -426,11 +358,11 @@ const PrintInvoice = ({
             </div>
 
             {/* Invoice Title: Centered */}
-            <div className="print-invoice-title" style={{ fontSize: paperPx(storeInfo.titleFontSize || 24, layout.titleFontOffset) }}>HÓA ĐƠN BÁN HÀNG</div>
+            <div className="print-invoice-title">HÓA ĐƠN BÁN HÀNG</div>
 
             {/* Order Info: Two columns */}
             <div className="print-order-section">
-                <div className="order-left" style={{ fontSize: paperPx(storeInfo.textFontSize || 14, settings.paperSize === 'A5' ? -1 : 0) }}>
+                <div className="order-left">
                     <span>Mã đơn hàng: <strong>{orderNumber}</strong></span><br />
                     <span>{invoiceDate}</span>
                 </div>
@@ -438,7 +370,7 @@ const PrintInvoice = ({
                 </div>
             </div>
 
-            <div className="customer-info-print" style={{ fontSize: paperPx((storeInfo.textFontSize || 14) + 1, settings.paperSize === 'A5' ? -1 : 0) }}>
+            <div className="customer-info-print">
                 <div className="row">
                     <span className="label">Khách hàng:</span>
                     <span className="value">{customerDisplayName}</span>

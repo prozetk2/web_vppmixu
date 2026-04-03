@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import './ProductForm.css';
 
 interface Category {
@@ -57,10 +57,11 @@ export default function ProductForm({
     return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   };
 
-  const filteredCategories = categories.filter((c) => {
-    if (!categorySearch.trim()) return true;
-    return removeAccents(c.name).includes(removeAccents(categorySearch));
-  });
+  const filteredCategories = useMemo(() => {
+    if (!categorySearch.trim()) return categories;
+    const searchTerm = removeAccents(categorySearch);
+    return categories.filter((c) => removeAccents(c.name).includes(searchTerm));
+  }, [categories, categorySearch]);
 
   useEffect(() => {
     if (product) {
@@ -121,7 +122,7 @@ export default function ProductForm({
       .replace(/\s+/g, '')
       .toLowerCase();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
 
     if (name === 'defaultPrice' || name === 'defaultCost' || name === 'conversionRate') {
@@ -156,7 +157,7 @@ export default function ProductForm({
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
-  };
+  }, [errors]);
 
   const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.75): Promise<File> => {
     return new Promise((resolve, reject) => {
@@ -198,7 +199,7 @@ export default function ProductForm({
     });
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const originalFile = e.target.files?.[0];
     if (!originalFile) return;
 
@@ -231,7 +232,7 @@ export default function ProductForm({
     } finally {
       setIsUploading(false);
     }
-  };
+  }, []);
 
   const getValue = (headers: string[], row: string[]) => {
     const headerMap = headers.map(normalize);

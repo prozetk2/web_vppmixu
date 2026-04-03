@@ -16,16 +16,14 @@ services:
       timeout: 10s
       retries: 3
 
-  frontend: # <--- Đảm bảo frontend thun lùi vào 2 dấu cách, ngang hàng với backend
+  frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"  # ĐỔI THÀNH CỔNG 8080 (hoặc cổng khác trừ 80, 443, 81)
     volumes:
-      - ./frontend/nginx-ssl.conf:/etc/nginx/conf.d/default.conf
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf # DÙNG FILE NGON (không có chữ -ssl)
     networks:
       - app-network
     depends_on:

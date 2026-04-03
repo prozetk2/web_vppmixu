@@ -59,7 +59,7 @@ export class SalesService {
             throw new BadRequestException('ORDER_ITEMS_REQUIRED');
         }
 
-        // Use transaction to ensure data consistency
+        // Use transaction to ensure data consistency with increased timeout
         return this.prisma.$transaction(async (tx) => {
             // 1. Get product variants with prices
             const productIds = dto.items.map((item) => BigInt(item.productId));
@@ -163,6 +163,16 @@ export class SalesService {
             // 4. Create order
             const orderNumber = await this.generateOrderNumber();
             const orderDate = dto.createdAt ? new Date(dto.createdAt) : new Date();
+            
+            // Parse storeId - only use if it's a valid number
+            let parsedStoreId: bigint | null = null;
+            if (dto.storeId) {
+                const storeIdNum = Number(dto.storeId);
+                if (!isNaN(storeIdNum) && storeIdNum > 0) {
+                    parsedStoreId = BigInt(storeIdNum);
+                }
+            }
+            
             const order = await tx.order.create({
                 data: {
                     orderNumber,
@@ -172,7 +182,7 @@ export class SalesService {
                     discountAmount,
                     taxAmount,
                     totalAmount,
-                    storeId: dto.storeId ? BigInt(dto.storeId) : undefined,
+                    storeId: parsedStoreId,
                     createdAt: orderDate,
                     orderItems: {
                         create: orderItems,
@@ -218,7 +228,7 @@ export class SalesService {
                 data: {
                     invoiceNumber: orderNumber,
                     orderCode: orderNumber,
-                    storeId: dto.storeId ? BigInt(dto.storeId) : null,
+                    storeId: parsedStoreId,
                     customerId: dto.customerId ? BigInt(dto.customerId) : null,
                     customerCode: customerData?.code,
                     customerName: customerData?.name || 'Khách lẻ',
@@ -298,13 +308,16 @@ export class SalesService {
                             displayUnit: item.displayUnit,
                             unitCost: item.unitPrice,
                             note: `Bán hàng: ${orderNumber}`,
-                            storeId: dto.storeId ? BigInt(dto.storeId) : null,
+                            storeId: parsedStoreId,
                         },
                     });
                 }
             }
 
             return order;
+        }, {
+            maxWait: 10000, // 10 seconds
+            timeout: 15000, // 15 seconds
         });
     }
 

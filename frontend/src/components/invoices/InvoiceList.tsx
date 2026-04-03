@@ -170,8 +170,11 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
     const getDateRange = () => {
         const now = new Date();
         if (timeFilter === 'thisMonth') {
-            const start = new Date(now.getFullYear(), now.getMonth(), 1);
-            const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            // Use UTC to avoid timezone issues
+            const year = now.getUTCFullYear();
+            const month = now.getUTCMonth();
+            const start = new Date(Date.UTC(year, month, 1));
+            const end = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
             return {
                 dateFrom: start.toISOString().split('T')[0],
                 dateTo: end.toISOString().split('T')[0],
@@ -214,6 +217,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
             if (search) params.search = search;
 
             const dateRange = getDateRange();
+            console.log('Date range:', dateRange); // Debug log
             if (dateRange.dateFrom) params.dateFrom = dateRange.dateFrom;
             if (dateRange.dateTo) params.dateTo = dateRange.dateTo;
 
@@ -228,8 +232,10 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
             if (priceList) params.priceList = priceList;
             if (salesChannel) params.salesChannel = salesChannel;
 
+            console.log('Fetching invoices with params:', params); // Debug log
             const response = await invoicesAPI.getAll(params);
             const data = response.data?.data || [];
+            console.log('Received invoices:', data.length); // Debug log
             setInvoices(
                 data.map((inv: any) => ({
                     ...inv,

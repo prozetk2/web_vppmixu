@@ -593,7 +593,7 @@ export default function PriceListsPage() {
                             }}
                         >
                             <span className="selected-tag">
-                                {selectedPriceListName}
+                                <span className="marquee-text">{selectedPriceListName}</span>
                             </span>
                             <MdExpandMore />
                         </div>

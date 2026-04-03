@@ -788,12 +788,14 @@ export default function StockAdjustment({
         title="Thêm sản phẩm mới"
         size="lg"
       >
-        <ProductForm
-          categories={categories}
-          onSubmit={handleCreateProduct}
-          onCancel={() => setIsProductModalOpen(false)}
-          isLoading={isCreatingProduct}
-        />
+        {isProductModalOpen && (
+          <ProductForm
+            categories={categories}
+            onSubmit={handleCreateProduct}
+            onCancel={() => setIsProductModalOpen(false)}
+            isLoading={isCreatingProduct}
+          />
+        )}
       </Modal>
     </>
   );

@@ -738,13 +738,15 @@ export default function ProductList() {
                 title={editingProduct ? 'Sửa sản phẩm' : 'Thêm sản phẩm mới'}
                 size="lg"
             >
-                <ProductForm
-                    product={editingProduct}
-                    categories={categories}
-                    onSubmit={handleFormSubmit}
-                    onCancel={() => setIsFormOpen(false)}
-                    isLoading={isSubmitting}
-                />
+                {isFormOpen && (
+                    <ProductForm
+                        product={editingProduct}
+                        categories={categories}
+                        onSubmit={handleFormSubmit}
+                        onCancel={() => setIsFormOpen(false)}
+                        isLoading={isSubmitting}
+                    />
+                )}
             </Modal >
 
             {/* Delete Confirmation Modal */}
