@@ -563,3 +563,34 @@
         flex: 1;
     }
 }
+
+/* Product Image Hover Preview */
+.product-image-container {
+    position: relative;
+    display: inline-block;
+}
+
+.image-preview {
+    display: none;
+    position: absolute;
+    left: 50px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1000;
+    background: white;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    padding: 8px;
+    min-width: 200px;
+    max-width: 300px;
+    pointer-events: none;
+}
+
+.image-preview img {
+    border-radius: 4px;
+}
+
+.col-image {
+    width: 60px;
+}

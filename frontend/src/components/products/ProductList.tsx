@@ -666,11 +666,38 @@ export default function ProductList() {
                                         </td>
                                         <td className="col-image">
                                             {product.images ? (
-                                                <img
-                                                    src={product.images}
-                                                    alt={product.name}
-                                                    style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
-                                                />
+                                                <div 
+                                                    className="product-image-container"
+                                                    onMouseEnter={(e) => {
+                                                        const preview = e.currentTarget.querySelector('.image-preview') as HTMLElement;
+                                                        if (preview) preview.style.display = 'block';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        const preview = e.currentTarget.querySelector('.image-preview') as HTMLElement;
+                                                        if (preview) preview.style.display = 'none';
+                                                    }}
+                                                >
+                                                    <img
+                                                        src={product.images.split(',').filter(Boolean)[0].trim()}
+                                                        alt={product.name}
+                                                        style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }}
+                                                    />
+                                                    <div className="image-preview">
+                                                        {product.images.split(',').filter(Boolean).map((imgUrl, idx) => (
+                                                            <img
+                                                                key={idx}
+                                                                src={imgUrl.trim()}
+                                                                alt={`${product.name} ${idx + 1}`}
+                                                                style={{ 
+                                                                    width: '100%',
+                                                                    height: 'auto',
+                                                                    display: 'block',
+                                                                    marginBottom: idx < (product.images?.split(',').filter(Boolean).length || 0) - 1 ? '4px' : '0'
+                                                                }}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </div>
                                             ) : (
                                                 <div style={{ width: '40px', height: '40px', background: '#f5f5f5', borderRadius: '4px', border: '1px solid #eee' }}></div>
                                             )}

@@ -1,99 +1,76 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
 import './ImageViewer.css';
 
-interface ImageViewerModalProps {
+interface ImageViewerProps {
   images: string[];
-  initialIndex?: number;
-  alt?: string;
+  currentIndex: number;
   onClose: () => void;
+  onNext?: () => void;
+  onPrev?: () => void;
+  productName?: string;
 }
 
-export function ImageViewerModal({ images, initialIndex = 0, alt = '', onClose }: ImageViewerModalProps) {
-  const [current, setCurrent] = useState(initialIndex);
-
-  const prev = useCallback(() => setCurrent(i => (i - 1 + images.length) % images.length), [images.length]);
-  const next = useCallback(() => setCurrent(i => (i + 1) % images.length), [images.length]);
-
+export default function ImageViewer({
+  images,
+  currentIndex,
+  onClose,
+  onNext,
+  onPrev,
+  productName,
+}: ImageViewerProps) {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft') prev();
-      if (e.key === 'ArrowRight') next();
+      if (e.key === 'ArrowRight' && onNext) onNext();
+      if (e.key === 'ArrowLeft' && onPrev) onPrev();
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose, prev, next]);
+
+    document.addEventListener('keydown', handleEscape);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'unset';
+    };
+  }, [onClose, onNext, onPrev]);
+
+  if (!images || images.length === 0) return null;
+
+  const currentImage = images[currentIndex] || images[0];
 
   return (
     <div className="image-viewer-overlay" onClick={onClose}>
-      <div className="image-viewer-modal" onClick={e => e.stopPropagation()}>
-        <button className="image-viewer-close" onClick={onClose}>✕</button>
-        <div className="image-viewer-main">
-          {images.length > 1 && (
-            <button className="image-viewer-nav image-viewer-prev" onClick={prev}>&#8249;</button>
-          )}
-          <img src={images[current]} alt={alt} className="image-viewer-img" />
-          {images.length > 1 && (
-            <button className="image-viewer-nav image-viewer-next" onClick={next}>&#8250;</button>
+      <div className="image-viewer-container" onClick={(e) => e.stopPropagation()}>
+        <button className="image-viewer-close" onClick={onClose} title="Đóng (ESC)">
+          ×
+        </button>
+
+        {images.length > 1 && currentIndex > 0 && (
+          <button className="image-viewer-nav image-viewer-prev" onClick={onPrev} title="Ảnh trước (←)">
+            ‹
+          </button>
+        )}
+
+        <div className="image-viewer-content">
+          <img src={currentImage} alt={productName || 'Product'} />
+          {productName && (
+            <div className="image-viewer-caption">
+              {productName}
+              {images.length > 1 && (
+                <span className="image-viewer-counter">
+                  {currentIndex + 1} / {images.length}
+                </span>
+              )}
+            </div>
           )}
         </div>
-        {images.length > 1 && (
-          <div className="image-viewer-thumbs">
-            {images.map((url, i) => (
-              <img
-                key={i}
-                src={url}
-                alt={`${alt} ${i + 1}`}
-                className={`image-viewer-thumb ${i === current ? 'active' : ''}`}
-                onClick={() => setCurrent(i)}
-              />
-            ))}
-          </div>
+
+        {images.length > 1 && currentIndex < images.length - 1 && (
+          <button className="image-viewer-nav image-viewer-next" onClick={onNext} title="Ảnh tiếp (→)">
+            ›
+          </button>
         )}
-        <div className="image-viewer-counter">{current + 1} / {images.length}</div>
       </div>
     </div>
-  );
-}
-
-interface ImageViewerProps {
-  images: string; // comma-separated URLs
-  alt?: string;
-  thumbnailSize?: number;
-}
-
-export default function ImageViewer({ images, alt = '', thumbnailSize = 40 }: ImageViewerProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [startIndex, setStartIndex] = useState(0);
-  const urls = images ? images.split(',').map(u => u.trim()).filter(Boolean) : [];
-
-  if (urls.length === 0) {
-    return (
-      <div
-        className="image-viewer-placeholder"
-        style={{ width: thumbnailSize, height: thumbnailSize }}
-      />
-    );
-  }
-
-  return (
-    <>
-      <img
-        src={urls[0]}
-        alt={alt}
-        className="image-viewer-thumbnail"
-        style={{ width: thumbnailSize, height: thumbnailSize }}
-        onClick={() => { setStartIndex(0); setIsOpen(true); }}
-        title="Nhấn để xem ảnh"
-      />
-      {isOpen && (
-        <ImageViewerModal
-          images={urls}
-          initialIndex={startIndex}
-          alt={alt}
-          onClose={() => setIsOpen(false)}
-        />
-      )}
-    </>
   );
 }

@@ -50,7 +50,7 @@ export default function ProductForm({
   const [categorySearch, setCategorySearch] = useState('');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [localPreviews, setLocalPreviews] = useState<string[]>(Array(10).fill(''));
 
   // Helper to remove accents for searching
   const removeAccents = (str: string) => {
@@ -199,36 +199,54 @@ export default function ProductForm({
     });
   };
 
-  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     const originalFile = e.target.files?.[0];
     if (!originalFile) return;
 
     // Local preview immediately
     const reader = new FileReader();
     reader.onloadend = () => {
-      setLocalPreview(reader.result as string);
+      setLocalPreviews((prev) => {
+        const newPreviews = [...prev];
+        newPreviews[index] = reader.result as string;
+        return newPreviews;
+      });
     };
     reader.readAsDataURL(originalFile);
 
     setIsUploading(true);
     try {
-      // Compress before upload
-      const fileToUpload = originalFile.size > 200 * 1024 
-          ? await compressImage(originalFile) 
-          : originalFile;
+      // Always compress images to optimize storage and loading
+      const fileToUpload = await compressImage(originalFile);
       
-      console.log(`Image size: original=${(originalFile.size/1024).toFixed(1)}KB, final=${(fileToUpload.size/1024).toFixed(1)}KB`);
+      console.log(`Image size: original=${(originalFile.size/1024).toFixed(1)}KB, compressed=${(fileToUpload.size/1024).toFixed(1)}KB`);
 
       const { productsAPI } = await import('../../services/api');
       const response = await productsAPI.uploadImage(fileToUpload);
       const url = response.data.data?.url || response.data.url;
-      setFormData((prev) => ({ ...prev, images: url }));
-      setLocalPreview(null); // Clear local once server url is ready
+      
+      // Update images string (comma-separated URLs)
+      setFormData((prev) => {
+        const currentImages = prev.images ? prev.images.split(',').filter(Boolean) : [];
+        currentImages[index] = url;
+        return { ...prev, images: currentImages.filter(Boolean).join(',') };
+      });
+      
+      // Clear local preview for this index
+      setLocalPreviews((prev) => {
+        const newPreviews = [...prev];
+        newPreviews[index] = '';
+        return newPreviews;
+      });
     } catch (error: any) {
       console.error('Upload failed', error);
       const msg = error.response?.data?.message || 'Không thể tải ảnh lên, file có thể quá lớn hoặc lỗi server';
       alert(msg);
-      setLocalPreview(null);
+      setLocalPreviews((prev) => {
+        const newPreviews = [...prev];
+        newPreviews[index] = '';
+        return newPreviews;
+      });
     } finally {
       setIsUploading(false);
     }
@@ -548,37 +566,185 @@ export default function ProductForm({
       </div>
 
       <div className="form-group">
-        <label className="form-label">Ảnh sản phẩm</label>
-        <div className="image-upload-wrapper">
-          <label className={`image-upload-box ${isUploading ? 'uploading' : ''}`}>
-            <input
-              type="file"
-              onChange={handleImageUpload}
-              accept="image/*"
-              style={{ display: 'none' }}
-              disabled={isUploading}
-            />
-            {isUploading ? (
-              <div className="upload-loading">
-                <div className="spinner-small" style={{ borderTopColor: '#667eea' }}></div>
-                <span>Đang tải...</span>
-              </div>
-            ) : (
-              <div className="upload-placeholder">
-                <span style={{ fontSize: '24px' }}>+</span>
-                <span>Tải ảnh</span>
-              </div>
-            )}
-            {(localPreview || formData.images) && (
-              <img
-                src={localPreview || formData.images}
-                alt="Product"
-                className="uploaded-image"
-              />
-            )}
-          </label>
-          <small className="hint">Dung lượng tối đa 50MB. Hỗ trợ JPG, PNG, WEBP.</small>
+        <label className="form-label">Ảnh sản phẩm (tối đa 10 ảnh)</label>
+        <div className="image-gallery-upload">
+          {/* Main large image on the left */}
+          <div className="main-image-section">
+            {(() => {
+              const imageUrls = formData.images ? formData.images.split(',').filter(Boolean) : [];
+              const mainImageUrl = imageUrls[0] || '';
+              const mainPreview = localPreviews[0] || '';
+              
+              return (
+                <label className="main-image-upload">
+                  <input
+                    type="file"
+                    onChange={(e) => handleImageUpload(e, 0)}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    disabled={isUploading}
+                  />
+                  {isUploading && mainPreview ? (
+                    <div className="upload-loading">
+                      <div className="spinner-small" style={{ borderTopColor: '#667eea' }}></div>
+                      <span>Đang tải...</span>
+                    </div>
+                  ) : (
+                    <>
+                      {(mainPreview || mainImageUrl) ? (
+                        <img
+                          src={mainPreview || mainImageUrl}
+                          alt="Main product"
+                          className="uploaded-main-image"
+                        />
+                      ) : (
+                        <div className="upload-placeholder-main">
+                          <span style={{ fontSize: '48px' }}>+</span>
+                          <span>Thêm ảnh</span>
+                          <small>Tối đa 50 MB (tự động nén)</small>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {mainImageUrl && !mainPreview && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const imageUrls = formData.images ? formData.images.split(',').filter(Boolean) : [];
+                        imageUrls.splice(0, 1);
+                        setFormData((prev) => ({ ...prev, images: imageUrls.join(',') }));
+                      }}
+                      className="delete-image-btn"
+                      title="Xóa ảnh"
+                    >
+                      ×
+                    </button>
+                  )}
+                </label>
+              );
+            })()}
+          </div>
+
+          {/* Thumbnail grid on the right - 2x2 grid showing first 4, rest below */}
+          <div className="thumbnail-grid-section">
+            {[1, 2, 3, 4].map((index) => {
+              const imageUrls = formData.images ? formData.images.split(',').filter(Boolean) : [];
+              const imageUrl = imageUrls[index] || '';
+              const localPreview = localPreviews[index] || '';
+              
+              return (
+                <div key={index} className="thumbnail-item">
+                  <label className="thumbnail-upload">
+                    <input
+                      type="file"
+                      onChange={(e) => handleImageUpload(e, index)}
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      disabled={isUploading}
+                    />
+                    {isUploading && localPreview ? (
+                      <div className="upload-loading-small">
+                        <div className="spinner-tiny"></div>
+                      </div>
+                    ) : (
+                      <>
+                        {(localPreview || imageUrl) ? (
+                          <img
+                            src={localPreview || imageUrl}
+                            alt={`Product ${index + 1}`}
+                            className="uploaded-thumbnail"
+                          />
+                        ) : (
+                          <div className="upload-placeholder-thumb">
+                            <span>+</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {imageUrl && !localPreview && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const imageUrls = formData.images ? formData.images.split(',').filter(Boolean) : [];
+                          imageUrls.splice(index, 1);
+                          setFormData((prev) => ({ ...prev, images: imageUrls.join(',') }));
+                        }}
+                        className="delete-thumb-btn"
+                        title="Xóa ảnh"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </label>
+                </div>
+              );
+            })}
+          </div>
         </div>
+
+        {/* Additional 5 images below in a single row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginTop: '12px' }}>
+          {[5, 6, 7, 8, 9].map((index) => {
+            const imageUrls = formData.images ? formData.images.split(',').filter(Boolean) : [];
+            const imageUrl = imageUrls[index] || '';
+            const localPreview = localPreviews[index] || '';
+            
+            return (
+              <div key={index} className="thumbnail-item">
+                <label className="thumbnail-upload">
+                  <input
+                    type="file"
+                    onChange={(e) => handleImageUpload(e, index)}
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    disabled={isUploading}
+                  />
+                  {isUploading && localPreview ? (
+                    <div className="upload-loading-small">
+                      <div className="spinner-tiny"></div>
+                    </div>
+                  ) : (
+                    <>
+                      {(localPreview || imageUrl) ? (
+                        <img
+                          src={localPreview || imageUrl}
+                          alt={`Product ${index + 1}`}
+                          className="uploaded-thumbnail"
+                        />
+                      ) : (
+                        <div className="upload-placeholder-thumb">
+                          <span>+</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {imageUrl && !localPreview && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const imageUrls = formData.images ? formData.images.split(',').filter(Boolean) : [];
+                        imageUrls.splice(index, 1);
+                        setFormData((prev) => ({ ...prev, images: imageUrls.join(',') }));
+                      }}
+                      className="delete-thumb-btn"
+                      title="Xóa ảnh"
+                    >
+                      ×
+                    </button>
+                  )}
+                </label>
+              </div>
+            );
+          })}
+        </div>
+
+        <small className="hint">Dung lượng tối đa 50MB mỗi ảnh (tự động nén). Hỗ trợ JPG, PNG, WEBP. Ảnh đầu tiên sẽ là ảnh chính.</small>
       </div>
 
       <div className="form-group">

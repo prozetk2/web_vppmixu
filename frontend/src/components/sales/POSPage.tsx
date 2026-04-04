@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { productsAPI, customersAPI, warehousesAPI, salesAPI, inventoryAPI, priceListsAPI, storesAPI, invoicesAPI } from '../../services/api';
 import { Toast, useToast } from '../shared/Toast';
-import { MdShoppingCart, MdClose, MdCheckCircle, MdAttachMoney, MdAccountBalance, MdCreditCard, MdQrCodeScanner, MdPrint, MdAssignmentReturn, MdSearch, MdAdd, MdReceipt, MdFlashOn, MdFlashOff, MdPerson, MdStorefront, MdMoreHoriz, MdExpandMore, MdSettings, MdDragIndicator } from 'react-icons/md';
+import { MdShoppingCart, MdClose, MdCheckCircle, MdAttachMoney, MdAccountBalance, MdCreditCard, MdQrCodeScanner, MdPrint, MdAssignmentReturn, MdSearch, MdAdd, MdReceipt, MdFlashOn, MdFlashOff, MdPerson, MdStorefront, MdMoreHoriz, MdExpandMore, MdSettings, MdDragIndicator, MdInventory } from 'react-icons/md';
 import { FaFacebook, FaInstagram } from 'react-icons/fa';
 import './POSPage.css';
 
@@ -12,6 +12,7 @@ interface Product {
     defaultPrice: number;
     stock?: number;
     imageUrl?: string;
+    images?: string; // New field for multiple images
     categoryName?: string;
     unit?: string;
     baseUnitCode?: string;
@@ -424,6 +425,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     const [lastOrderNumber, setLastOrderNumber] = useState('');
     const [_viewMode, _setViewMode] = useState<ViewMode>('list');
     const [searchFocused, setSearchFocused] = useState(false);
+    const [viewingProduct, setViewingProduct] = useState<Product | null>(null);
 
     // Store data for printing after checkout
     const [lastCheckoutData, setLastCheckoutData] = useState<{
@@ -1187,7 +1189,8 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     conversionRate: Number(p.conversionRate || 1),
                     defaultPrice: price,
                     stock: stockMap.get(p.id.toString()) || 0,
-                    imageUrl: p.imageUrl,
+                    imageUrl: p.images || p.imageUrl, // Use images field from backend
+                    images: p.images, // Store full images string
                     categoryName: p.category?.name || '',
                 };
             });
@@ -1749,7 +1752,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                 onChange={(e) => setSearch(e.target.value)}
                                 onKeyDown={handleSearchKeyDown}
                                 onFocus={() => setSearchFocused(true)}
-                                onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+                                onBlur={() => setTimeout(() => setSearchFocused(false), 300)}
                                 className="search-input"
                                 autoFocus
                             />
@@ -1760,11 +1763,47 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         <div
                                             key={product.id}
                                             className="search-item"
-                                            onClick={() => {
+                                            onMouseDown={(e) => {
+                                                // Check if clicking on image wrapper
+                                                const target = e.target as HTMLElement;
+                                                if (target.closest('.item-image-wrapper')) {
+                                                    return; // Let image wrapper handle it
+                                                }
+                                                // Otherwise add to cart
+                                                e.preventDefault();
                                                 addToCart(product);
                                                 setSearch('');
+                                                setSearchFocused(false);
                                             }}
                                         >
+                                            {/* Product Image with "Xem chi tiết" on hover */}
+                                            <div 
+                                                className="item-image-wrapper"
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    setViewingProduct(product);
+                                                    setSearchFocused(false);
+                                                }}
+                                            >
+                                                {product.imageUrl ? (
+                                                    <>
+                                                        <img 
+                                                            src={product.imageUrl.split(',')[0].trim()} 
+                                                            alt={product.name}
+                                                            className="item-image"
+                                                        />
+                                                        <div className="item-image-overlay">
+                                                            <span>Xem chi tiết</span>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <div className="item-image-placeholder">
+                                                        <MdInventory />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
                                             <span className="item-sku">{product.sku || '---'}</span>
                                             <span className="item-name">{product.name}</span>
                                             <span className="item-unit">
@@ -3083,6 +3122,97 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     storeConfigs={customStoreConfigs}
                 />
             </div>
+
+            {/* Product Detail Modal */}
+            {viewingProduct && (
+                <div className="product-detail-modal-overlay" onClick={() => setViewingProduct(null)}>
+                    <div className="product-detail-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>Chi tiết sản phẩm</h2>
+                            <button className="close-btn" onClick={() => setViewingProduct(null)}>
+                                <MdClose />
+                            </button>
+                        </div>
+                        
+                        <div className="modal-body">
+                            {/* Product Images */}
+                            {viewingProduct.imageUrl && (
+                                <div className="product-images-section">
+                                    {viewingProduct.imageUrl.split(',').filter(Boolean).map((imgUrl, idx) => (
+                                        <img
+                                            key={idx}
+                                            src={imgUrl.trim()}
+                                            alt={`${viewingProduct.name} ${idx + 1}`}
+                                            className="product-detail-image"
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                            
+                            {/* Product Info */}
+                            <div className="product-info-section">
+                                <div className="info-row">
+                                    <span className="label">Tên sản phẩm:</span>
+                                    <span className="value">{viewingProduct.name}</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="label">Mã hàng:</span>
+                                    <span className="value">{viewingProduct.sku || 'Không có'}</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="label">Giá bán:</span>
+                                    <span className="value price">{formatCurrency(Number(viewingProduct.defaultPrice))}đ</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="label">Đơn vị:</span>
+                                    <span className="value">
+                                        {viewingProduct.baseUnitCode &&
+                                        viewingProduct.unit &&
+                                        viewingProduct.baseUnitCode !== viewingProduct.unit &&
+                                        Number(viewingProduct.conversionRate || 1) > 1
+                                            ? `${viewingProduct.unit} (1 = ${viewingProduct.conversionRate} ${viewingProduct.baseUnitCode})`
+                                            : viewingProduct.unit || viewingProduct.baseUnitCode || 'Cái'}
+                                    </span>
+                                </div>
+                                {viewingProduct.stock !== undefined && (
+                                    <div className="info-row">
+                                        <span className="label">Tồn kho:</span>
+                                        <span className={`value stock ${viewingProduct.stock <= 0 ? 'out' : ''}`}>
+                                            {viewingProduct.stock} {viewingProduct.baseUnitCode || 'Cái'}
+                                        </span>
+                                    </div>
+                                )}
+                                {viewingProduct.categoryName && (
+                                    <div className="info-row">
+                                        <span className="label">Danh mục:</span>
+                                        <span className="value">{viewingProduct.categoryName}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        
+                        <div className="modal-footer">
+                            <button 
+                                className="btn-cancel" 
+                                onClick={() => setViewingProduct(null)}
+                            >
+                                Đóng
+                            </button>
+                            <button 
+                                className="btn-primary" 
+                                onClick={() => {
+                                    addToCart(viewingProduct);
+                                    setViewingProduct(null);
+                                    setSearch('');
+                                    toast.success(`Đã thêm: ${viewingProduct.name}`);
+                                }}
+                            >
+                                <MdAdd /> Thêm vào giỏ hàng
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }
