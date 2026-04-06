@@ -217,7 +217,7 @@ const formatPrintCurrency = (value: number, showDecimals: boolean) => {
 const formatQuantityValue = (value: number) => {
     return new Intl.NumberFormat('vi-VN', {
         minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
-        maximumFractionDigits: 1,
+        maximumFractionDigits: 3, // Hiển thị tối đa 3 chữ số thập phân
     }).format(value);
 };
 
@@ -618,7 +618,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         const decimalPart = normalized
             .slice(separatorIndex + 1)
             .replace(/,/g, '')
-            .slice(0, 1);
+            .slice(0, 3); // Cho phép tối đa 3 chữ số thập phân
         const integerPart = integerPartRaw || '0';
 
         return decimalPart ? `${integerPart},${decimalPart}` : `${integerPart},`;
@@ -635,20 +635,18 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             return null;
         }
 
-        return Math.round(parsed * 10) / 10;
+        return Math.round(parsed * 1000) / 1000; // Làm tròn đến 3 chữ số thập phân
     };
 
     const resolveBaseQuantity = (displayQuantity: number, conversionRate: number) => {
         const rawBaseQuantity = displayQuantity * conversionRate;
-        const roundedBaseQuantity = Math.round(rawBaseQuantity);
+        const roundedBaseQuantity = Math.round(rawBaseQuantity * 1000) / 1000; // Làm tròn đến 3 chữ số thập phân
 
         if (!Number.isFinite(rawBaseQuantity) || roundedBaseQuantity <= 0) {
             return null;
         }
 
-        return Math.abs(rawBaseQuantity - roundedBaseQuantity) < 1e-9
-            ? roundedBaseQuantity
-            : null;
+        return roundedBaseQuantity;
     };
 
     const formatCurrency = (value: number) => {
