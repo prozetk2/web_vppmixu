@@ -35,6 +35,13 @@ const STATUS_LABELS: Record<string, string> = {
     RETURNED: 'Đã trả hàng',
 };
 
+const formatQuantity = (value: number) => {
+    return new Intl.NumberFormat('vi-VN', {
+        minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+        maximumFractionDigits: 3,
+    }).format(value);
+};
+
 export default function SalesList() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
@@ -291,7 +298,7 @@ export default function SalesList() {
                                 {selectedOrder.orderItems.map((item) => (
                                     <tr key={item.id}>
                                         <td>{item.variant?.product?.name || 'N/A'}</td>
-                                        <td>{Number(item.quantity)}</td>
+                                        <td>{formatQuantity(Number(item.quantity))}</td>
                                         <td>{formatCurrency(Number(item.unitPrice))}đ</td>
                                         <td>{formatCurrency(Number(item.totalPrice))}đ</td>
                                     </tr>

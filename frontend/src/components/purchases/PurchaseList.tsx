@@ -78,6 +78,13 @@ const removeAccents = (str: string) => {
         .toLowerCase();
 };
 
+const formatQuantity = (value: number) => {
+    return new Intl.NumberFormat('vi-VN', {
+        minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+        maximumFractionDigits: 3,
+    }).format(value);
+};
+
 export default function PurchaseList() {
     const [purchases, setPurchases] = useState<Purchase[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -1713,7 +1720,7 @@ export default function PurchaseList() {
                                                     )}
                                                 </td>
                                                 <td className="col-unit">{item.unit || item.variant?.product?.unit || 'Cái'}</td>
-                                                <td className="col-qty">{item.quantity}</td>
+                                                <td className="col-qty">{formatQuantity(Number(item.quantity))}</td>
                                                 <td className="col-price">{formatCurrency(Number(item.unitCost))}đ</td>
                                                 <td className="col-total">{formatCurrency(Number(item.totalCost))}đ</td>
                                             </tr>

@@ -123,6 +123,13 @@ const escapeHtml = (value: string | number | null | undefined) => {
         .replace(/'/g, '&#39;');
 };
 
+const formatQuantity = (value: number) => {
+    return new Intl.NumberFormat('vi-VN', {
+        minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
+        maximumFractionDigits: 3,
+    }).format(value);
+};
+
 export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
@@ -634,7 +641,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                         <td class="text-center">${index + 1}</td>
                         <td>${printField(item.productName, '-')}</td>
                         <td class="text-center">${printField(item.unit, 'Cái')}</td>
-                        <td class="text-center">${escapeHtml(item.quantity)}</td>
+                        <td class="text-center">${escapeHtml(formatQuantity(Number(item.quantity)))}</td>
                         <td class="text-right">${escapeHtml(formatCurrency(Number(item.unitPrice)))}</td>
                         <td class="text-right">${escapeHtml(formatCurrency(Number(item.totalPrice)))}</td>
                     </tr>
@@ -1415,7 +1422,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                                                                         <a href="#" className="product-code">{item.productCode || '-'}</a>
                                                                                     </td>
                                                                                     <td>{item.productName || '-'}</td>
-                                                                                    <td className="text-right">{Number(item.quantity)}</td>
+                                                                                    <td className="text-right">{formatQuantity(Number(item.quantity))}</td>
                                                                                     <td className="text-right">{formatCurrency(Number(item.unitPrice))}</td>
                                                                                     <td className="text-right">{formatCurrency(Number(item.discountAmount || 0))}</td>
                                                                                     <td className="text-right">{formatCurrency(Number(item.salePrice || item.unitPrice))}</td>
@@ -1640,7 +1647,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                             <tr key={idx}>
                                                 <td>{item.productCode}</td>
                                                 <td>{item.productName}</td>
-                                                <td>{Number(item.quantity)}</td>
+                                                <td>{formatQuantity(Number(item.quantity))}</td>
                                                 <td>{formatCurrency(Number(item.unitPrice))}</td>
                                                 <td>{formatCurrency(Number(item.totalPrice))}</td>
                                             </tr>
