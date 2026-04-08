@@ -205,6 +205,7 @@ export const purchasesAPI = {
         supplierId: string;
         warehouseId?: string;
         items: { productId: string; quantity: number; unitCost: number; unit?: string; displayQuantity?: number }[];
+        discountAmount?: number;
         note?: string;
     }) => api.post('/purchases', data),
     getAll: (params?: Record<string, unknown>) => api.get('/purchases', { params }),
@@ -213,6 +214,7 @@ export const purchasesAPI = {
         supplierId?: string;
         warehouseId?: string;
         items?: { productId: string; quantity: number; unitCost: number; unit?: string; displayQuantity?: number }[];
+        discountAmount?: number;
         note?: string;
     }) => api.put(`/purchases/${id}`, data),
     delete: (id: string) => api.delete(`/purchases/${id}`),

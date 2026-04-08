@@ -13,8 +13,8 @@ export class BulkAdjustItemDto {
     @IsString()
     warehouseId!: string;
 
-    @IsInt()
-    @Min(0)
+    @Type(() => Number)
+    @Min(0) // Allow 0 or positive decimal quantities
     quantity!: number;
 
     @IsEnum(MovementType)

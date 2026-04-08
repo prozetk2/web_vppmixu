@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { invoicesAPI, salesAPI, settingsAPI } from '../../services/api';
+import { readTabState, writeTabState } from '../../services/tabStateCache';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import {
@@ -104,6 +105,23 @@ interface InvoiceListProps {
     onEditInPOS?: (invoiceData: any) => void;
 }
 
+interface InvoiceListCacheState {
+    showFilterPanel: boolean;
+    search: string;
+    timeFilter: string;
+    dateFrom: string;
+    dateTo: string;
+    statusFilter: string[];
+    eInvoiceStatus: string;
+    paymentMethod: string;
+    creator: string;
+    seller: string;
+    priceList: string;
+    salesChannel: string;
+    page: number;
+    limit: number;
+}
+
 const PRINT_TEMPLATE_DEFAULTS = {
     logoText: 'MIXU',
     logoSub: 'OFFICE SUPPLIES',
@@ -130,10 +148,32 @@ const formatQuantity = (value: number) => {
     }).format(value);
 };
 
+const INVOICE_LIST_CACHE_KEY = 'invoice-list';
+
+const INVOICE_LIST_CACHE_DEFAULTS: InvoiceListCacheState = {
+    showFilterPanel: false,
+    search: '',
+    timeFilter: 'thisMonth',
+    dateFrom: '',
+    dateTo: '',
+    statusFilter: ['COMPLETED'],
+    eInvoiceStatus: '',
+    paymentMethod: '',
+    creator: '',
+    seller: '',
+    priceList: '',
+    salesChannel: '',
+    page: 1,
+    limit: 20,
+};
+
 export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
+    const cachedStateRef = useRef<InvoiceListCacheState>(
+        readTabState(INVOICE_LIST_CACHE_KEY, INVOICE_LIST_CACHE_DEFAULTS)
+    );
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
-    const [showFilterPanel, setShowFilterPanel] = useState(false);
+    const [showFilterPanel, setShowFilterPanel] = useState(cachedStateRef.current.showFilterPanel);
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [filterOptions, setFilterOptions] = useState<FilterOptions>({
         creators: [],
@@ -144,21 +184,21 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
     });
 
     // Filters
-    const [search, setSearch] = useState('');
-    const [timeFilter, setTimeFilter] = useState('thisMonth');
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
-    const [statusFilter, setStatusFilter] = useState<string[]>(['COMPLETED']);
-    const [eInvoiceStatus, setEInvoiceStatus] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState('');
-    const [creator, setCreator] = useState('');
-    const [seller, setSeller] = useState('');
-    const [priceList, setPriceList] = useState('');
-    const [salesChannel, setSalesChannel] = useState('');
+    const [search, setSearch] = useState(cachedStateRef.current.search);
+    const [timeFilter, setTimeFilter] = useState(cachedStateRef.current.timeFilter);
+    const [dateFrom, setDateFrom] = useState(cachedStateRef.current.dateFrom);
+    const [dateTo, setDateTo] = useState(cachedStateRef.current.dateTo);
+    const [statusFilter, setStatusFilter] = useState<string[]>(cachedStateRef.current.statusFilter);
+    const [eInvoiceStatus, setEInvoiceStatus] = useState(cachedStateRef.current.eInvoiceStatus);
+    const [paymentMethod, setPaymentMethod] = useState(cachedStateRef.current.paymentMethod);
+    const [creator, setCreator] = useState(cachedStateRef.current.creator);
+    const [seller, setSeller] = useState(cachedStateRef.current.seller);
+    const [priceList, setPriceList] = useState(cachedStateRef.current.priceList);
+    const [salesChannel, setSalesChannel] = useState(cachedStateRef.current.salesChannel);
 
     // Pagination
-    const [page, setPage] = useState(1);
-    const [limit, setLimit] = useState(20);
+    const [page, setPage] = useState(cachedStateRef.current.page);
+    const [limit, setLimit] = useState(cachedStateRef.current.limit);
     const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
 
     // Modals
@@ -166,6 +206,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
     const [showEditModal, setShowEditModal] = useState(false);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+    const [sourceInvoiceForCopy, setSourceInvoiceForCopy] = useState<Invoice | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [expandedInvoiceDetail, setExpandedInvoiceDetail] = useState<Invoice | null>(null);
@@ -199,6 +240,40 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
     useEffect(() => {
         fetchFilterOptions();
     }, []);
+
+    useEffect(() => {
+        writeTabState(INVOICE_LIST_CACHE_KEY, {
+            showFilterPanel,
+            search,
+            timeFilter,
+            dateFrom,
+            dateTo,
+            statusFilter,
+            eInvoiceStatus,
+            paymentMethod,
+            creator,
+            seller,
+            priceList,
+            salesChannel,
+            page,
+            limit,
+        });
+    }, [
+        showFilterPanel,
+        search,
+        timeFilter,
+        dateFrom,
+        dateTo,
+        statusFilter,
+        eInvoiceStatus,
+        paymentMethod,
+        creator,
+        seller,
+        priceList,
+        salesChannel,
+        page,
+        limit,
+    ]);
 
     const fetchFilterOptions = async () => {
         try {
@@ -562,6 +637,41 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
         }
     };
 
+    const normalizeInvoiceDetail = (invoiceData: any, fallbackId?: string): Invoice => ({
+        ...invoiceData,
+        id: invoiceData.id?.toString() || fallbackId || '',
+        items: Array.isArray(invoiceData.items)
+            ? invoiceData.items.map((item: any) => ({
+                ...item,
+                id: item.id?.toString(),
+            }))
+            : [],
+    });
+
+    const fetchInvoiceDetail = async (invoiceId: string) => {
+        const response = await invoicesAPI.getOne(invoiceId);
+        return normalizeInvoiceDetail(response.data.data || response.data, invoiceId);
+    };
+
+    const openCreateInvoiceModal = (invoiceToCopy?: Invoice | null) => {
+        setSourceInvoiceForCopy(invoiceToCopy || null);
+        setShowAddModal(true);
+    };
+
+    const handleCopyInvoice = async (invoice: Invoice) => {
+        try {
+            const invoiceToCopy =
+                invoice.items && invoice.items.length > 0
+                    ? normalizeInvoiceDetail(invoice, invoice.id)
+                    : await fetchInvoiceDetail(invoice.id);
+
+            openCreateInvoiceModal(invoiceToCopy);
+        } catch (error) {
+            console.error('Failed to prepare invoice copy:', error);
+            toast.error('Không thể sao chép hóa đơn');
+        }
+    };
+
     // Toggle expandable row
     const toggleExpand = async (invoiceId: string) => {
         if (expandedId === invoiceId) {
@@ -569,25 +679,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
             setExpandedInvoiceDetail(null);
         } else {
             try {
-                console.log('Fetching invoice detail for id:', invoiceId);
-                const response = await invoicesAPI.getOne(invoiceId);
-                console.log('API response:', response);
-
-                // Data is nested: response.data.data
-                const invoiceData = response.data.data || response.data;
-                console.log('Invoice data:', invoiceData);
-                console.log('totalAmount:', invoiceData.totalAmount);
-
-                setExpandedInvoiceDetail({
-                    ...invoiceData,
-                    id: invoiceData.id?.toString() || invoiceId,
-                    items: Array.isArray(invoiceData.items)
-                        ? invoiceData.items.map((item: any) => ({
-                            ...item,
-                            id: item.id?.toString(),
-                        }))
-                        : [],
-                });
+                setExpandedInvoiceDetail(await fetchInvoiceDetail(invoiceId));
                 setExpandedId(invoiceId);
             } catch (error: any) {
                 console.error('Toggle expand error:', error);
@@ -1034,7 +1126,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                         >
                             <MdFilterList />
                         </button>
-                        <button className="btn-outline-primary" onClick={() => setShowAddModal(true)} style={{ fontWeight: 'bold', color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}>
+                        <button className="btn-outline-primary" onClick={() => openCreateInvoiceModal()} style={{ fontWeight: 'bold', color: 'var(--color-primary)', borderColor: 'var(--color-primary)' }}>
                             <MdAdd /> Hóa đơn
                         </button>
                         <button className="btn-secondary" onClick={handleImportClick}>
@@ -1333,6 +1425,8 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                                                         discountAmount: detail.discountAmount || 0,
                                                                         totalAmount: detail.totalAmount,
                                                                         status: detail.status,
+                                                                        createdAt: detail.createdAt, // Include original date
+                                                                        issuedAt: detail.issuedAt, // Include issued date as fallback
                                                                     });
                                                                 } catch (error) {
                                                                     console.error('Failed to fetch invoice detail:', error);
@@ -1471,7 +1565,10 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                                                     <button className="btn-action" onClick={() => setDeleteId(invoice.id)}>
                                                                         <MdCancel /> Hủy
                                                                     </button>
-                                                                    <button className="btn-action">
+                                                                    <button
+                                                                        className="btn-action"
+                                                                        onClick={() => handleCopyInvoice(expandedInvoiceDetail || invoice)}
+                                                                    >
                                                                         <MdContentCopy /> Sao chép
                                                                     </button>
                                                                     <button className="btn-action" onClick={() => handleExport('detailed')}>
@@ -1493,6 +1590,8 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                                                                     discountAmount: invoiceToEdit.discountAmount || 0,
                                                                                     totalAmount: invoiceToEdit.totalAmount,
                                                                                     status: invoiceToEdit.status,
+                                                                                    createdAt: invoiceToEdit.createdAt, // Include original date
+                                                                                    issuedAt: invoiceToEdit.issuedAt, // Include issued date as fallback
                                                                                 });
                                                                             }}
                                                                         >
@@ -1690,10 +1789,15 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
 
             <CreateInvoiceModal
                 isOpen={showAddModal}
-                onClose={() => setShowAddModal(false)}
+                onClose={() => {
+                    setShowAddModal(false);
+                    setSourceInvoiceForCopy(null);
+                }}
                 onSuccess={() => {
                     fetchInvoices();
+                    setSourceInvoiceForCopy(null);
                 }}
+                sourceInvoice={sourceInvoiceForCopy}
             />
 
             <EditInvoiceModal

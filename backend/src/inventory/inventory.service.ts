@@ -298,27 +298,27 @@ export class InventoryService {
             }
 
             // Calculate new quantity based on movement type
-            let newQuantity: bigint;
-            let movementQuantity: bigint;
+            let newQuantity: number;
+            let movementQuantity: number;
 
             switch (type) {
                 case MovementType.IMPORT:
-                    newQuantity = inventory.quantity + BigInt(quantity);
-                    movementQuantity = BigInt(quantity);
+                    newQuantity = Number(inventory.quantity) + quantity;
+                    movementQuantity = quantity;
                     break;
 
                 case MovementType.EXPORT:
-                    if (inventory.quantity < BigInt(quantity)) {
+                    if (Number(inventory.quantity) < quantity) {
                         throw new BadRequestException('INSUFFICIENT_STOCK');
                     }
-                    newQuantity = inventory.quantity - BigInt(quantity);
-                    movementQuantity = BigInt(quantity);
+                    newQuantity = Number(inventory.quantity) - quantity;
+                    movementQuantity = quantity;
                     break;
 
                 case MovementType.ADJUST:
                     // For ADJUST, quantity is the new absolute value
-                    newQuantity = BigInt(quantity);
-                    movementQuantity = BigInt(quantity) - inventory.quantity;
+                    newQuantity = quantity;
+                    movementQuantity = quantity - Number(inventory.quantity);
                     break;
 
                 default:
@@ -927,7 +927,7 @@ export class InventoryService {
                 },
             });
 
-            if (!inventory || inventory.quantity < BigInt(item.quantity)) {
+            if (!inventory || Number(inventory.quantity) < item.quantity) {
                 throw new Error(
                     `Insufficient stock for ${item.productCode}. Available: ${inventory?.quantity || 0}, Required: ${item.quantity}`
                 );

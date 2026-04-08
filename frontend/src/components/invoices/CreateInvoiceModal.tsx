@@ -17,6 +17,24 @@ interface CreateInvoiceModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+    sourceInvoice?: {
+        invoiceNumber?: string;
+        customerName?: string;
+        customerPhone?: string;
+        customerAddress?: string;
+        notes?: string;
+        paymentMethod?: string;
+        amountPaid?: number;
+        items?: Array<{
+            productCode?: string;
+            productName?: string;
+            unit?: string;
+            quantity?: number;
+            unitPrice?: number;
+            discountAmount?: number;
+            totalPrice?: number;
+        }>;
+    } | null;
 }
 
 interface InvoiceItemState {
@@ -30,7 +48,12 @@ interface InvoiceItemState {
     totalPrice: number;
 }
 
-export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }: CreateInvoiceModalProps) {
+export default function CreateInvoiceModal({
+    isOpen,
+    onClose,
+    onSuccess,
+    sourceInvoice,
+}: CreateInvoiceModalProps) {
     const toast = useToast();
     const [loading, setLoading] = useState(false);
     const [products, setProducts] = useState<Product[]>([]);
@@ -47,9 +70,13 @@ export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }: Creat
     useEffect(() => {
         if (isOpen) {
             fetchProducts();
-            resetForm();
+            if (sourceInvoice) {
+                populateFromSourceInvoice(sourceInvoice);
+            } else {
+                resetForm();
+            }
         }
-    }, [isOpen]);
+    }, [isOpen, sourceInvoice]);
 
     const fetchProducts = async () => {
         try {
@@ -81,6 +108,35 @@ export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }: Creat
         discountAmount: 0,
         totalPrice: 0
     });
+
+    const populateFromSourceInvoice = (invoice: NonNullable<CreateInvoiceModalProps['sourceInvoice']>) => {
+        setCustomerName(invoice.customerName || '');
+        setCustomerPhone(invoice.customerPhone || '');
+        setCustomerAddress(invoice.customerAddress || '');
+        setPaymentMethod(invoice.paymentMethod || 'CASH');
+        setAmountPaid(Number(invoice.amountPaid) || 0);
+        setNotes(invoice.notes || '');
+        setItems(
+            invoice.items && invoice.items.length > 0
+                ? invoice.items.map((item) => {
+                    const quantity = Number(item.quantity) || 1;
+                    const unitPrice = Number(item.unitPrice) || 0;
+                    const discountAmount = Number(item.discountAmount) || 0;
+                    const totalPrice = Number(item.totalPrice);
+
+                    return {
+                        productCode: item.productCode || '',
+                        productName: item.productName || '',
+                        unit: item.unit || '',
+                        quantity,
+                        unitPrice,
+                        discountAmount,
+                        totalPrice: Number.isFinite(totalPrice) ? totalPrice : (quantity * unitPrice) - discountAmount,
+                    };
+                })
+                : [createEmptyItem()]
+        );
+    };
 
     const handleAddItem = () => {
         setItems([...items, createEmptyItem()]);
@@ -180,7 +236,12 @@ export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }: Creat
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Tạo hóa đơn mới" size="lg">
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={sourceInvoice?.invoiceNumber ? `Sao chép hóa đơn ${sourceInvoice.invoiceNumber}` : 'Tạo hóa đơn mới'}
+            size="lg"
+        >
             <div className="create-invoice-form">
                 <div className="form-section">
                     <h4>Thông tin khách hàng</h4>

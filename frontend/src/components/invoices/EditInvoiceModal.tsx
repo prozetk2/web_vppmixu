@@ -24,6 +24,7 @@ interface Invoice {
     totalAmount: number;
     discountAmount: number;
     amountPaid: number;
+    createdAt?: string | Date;
     items?: any[];
 }
 
@@ -57,6 +58,7 @@ export default function EditInvoiceModal({ isOpen, onClose, onSuccess, invoice }
     const [paymentMethod, setPaymentMethod] = useState('CASH');
     const [amountPaid, setAmountPaid] = useState<number>(0);
     const [notes, setNotes] = useState('');
+    const [createdAt, setCreatedAt] = useState<string>('');
     const [items, setItems] = useState<InvoiceItemState[]>([]);
 
     useEffect(() => {
@@ -69,6 +71,17 @@ export default function EditInvoiceModal({ isOpen, onClose, onSuccess, invoice }
             setPaymentMethod(invoice.paymentMethod || 'CASH');
             setAmountPaid(Number(invoice.amountPaid) || 0);
             setNotes(invoice.notes || '');
+            
+            // Set createdAt date - format for datetime-local input
+            if (invoice.createdAt) {
+                const date = new Date(invoice.createdAt);
+                const formattedDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 16);
+                setCreatedAt(formattedDate);
+            } else {
+                setCreatedAt('');
+            }
 
             if (invoice.items && invoice.items.length > 0) {
                 setItems(invoice.items.map(item => ({
@@ -181,6 +194,7 @@ export default function EditInvoiceModal({ isOpen, onClose, onSuccess, invoice }
                 cashAmount: paymentMethod === 'CASH' ? Number(amountPaid) : 0,
                 cardAmount: paymentMethod === 'CARD' ? Number(amountPaid) : 0,
                 transferAmount: paymentMethod === 'TRANSFER' ? Number(amountPaid) : 0,
+                createdAt: createdAt ? new Date(createdAt).toISOString() : undefined,
 
                 items: items.map(item => ({
                     productCode: item.productCode,
@@ -208,6 +222,20 @@ export default function EditInvoiceModal({ isOpen, onClose, onSuccess, invoice }
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Sửa hóa đơn ${invoice?.invoiceNumber}`} size="lg">
             <div className="create-invoice-form">
+                <div className="form-section">
+                    <h4>Thông tin hóa đơn</h4>
+                    <div className="form-row">
+                        <div className="form-group">
+                            <label>Ngày xuất hóa đơn</label>
+                            <input
+                                type="datetime-local"
+                                value={createdAt}
+                                onChange={e => setCreatedAt(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                </div>
+
                 <div className="form-section">
                     <h4>Thông tin khách hàng</h4>
                     <div className="form-row">

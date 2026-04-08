@@ -14,8 +14,8 @@ export class AdjustStockDto {
     @IsString()
     productId!: string;
 
-    @IsInt()
-    @Min(1)
+    @Type(() => Number)
+    @Min(0.001) // Allow decimal quantities > 0
     quantity!: number;
 
     @IsEnum(MovementType)

@@ -6,7 +6,7 @@ export class UpdatePurchaseItemDto {
     productId: string;
 
     @IsNumber()
-    @Min(1)
+    @Min(0.001)
     quantity: number;
 
     @IsString()
@@ -41,6 +41,11 @@ export class UpdatePurchaseDto {
     @IsOptional()
     @IsString()
     note?: string;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    discountAmount?: number;
 
     @IsOptional()
     @IsString()

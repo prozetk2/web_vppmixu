@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { suppliersAPI } from '../../services/api';
+import { readTabState, writeTabState } from '../../services/tabStateCache';
 import Modal from '../shared/Modal';
+import CurrencyInput from '../shared/CurrencyInput';
 import { Toast, useToast } from '../shared/Toast';
 import XLSX from 'xlsx-js-style';
 import {
@@ -101,9 +103,53 @@ interface SupplierPayment {
     method?: string;
     note?: string;
     createdAt: string;
+    allocations?: Array<{
+        purchaseOrderId: string;
+        orderNumber?: string;
+        amount: number;
+    }>;
 }
 
+interface PaymentFormState {
+    dateTime: string;
+    payer: string;
+    paymentMethod: 'CASH' | 'TRANSFER' | 'CARD';
+    amount: number;
+    note: string;
+    allocateToPurchases: boolean;
+    selectedPurchaseId: string;
+}
+
+interface SupplierListCacheState {
+    sidebarCollapsed: boolean;
+    currentPage: number;
+    itemsPerPage: number;
+    filters: FilterState;
+}
+
+const SUPPLIER_LIST_CACHE_KEY = 'supplier-list';
+
+const SUPPLIER_LIST_CACHE_DEFAULTS: SupplierListCacheState = {
+    sidebarCollapsed: false,
+    currentPage: 1,
+    itemsPerPage: 100,
+    filters: {
+        search: '',
+        status: 'all',
+        totalPurchaseFrom: '',
+        totalPurchaseTo: '',
+        currentDebtFrom: '',
+        currentDebtTo: '',
+        dateFrom: '',
+        dateTo: '',
+        timeFilter: 'all',
+    },
+};
+
 export default function SupplierList() {
+    const cachedStateRef = useRef<SupplierListCacheState>(
+        readTabState(SUPPLIER_LIST_CACHE_KEY, SUPPLIER_LIST_CACHE_DEFAULTS)
+    );
     const createEmptyFormData = (): FormData => ({
         code: '',
         name: '',
@@ -119,6 +165,16 @@ export default function SupplierList() {
         active: true,
     });
 
+    const createEmptyPaymentForm = (): PaymentFormState => ({
+        dateTime: new Date().toISOString().slice(0, 16),
+        payer: 'Mixu',
+        paymentMethod: 'CASH',
+        amount: 0,
+        note: '',
+        allocateToPurchases: true,
+        selectedPurchaseId: '',
+    });
+
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [loading, setLoading] = useState(true);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -126,7 +182,7 @@ export default function SupplierList() {
     const [formData, setFormData] = useState<FormData>(createEmptyFormData());
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(cachedStateRef.current.sidebarCollapsed);
 
     // Expandable row state
     const [expandedSupplierId, setExpandedSupplierId] = useState<string | null>(null);
@@ -157,19 +213,12 @@ export default function SupplierList() {
     const [selectedSupplierForDebt, setSelectedSupplierForDebt] = useState<Supplier | null>(null);
 
     // Payment form state
-    const [paymentForm, setPaymentForm] = useState({
-        dateTime: new Date().toISOString().slice(0, 16),
-        payer: 'Mixu',
-        paymentMethod: 'cash',
-        amount: '',
-        note: '',
-        allocateToPurchases: true
-    });
+    const [paymentForm, setPaymentForm] = useState<PaymentFormState>(createEmptyPaymentForm());
 
     // Adjustment form state
     const [adjustmentForm, setAdjustmentForm] = useState({
         adjustDate: '',
-        adjustAmount: '',
+        adjustAmount: 0,
         description: ''
     });
 
@@ -177,7 +226,7 @@ export default function SupplierList() {
     const [discountForm, setDiscountForm] = useState({
         dateTime: new Date().toISOString().slice(0, 16),
         executor: 'Mixu',
-        discountAmount: '',
+        discountAmount: 0,
         note: '',
         allocateToPurchases: false
     });
@@ -198,23 +247,13 @@ export default function SupplierList() {
     });
 
     // Pagination
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useState(cachedStateRef.current.currentPage);
     const [totalPages, setTotalPages] = useState(1);
     const [totalSuppliers, setTotalSuppliers] = useState(0);
-    const [itemsPerPage, setItemsPerPage] = useState(100);
+    const [itemsPerPage, setItemsPerPage] = useState(cachedStateRef.current.itemsPerPage);
 
     // Filters
-    const [filters, setFilters] = useState<FilterState>({
-        search: '',
-        status: 'all',
-        totalPurchaseFrom: '',
-        totalPurchaseTo: '',
-        currentDebtFrom: '',
-        currentDebtTo: '',
-        dateFrom: '',
-        dateTo: '',
-        timeFilter: 'all',
-    });
+    const [filters, setFilters] = useState<FilterState>(cachedStateRef.current.filters);
 
     // Import
     const [importing, setImporting] = useState(false);
@@ -222,9 +261,15 @@ export default function SupplierList() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const toast = useToast();
-    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState(cachedStateRef.current.filters.search || '');
+    const hasInitializedSearchRef = useRef(false);
 
     useEffect(() => {
+        if (!hasInitializedSearchRef.current) {
+            hasInitializedSearchRef.current = true;
+            return;
+        }
+
         const timer = setTimeout(() => {
             setDebouncedSearch(filters.search || '');
             setCurrentPage(1); // Reset page to 1 when search happens
@@ -241,6 +286,15 @@ export default function SupplierList() {
             fetchPayments(expandedSupplierId);
         }
     }, [expandedSupplierId, activeDetailTab]);
+
+    useEffect(() => {
+        writeTabState(SUPPLIER_LIST_CACHE_KEY, {
+            sidebarCollapsed,
+            currentPage,
+            itemsPerPage,
+            filters,
+        });
+    }, [sidebarCollapsed, currentPage, itemsPerPage, filters]);
 
     const fetchSuppliers = async () => {
         setLoading(true);
@@ -360,7 +414,12 @@ export default function SupplierList() {
                 amount: Number(p.amount) || 0,
                 method: p.method,
                 note: p.note,
-                createdAt: p.createdAt
+                createdAt: p.createdAt,
+                allocations: (p.allocations || []).map((allocation: any) => ({
+                    purchaseOrderId: allocation.purchaseOrderId?.toString() || allocation.purchaseOrder?.id?.toString(),
+                    orderNumber: allocation.purchaseOrder?.orderNumber,
+                    amount: Number(allocation.amount) || 0,
+                })),
             })));
         } catch (error) {
             console.error('Failed to fetch payments:', error);
@@ -377,6 +436,7 @@ export default function SupplierList() {
             await suppliersAPI.deletePayment(supplierId, paymentId);
             toast.success('Đã xóa thanh toán thành công');
             fetchPayments(supplierId);
+            fetchSupplierPurchases(supplierId);
             fetchSuppliers();
         } catch (error: any) {
             console.error('Failed to delete payment:', error);
@@ -441,14 +501,9 @@ export default function SupplierList() {
     // Open Payment Modal
     const openPaymentModal = (supplier: Supplier) => {
         setSelectedSupplierForDebt(supplier);
-        setPaymentForm({
-            dateTime: new Date().toISOString().slice(0, 16),
-            payer: 'Mixu',
-            paymentMethod: 'cash',
-            amount: '',
-            note: '',
-            allocateToPurchases: true
-        });
+        setPaymentForm(createEmptyPaymentForm());
+        setSupplierPurchases([]);
+        fetchSupplierPurchases(supplier.id);
         setPaymentModalOpen(true);
     };
 
@@ -457,7 +512,7 @@ export default function SupplierList() {
         setSelectedSupplierForDebt(supplier);
         setAdjustmentForm({
             adjustDate: new Date().toISOString().slice(0, 16),
-            adjustAmount: '',
+            adjustAmount: 0,
             description: ''
         });
         setAdjustmentModalOpen(true);
@@ -469,7 +524,7 @@ export default function SupplierList() {
         setDiscountForm({
             dateTime: new Date().toISOString().slice(0, 16),
             executor: 'Mixu',
-            discountAmount: '',
+            discountAmount: 0,
             note: '',
             allocateToPurchases: false
         });
@@ -525,148 +580,216 @@ export default function SupplierList() {
         const dateRange = getDateRange(exportDebtTimePeriod);
         const fromDate = dateRange.from.toLocaleDateString('vi-VN');
         const toDate = dateRange.to.toLocaleDateString('vi-VN');
-        const currentDebt = supplier.currentDebt || 0;
+        const currentDebt = Number(supplier.currentDebt || 0);
+        const filteredPurchases = supplierPurchases.filter((purchase) => {
+            const purchaseDate = new Date(purchase.createdAt);
+            return purchaseDate >= dateRange.from && purchaseDate <= dateRange.to;
+        });
+        const periodDebt = filteredPurchases.reduce((sum, purchase) => sum + Number(purchase.totalAmount || 0), 0);
 
-        // Create workbook
-        const workbook = XLSX.utils.book_new();
-
-        // Build data rows
-        const data: any[][] = [];
-
-        // Header rows
-        data.push(['Công Ty TNHH MTV TM&DV MIXU']);
-        data.push(['Địa chỉ', 'Phường Hòa Thuận Tây, Quận Hải Châu']);
-        data.push(['Điện thoại', '']);
-        data.push([]);
-        data.push(['', '', '', 'Công nợ chi tiết nhà cung cấp']);
-        data.push(['', '', '', `Từ ngày ${fromDate} đến ngày ${toDate}`]);
-        data.push([]);
-
-        // Supplier info
-        data.push(['Tên NCC', supplier.name, '', '', '', '', 'Nợ đầu kỳ', '', formatCurrency(currentDebt)]);
-        data.push(['Mã NCC', supplier.code || '', '', '', '', '', 'Phát sinh trong k', '', '0', '0']);
-        data.push(['Điện thoại', supplier.phone || '', '', '', '', '', 'Nợ cuối kỳ', '', formatCurrency(currentDebt)]);
-        data.push([]);
-
-        // Table header - build dynamically based on selected fields
         const headers = ['Thời gian', 'Mã', 'Diễn giải'];
-        if (exportDebtFields.dvt) headers.push('ĐVT');
-        if (exportDebtFields.soLuong) headers.push('Số lượng');
-        if (exportDebtFields.donGia) headers.push('Đơn giá');
-        if (exportDebtFields.giamGia) headers.push('Giảm giá');
-        if (exportDebtFields.vat) headers.push('VAT');
-        if (exportDebtFields.giaNhapTra) headers.push('Giá nhập/trả');
-        if (exportDebtFields.thanhTien) headers.push('Thành tiền');
-        headers.push('Ghi nợ', 'Ghi có');
+        const columnWidths: { wch: number }[] = [
+            { wch: 18 },
+            { wch: 18 },
+            { wch: 28 },
+        ];
+        const numericColumnIndices: number[] = [];
+        const appendColumn = (label: string, width: number, isNumeric = false) => {
+            headers.push(label);
+            if (isNumeric) {
+                numericColumnIndices.push(columnWidths.length);
+            }
+            columnWidths.push({ wch: width });
+        };
 
-        data.push(headers);
+        if (exportDebtFields.dvt) appendColumn('ĐVT', 10);
+        if (exportDebtFields.soLuong) appendColumn('Số lượng', 10, true);
+        if (exportDebtFields.donGia) appendColumn('Đơn giá', 14, true);
+        if (exportDebtFields.giamGia) appendColumn('Giảm giá', 14, true);
+        if (exportDebtFields.vat) appendColumn('VAT', 10, true);
+        if (exportDebtFields.giaNhapTra) appendColumn('Giá nhập/trả', 14, true);
+        if (exportDebtFields.thanhTien) appendColumn('Thành tiền', 16, true);
+        appendColumn('Ghi nợ', 14, true);
+        appendColumn('Ghi có', 14, true);
+        if (exportDebtFields.ghiChu) appendColumn('Ghi chú', 24);
 
-        // Add purchase data if available
-        if (exportDebtFields.detailRows && supplierPurchases.length > 0) {
-            supplierPurchases.forEach(p => {
-                // If purchase has items, show each item as a row
-                if (p.purchaseItems && p.purchaseItems.length > 0) {
-                    p.purchaseItems.forEach((item, idx) => {
-                        const row: any[] = [
-                            idx === 0 ? formatDateTime(p.createdAt) : '',
-                            idx === 0 ? p.orderNumber : '',
-                            item.productName || 'Nhập hàng'
-                        ];
-                        if (exportDebtFields.dvt) row.push(item.unit || 'Cái');
-                        if (exportDebtFields.soLuong) row.push(item.quantity);
-                        if (exportDebtFields.donGia) row.push(formatCurrency(item.unitCost));
-                        if (exportDebtFields.giamGia) row.push(0);
-                        if (exportDebtFields.vat) row.push(0);
-                        if (exportDebtFields.giaNhapTra) row.push(formatCurrency(item.unitCost));
-                        if (exportDebtFields.thanhTien) row.push(formatCurrency(item.totalCost));
-                        row.push(idx === 0 ? p.totalAmount : '', 0);
-                        data.push(row);
-                    });
-                } else {
-                    // Fallback: show order summary if no items
-                    const row: any[] = [formatDateTime(p.createdAt), p.orderNumber, 'Nhập hàng'];
-                    if (exportDebtFields.dvt) row.push('');
-                    if (exportDebtFields.soLuong) row.push('');
-                    if (exportDebtFields.donGia) row.push('');
-                    if (exportDebtFields.giamGia) row.push('');
-                    if (exportDebtFields.vat) row.push('');
-                    if (exportDebtFields.giaNhapTra) row.push('');
-                    if (exportDebtFields.thanhTien) row.push(p.totalAmount);
-                    row.push(p.totalAmount, 0);
-                    data.push(row);
-                }
-            });
+        while (columnWidths.length < 12) {
+            columnWidths.push({ wch: 12 });
         }
 
-        data.push([]);
+        const totalColumns = columnWidths.length;
+        const padRow = (cells: any[] = []) => {
+            const row = [...cells];
+            while (row.length < totalColumns) {
+                row.push('');
+            }
+            return row;
+        };
 
-        // Date row
+        const workbook = XLSX.utils.book_new();
+        const data: any[][] = [];
+
+        data.push(padRow(['Công Ty TNHH MTV TM&DV MIXU']));
+        data.push(padRow(['Địa chỉ', 'Phường Hòa Thuận Tây, Quận Hải Châu']));
+        data.push(padRow(['Điện thoại', '']));
+        data.push(padRow());
+        data.push(padRow(['', '', '', 'Công nợ chi tiết nhà cung cấp']));
+        data.push(padRow(['', '', '', `Từ ngày ${fromDate} đến ngày ${toDate}`]));
+        data.push(padRow());
+        data.push(padRow(['Tên NCC', supplier.name, '', '', '', '', 'Nợ đầu kỳ', '', currentDebt]));
+        data.push(padRow(['Mã NCC', supplier.code || '', '', '', '', '', 'Phát sinh trong kỳ', '', periodDebt]));
+        data.push(padRow(['Điện thoại', supplier.phone || '', '', '', '', '', 'Nợ cuối kỳ', '', currentDebt]));
+        data.push(padRow());
+
+        const headerRowIndex = data.length;
+        data.push(padRow(headers));
+
+        const firstDataRowIndex = data.length;
+        filteredPurchases.forEach((purchase) => {
+            if (exportDebtFields.detailRows && purchase.purchaseItems && purchase.purchaseItems.length > 0) {
+                purchase.purchaseItems.forEach((item, idx) => {
+                    const row: any[] = [
+                        idx === 0 ? formatDateTime(purchase.createdAt) : '',
+                        idx === 0 ? purchase.orderNumber : '',
+                        item.productName || 'Nhập hàng',
+                    ];
+                    if (exportDebtFields.dvt) row.push(item.unit || 'Cái');
+                    if (exportDebtFields.soLuong) row.push(item.quantity);
+                    if (exportDebtFields.donGia) row.push(item.unitCost);
+                    if (exportDebtFields.giamGia) row.push(0);
+                    if (exportDebtFields.vat) row.push(0);
+                    if (exportDebtFields.giaNhapTra) row.push(item.unitCost);
+                    if (exportDebtFields.thanhTien) row.push(item.totalCost);
+                    row.push(idx === 0 ? purchase.totalAmount : '', idx === 0 ? 0 : '');
+                    if (exportDebtFields.ghiChu) row.push(idx === 0 ? (purchase.note || '') : '');
+                    data.push(padRow(row));
+                });
+                return;
+            }
+
+            const row: any[] = [formatDateTime(purchase.createdAt), purchase.orderNumber, 'Nhập hàng'];
+            if (exportDebtFields.dvt) row.push('');
+            if (exportDebtFields.soLuong) row.push('');
+            if (exportDebtFields.donGia) row.push('');
+            if (exportDebtFields.giamGia) row.push('');
+            if (exportDebtFields.vat) row.push('');
+            if (exportDebtFields.giaNhapTra) row.push('');
+            if (exportDebtFields.thanhTien) row.push(purchase.totalAmount);
+            row.push(purchase.totalAmount, 0);
+            if (exportDebtFields.ghiChu) row.push(purchase.note || '');
+            data.push(padRow(row));
+        });
+
+        const lastDataRowIndex = data.length - 1;
+
+        data.push(padRow());
+
         const currentDate = new Date();
-        data.push(['', '', '', '', '', '', '', '', '', `Ngày ${currentDate.getDate()} tháng ${currentDate.getMonth() + 1} năm ${currentDate.getFullYear()}`]);
-        data.push([]);
+        data.push(padRow(['', '', '', '', '', '', '', '', '', `Ngày ${currentDate.getDate()} tháng ${currentDate.getMonth() + 1} năm ${currentDate.getFullYear()}`]));
+        data.push(padRow());
+        data.push(padRow(['Nhà cung cấp', '', '', '', 'Người lập biểu', '', '', '', 'TM Công ty']));
+        data.push(padRow(['(Ký, họ tên)', '', '', '', '(Ký, họ tên)', '', '', '', '(Ký, họ tên)']));
 
-        // Signature row
-        data.push(['Nhà cung cấp', '', '', '', 'Người lập biểu', '', '', '', 'TM Công ty']);
-        data.push(['(Ký, họ tên)', '', '', '', '(Ký, họ tên)', '', '', '', '(Ký, họ tên)']);
-
-        // Create worksheet
         const worksheet = XLSX.utils.aoa_to_sheet(data);
 
-        // Add borders to table header and data rows
-        const headerRowIndex = 11; // Row index for table header (0-based)
-        const numCols = headers.length;
-        const numDataRows = exportDebtFields.detailRows ? supplierPurchases.length : 0;
-
-        // Define border style for xlsx-js-style
         const thinBorder = { style: 'thin', color: { rgb: '000000' } };
         const borderStyle = {
             top: thinBorder,
             bottom: thinBorder,
             left: thinBorder,
-            right: thinBorder
+            right: thinBorder,
         };
 
-        // Header cell style (bold + border)
-        const headerCellStyle = {
-            border: borderStyle,
-            font: { bold: true },
-            alignment: { horizontal: 'center', vertical: 'center' }
+        const applyStyle = (cellRef: string, style: any) => {
+            if (worksheet[cellRef]) {
+                worksheet[cellRef].s = {
+                    ...(worksheet[cellRef].s || {}),
+                    ...style,
+                };
+            }
         };
 
-        // Data cell style (border only)
-        const dataCellStyle = {
-            border: borderStyle
-        };
+        applyStyle('A1', {
+            font: { bold: true, sz: 12, color: { rgb: '006400' } },
+            fill: { fgColor: { rgb: 'EAF5EA' } },
+        });
+        ['A2', 'A3', 'A8', 'A9', 'A10', 'G8', 'G9', 'G10'].forEach((cellRef) => {
+            applyStyle(cellRef, {
+                font: { bold: true, color: { rgb: '1F4E78' } },
+            });
+        });
+        ['I8', 'I9', 'I10'].forEach((cellRef) => {
+            applyStyle(cellRef, {
+                alignment: { horizontal: 'right' },
+                numFmt: '#,##0',
+            });
+        });
+        applyStyle('D5', {
+            font: { bold: true, sz: 11 },
+            alignment: { horizontal: 'center' },
+        });
+        applyStyle('D6', {
+            font: { italic: true, sz: 10 },
+            alignment: { horizontal: 'center' },
+        });
 
-        // Apply styles to header row
-        for (let c = 0; c < numCols; c++) {
+        for (let c = 0; c < headers.length; c++) {
             const cellRef = XLSX.utils.encode_cell({ r: headerRowIndex, c });
             if (!worksheet[cellRef]) {
                 worksheet[cellRef] = { v: '', t: 's' };
             }
-            worksheet[cellRef].s = headerCellStyle;
+            worksheet[cellRef].s = {
+                border: borderStyle,
+                font: { bold: true },
+                fill: { fgColor: { rgb: 'E0E0E0' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+            };
         }
 
-        // Apply styles to data rows
-        for (let r = headerRowIndex + 1; r <= headerRowIndex + numDataRows + 1; r++) {
-            for (let c = 0; c < numCols; c++) {
-                const cellRef = XLSX.utils.encode_cell({ r, c });
-                if (!worksheet[cellRef]) {
-                    worksheet[cellRef] = { v: '', t: 's' };
+        if (lastDataRowIndex >= firstDataRowIndex) {
+            for (let r = firstDataRowIndex; r <= lastDataRowIndex; r++) {
+                for (let c = 0; c < headers.length; c++) {
+                    const cellRef = XLSX.utils.encode_cell({ r, c });
+                    if (!worksheet[cellRef]) {
+                        worksheet[cellRef] = { v: '', t: 's' };
+                    }
+                    const isNumeric = numericColumnIndices.includes(c) && typeof worksheet[cellRef].v === 'number';
+                    worksheet[cellRef].s = {
+                        border: borderStyle,
+                        alignment: {
+                            vertical: 'center',
+                            horizontal: isNumeric ? 'right' : 'left',
+                        },
+                        ...(isNumeric ? { numFmt: '#,##0' } : {}),
+                    };
                 }
-                worksheet[cellRef].s = dataCellStyle;
             }
         }
 
-        // Set column widths
-        worksheet['!cols'] = headers.map(() => ({ wch: 12 }));
+        const signatureRowIndex = data.length - 1;
+        const dateRowIndex = signatureRowIndex - 2;
+        applyStyle(`J${dateRowIndex + 1}`, {
+            font: { italic: true },
+            alignment: { horizontal: 'right' },
+        });
+        applyStyle(`A${signatureRowIndex + 1}`, { font: { italic: true, color: { rgb: '008000' } }, alignment: { horizontal: 'center' } });
+        applyStyle(`E${signatureRowIndex + 1}`, { font: { italic: true }, alignment: { horizontal: 'center' } });
+        applyStyle(`I${signatureRowIndex + 1}`, { font: { italic: true, color: { rgb: '008000' } }, alignment: { horizontal: 'center' } });
+        applyStyle(`A${signatureRowIndex}`, { font: { bold: true }, alignment: { horizontal: 'center' } });
+        applyStyle(`E${signatureRowIndex}`, { font: { bold: true }, alignment: { horizontal: 'center' } });
+        applyStyle(`I${signatureRowIndex}`, { font: { bold: true }, alignment: { horizontal: 'center' } });
 
-        // Add to workbook
+        worksheet['!cols'] = columnWidths;
+        worksheet['!rows'] = data.map(() => ({ hpx: 20 }));
+        worksheet['!merges'] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+            { s: { r: 4, c: 3 }, e: { r: 4, c: 8 } },
+            { s: { r: 5, c: 3 }, e: { r: 5, c: 8 } },
+        ];
+
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Công nợ NCC');
 
-        // Generate filename
         const fileName = `cong_no_${supplier.code || supplier.name}_${fromDate.replace(/\//g, '-')}_${toDate.replace(/\//g, '-')}.xlsx`;
-
         XLSX.writeFile(workbook, fileName);
         toast.success('Xuất file công nợ thành công!');
         setExportDebtModalOpen(false);
@@ -841,6 +964,48 @@ export default function SupplierList() {
         return new Intl.NumberFormat('vi-VN').format(num);
     };
 
+    const getPurchaseOutstanding = (purchase: PurchaseOrder): number =>
+        Math.max(0, Number(purchase.totalAmount || 0) - Number(purchase.amountPaid || 0));
+
+    const getPendingPurchases = (): PurchaseOrder[] =>
+        supplierPurchases.filter((purchase) => purchase.status !== 'CANCELLED' && getPurchaseOutstanding(purchase) > 0);
+
+    const getSelectedPurchase = (): PurchaseOrder | undefined =>
+        getPendingPurchases().find((purchase) => purchase.id === paymentForm.selectedPurchaseId);
+
+    const getPaymentTargetOutstanding = (): number => {
+        const selectedPurchase = getSelectedPurchase();
+        if (paymentForm.allocateToPurchases && selectedPurchase) {
+            return getPurchaseOutstanding(selectedPurchase);
+        }
+
+        return Number(selectedSupplierForDebt?.currentDebt || 0);
+    };
+
+    const getRemainingDebtAfterPayment = (): number =>
+        Math.max(0, getPaymentTargetOutstanding() - Number(paymentForm.amount || 0));
+
+    const formatPaymentMethod = (method?: string) => {
+        switch ((method || '').toUpperCase()) {
+            case 'TRANSFER':
+                return 'Chuyển khoản';
+            case 'CARD':
+                return 'Thẻ';
+            default:
+                return 'Tiền mặt';
+        }
+    };
+
+    const getPaymentAllocationSummary = (payment: SupplierPayment) => {
+        if (!payment.allocations || payment.allocations.length === 0) {
+            return 'Không phân bổ';
+        }
+
+        return payment.allocations
+            .map((allocation) => `${allocation.orderNumber || allocation.purchaseOrderId}: ${formatCurrency(allocation.amount)}`)
+            .join(' | ');
+    };
+
     // Import functionality
     const handleImportClick = () => {
         fileInputRef.current?.click();
@@ -890,11 +1055,19 @@ export default function SupplierList() {
     const handlePaymentSubmit = async (print: boolean) => {
         if (!selectedSupplierForDebt) return;
 
-        const amount = parseFloat(paymentForm.amount);
+        const amount = Number(paymentForm.amount || 0);
         if (!amount || amount <= 0) {
             toast.error('Vui lòng nhập số tiền hợp lệ');
             return;
         }
+
+        const targetOutstanding = getPaymentTargetOutstanding();
+        if (targetOutstanding > 0 && amount > targetOutstanding) {
+            toast.error('Số tiền thanh toán không được vượt quá số nợ cần trả');
+            return;
+        }
+
+        const selectedPurchase = paymentForm.allocateToPurchases ? getSelectedPurchase() : undefined;
 
         try {
             await suppliersAPI.payDebt(selectedSupplierForDebt.id, {
@@ -902,7 +1075,11 @@ export default function SupplierList() {
                 paymentMethod: paymentForm.paymentMethod,
                 note: paymentForm.note,
                 allocateToPurchases: paymentForm.allocateToPurchases,
-                allocations: []
+                createdAt: paymentForm.dateTime,
+                allocations: selectedPurchase ? [{
+                    purchaseOrderId: selectedPurchase.id,
+                    amount,
+                }] : [],
             });
 
             toast.success('Tạo phiếu chi thành công!');
@@ -1608,6 +1785,7 @@ export default function SupplierList() {
                                                                                             <th>Mã phiếu</th>
                                                                                             <th>Thời gian</th>
                                                                                             <th>Phương thức</th>
+                                                                                            <th>Phân bổ</th>
                                                                                             <th>Ghi chú</th>
                                                                                             <th className="text-right">Số tiền</th>
                                                                                             <th className="text-center" style={{ width: '60px' }}>Thao tác</th>
@@ -1618,7 +1796,8 @@ export default function SupplierList() {
                                                                                             <tr key={payment.id}>
                                                                                                 <td className="purchase-code">{payment.code || '-'}</td>
                                                                                                 <td>{formatDateTime(payment.createdAt)}</td>
-                                                                                                <td>{payment.method === 'transfer' ? 'Chuyển khoản' : payment.method === 'card' ? 'Thẻ' : 'Tiền mặt'}</td>
+                                                                                                <td>{formatPaymentMethod(payment.method)}</td>
+                                                                                                <td>{getPaymentAllocationSummary(payment)}</td>
                                                                                                 <td>{payment.note || '-'}</td>
                                                                                                 <td className="text-right">{formatCurrency(payment.amount)}</td>
                                                                                                 <td className="text-center">
@@ -1917,29 +2096,55 @@ export default function SupplierList() {
                         <select
                             className="form-input"
                             value={paymentForm.paymentMethod}
-                            onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
+                            onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value as PaymentFormState['paymentMethod'] })}
                         >
-                            <option value="cash">Tiền mặt</option>
-                            <option value="transfer">Chuyển khoản</option>
-                            <option value="card">Thẻ</option>
+                            <option value="CASH">Tiền mặt</option>
+                            <option value="TRANSFER">Chuyển khoản</option>
+                            <option value="CARD">Thẻ</option>
                         </select>
                     </div>
+                    {paymentForm.allocateToPurchases && (
+                        <div className="form-group">
+                            <label className="form-label">Mã hóa đơn / Phiếu nhập</label>
+                            <select
+                                className="form-input"
+                                value={paymentForm.selectedPurchaseId}
+                                onChange={(e) => setPaymentForm({ ...paymentForm, selectedPurchaseId: e.target.value })}
+                            >
+                                <option value="">Không chọn mã hóa đơn - thanh toán theo nợ tổng</option>
+                                {getPendingPurchases().map((purchase) => (
+                                    <option key={purchase.id} value={purchase.id}>
+                                        {purchase.orderNumber} - Còn cần trả {formatCurrency(getPurchaseOutstanding(purchase))}
+                                    </option>
+                                ))}
+                            </select>
+                            <span className="debt-remaining-hint">
+                                {paymentForm.selectedPurchaseId
+                                    ? `Đang thanh toán theo phiếu ${getSelectedPurchase()?.orderNumber || ''}`
+                                    : 'Để trống để thanh toán theo nợ tổng. Hệ thống sẽ tự phân bổ vào các phiếu chưa thanh toán cũ nhất.'}
+                            </span>
+                        </div>
+                    )}
                     <div className="form-row">
                         <div className="form-group">
                             <label className="form-label">Số tiền</label>
-                            <input
-                                type="number"
-                                className="form-input"
+                            <CurrencyInput
                                 value={paymentForm.amount}
-                                onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                                onChange={(value) => setPaymentForm({ ...paymentForm, amount: value })}
+                                className="form-input"
                                 placeholder="Nhập số tiền thanh toán"
                             />
                         </div>
                         <div className="form-group">
                             <label className="form-label">Nợ còn</label>
                             <div className="debt-remaining-display">
-                                {formatCurrency((selectedSupplierForDebt?.currentDebt || 0) - (parseFloat(paymentForm.amount) || 0))}
+                                {formatCurrency(getRemainingDebtAfterPayment())}
                             </div>
+                            <span className="debt-remaining-hint">
+                                {paymentForm.allocateToPurchases && paymentForm.selectedPurchaseId
+                                    ? `Nợ của phiếu ${getSelectedPurchase()?.orderNumber || ''}: ${formatCurrency(getPaymentTargetOutstanding())}`
+                                    : `Nợ tổng hiện tại: ${formatCurrency(selectedSupplierForDebt?.currentDebt || 0)}`}
+                            </span>
                         </div>
                     </div>
                     <div className="form-group">
@@ -1957,38 +2162,55 @@ export default function SupplierList() {
                             <input
                                 type="checkbox"
                                 checked={paymentForm.allocateToPurchases}
-                                onChange={(e) => setPaymentForm({ ...paymentForm, allocateToPurchases: e.target.checked })}
+                                onChange={(e) => setPaymentForm({
+                                    ...paymentForm,
+                                    allocateToPurchases: e.target.checked,
+                                    selectedPurchaseId: e.target.checked ? paymentForm.selectedPurchaseId : '',
+                                })}
                             />
                             Phân bổ vào phiếu nhập hàng
                         </label>
                     </div>
-                    {paymentForm.allocateToPurchases && supplierPurchases.filter(p => (p.totalAmount - (p.amountPaid || 0)) > 0).length > 0 && (
+                    {paymentForm.allocateToPurchases && getPendingPurchases().length > 0 && (
                         <table className="allocation-table">
                             <thead>
                                 <tr>
+                                    <th>Chọn</th>
                                     <th>Mã hóa đơn</th>
                                     <th>Thời gian</th>
                                     <th className="text-right">Giá trị phiếu nhập</th>
                                     <th className="text-right">Đã trả trước</th>
                                     <th className="text-right">Còn cần trả</th>
-                                    <th className="text-right">Tiền trả</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {supplierPurchases
-                                    .filter(p => (p.totalAmount - (p.amountPaid || 0)) > 0)
+                                {getPendingPurchases()
                                     .map(p => (
-                                        <tr key={p.id}>
+                                        <tr
+                                            key={p.id}
+                                            className={paymentForm.selectedPurchaseId === p.id ? 'selected-allocation-row' : ''}
+                                            onClick={() => setPaymentForm({ ...paymentForm, selectedPurchaseId: p.id })}
+                                        >
+                                            <td className="text-center">
+                                                <input
+                                                    type="radio"
+                                                    name="selectedPurchase"
+                                                    checked={paymentForm.selectedPurchaseId === p.id}
+                                                    onChange={() => setPaymentForm({ ...paymentForm, selectedPurchaseId: p.id })}
+                                                />
+                                            </td>
                                             <td className="purchase-code">{p.orderNumber}</td>
                                             <td>{formatDateTime(p.createdAt)}</td>
                                             <td className="text-right">{formatCurrency(p.totalAmount)}</td>
                                             <td className="text-right">{formatCurrency(p.amountPaid || 0)}</td>
-                                            <td className="text-right">{formatCurrency(p.totalAmount - (p.amountPaid || 0))}</td>
-                                            <td><input type="number" className="allocation-input" placeholder="0" /></td>
+                                            <td className="text-right">{formatCurrency(getPurchaseOutstanding(p))}</td>
                                         </tr>
                                     ))}
                             </tbody>
                         </table>
+                    )}
+                    {paymentForm.allocateToPurchases && !loadingPurchases && getPendingPurchases().length === 0 && (
+                        <p className="empty-tab-message">Không còn phiếu nhập nào đang nợ để phân bổ.</p>
                     )}
                     <div className="form-actions">
                         <button type="button" className="btn btn-secondary" onClick={() => setPaymentModalOpen(false)}>
@@ -2022,11 +2244,10 @@ export default function SupplierList() {
                     </div>
                     <div className="form-group">
                         <label className="form-label">Giá trị nợ điều chỉnh:</label>
-                        <input
-                            type="number"
-                            className="form-input"
+                        <CurrencyInput
                             value={adjustmentForm.adjustAmount}
-                            onChange={(e) => setAdjustmentForm({ ...adjustmentForm, adjustAmount: e.target.value })}
+                            onChange={(value) => setAdjustmentForm({ ...adjustmentForm, adjustAmount: value })}
+                            className="form-input"
                             placeholder="Nhập giá trị điều chỉnh"
                         />
                     </div>
@@ -2081,14 +2302,13 @@ export default function SupplierList() {
                     </div>
                     <div className="form-group">
                         <label className="form-label">Chiết khấu từ nhà cung cấp</label>
-                        <input
-                            type="number"
-                            className="form-input"
+                        <CurrencyInput
                             value={discountForm.discountAmount}
-                            onChange={(e) => setDiscountForm({ ...discountForm, discountAmount: e.target.value })}
+                            onChange={(value) => setDiscountForm({ ...discountForm, discountAmount: value })}
+                            className="form-input"
                             placeholder="Nhập số tiền chiết khấu"
                         />
-                        <span className="debt-remaining-hint">Còn nợ: {formatCurrency((selectedSupplierForDebt?.currentDebt || 0) - (parseFloat(discountForm.discountAmount) || 0))}</span>
+                        <span className="debt-remaining-hint">Còn nợ: {formatCurrency((selectedSupplierForDebt?.currentDebt || 0) - (discountForm.discountAmount || 0))}</span>
                     </div>
                     <div className="form-group">
                         <label className="form-label">Ghi chú</label>

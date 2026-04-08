@@ -34,6 +34,7 @@ interface Category {
     id: string;
     name: string;
     parentId?: string;
+    code?: string;
 }
 
 interface Supplier {
@@ -46,6 +47,22 @@ interface PaginationMeta {
     limit: number;
     total: number;
 }
+
+type CategoryCreateData = {
+    name: string;
+    code?: string;
+    parentId?: string;
+};
+
+const normalizeCategory = (category: any): Category => ({
+    id: String(category?.id || ''),
+    name: String(category?.name || ''),
+    parentId: category?.parentId ? String(category.parentId) : '',
+    code: category?.code ? String(category.code) : '',
+});
+
+const sortCategoriesByName = (items: Category[]) =>
+    [...items].sort((a, b) => a.name.localeCompare(b.name, 'vi', { sensitivity: 'base' }));
 
 export default function ProductList() {
     // Data state
@@ -112,7 +129,8 @@ export default function ProductList() {
     const fetchCategories = async () => {
         try {
             const response = await categoriesAPI.getAll();
-            setCategories(response.data?.data || response.data || []);
+            const items = response.data?.data || response.data || [];
+            setCategories(sortCategoriesByName(items.map(normalizeCategory)));
         } catch (error) {
             console.error('Failed to fetch categories:', error);
         }
@@ -191,6 +209,27 @@ export default function ProductList() {
             toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleCreateCategory = async (categoryData: CategoryCreateData) => {
+        try {
+            const response = await categoriesAPI.create(categoryData);
+            const createdCategory = normalizeCategory(response.data?.data || response.data || {});
+
+            setCategories((prev) =>
+                sortCategoriesByName([
+                    ...prev.filter((item) => item.id !== createdCategory.id),
+                    createdCategory,
+                ])
+            );
+
+            toast.success('Thêm danh mục thành công');
+            return createdCategory;
+        } catch (error: any) {
+            const message = error.response?.data?.message;
+            toast.error(Array.isArray(message) ? message[0] : message || 'Không thể thêm danh mục');
+            throw error;
         }
     };
 
@@ -768,6 +807,7 @@ export default function ProductList() {
                     <ProductForm
                         product={editingProduct}
                         categories={categories}
+                        onCreateCategory={handleCreateCategory}
                         onSubmit={handleFormSubmit}
                         onCancel={() => setIsFormOpen(false)}
                         isLoading={isSubmitting}

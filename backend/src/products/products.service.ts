@@ -360,11 +360,11 @@ export class ProductsService {
                     warehouseId: warehouseId,
                   }
                 },
-                update: { quantity: BigInt(item.stock) },
+                update: { quantity: item.stock },
                 create: {
                   variantId: newVariant.id,
                   warehouseId: warehouseId,
-                  quantity: BigInt(item.stock),
+                  quantity: item.stock,
                 }
               });
             }
@@ -384,11 +384,11 @@ export class ProductsService {
                       warehouseId: warehouseId,
                     }
                   },
-                  update: { quantity: BigInt(item.stock) },
+                  update: { quantity: item.stock },
                   create: {
                     variantId: firstVariant.id,
                     warehouseId: warehouseId,
-                    quantity: BigInt(item.stock),
+                    quantity: item.stock,
                   }
                 });
               }
@@ -421,7 +421,7 @@ export class ProductsService {
               data: {
                 variantId: newVariant.id,
                 warehouseId: warehouseId,
-                quantity: BigInt(item.stock),
+                quantity: item.stock,
               }
             });
           }

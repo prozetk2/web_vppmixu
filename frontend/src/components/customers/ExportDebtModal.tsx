@@ -34,6 +34,7 @@ interface ExportDebtModalProps {
     customerPhone?: string;
     currentDebt: number;
     transactions: Transaction[];
+    invoiceItemsByCode?: Record<string, TransactionItem[]>;
 }
 
 type DateRangeOption = 'today' | 'this_week' | '7_days' | '30_days' | 'this_month' |
@@ -76,6 +77,7 @@ export default function ExportDebtModal({
     customerPhone,
     currentDebt,
     transactions,
+    invoiceItemsByCode = {},
 }: ExportDebtModalProps) {
     const [selectedDateRange, setSelectedDateRange] = useState<DateRangeOption>('this_month');
     const [showDetails, setShowDetails] = useState(true);
@@ -100,6 +102,25 @@ export default function ExportDebtModal({
         if (!dateStr) return '';
         const date = new Date(dateStr);
         return date.toLocaleDateString('vi-VN') + '\n' + date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const getPositiveDebtValue = (value?: number | null): number => {
+        return Math.abs(Number(value || 0));
+    };
+
+    const getTransactionItems = (tx: Transaction, currentTransactions: Transaction[]): TransactionItem[] => {
+        if (tx.items && tx.items.length > 0) {
+            return tx.items;
+        }
+
+        const hasDetailedSibling = currentTransactions.some(
+            (other) => other.id !== tx.id && other.code === tx.code && !!other.items?.length
+        );
+        if (hasDetailedSibling) {
+            return [];
+        }
+
+        return invoiceItemsByCode[tx.code] || [];
     };
 
     const getDateRange = (): { from: Date; to: Date } => {
@@ -163,7 +184,7 @@ export default function ExportDebtModal({
         // Calculate debt summary
         const openingDebt = 0; // Can be calculated from previous period
         const periodChange = totalDebit;
-        const closingDebt = currentDebt;
+        const closingDebt = getPositiveDebtValue(currentDebt);
 
         // Create workbook
         const wb = XLSX.utils.book_new();
@@ -187,32 +208,63 @@ export default function ExportDebtModal({
 
         // Build table header row based on selected fields
         const tableHeader: (string | number)[] = ['Thời gian', 'Mã', 'Diễn giải'];
+        const tableColumnWidths: { wch: number }[] = [
+            { wch: 18 }, // Thời gian
+            { wch: 18 }, // Mã
+            { wch: 26 }, // Diễn giải
+        ];
+        const numericColumnIndices: number[] = [];
+        const appendColumnWidth = (wch: number, isNumeric = false) => {
+            if (isNumeric) {
+                numericColumnIndices.push(tableColumnWidths.length);
+            }
+            tableColumnWidths.push({ wch });
+        };
+
         if (showDetails) {
-            if (selectedFields.unit) tableHeader.push('ĐVT');
-            if (selectedFields.quantity) tableHeader.push('Số lượng');
-            if (selectedFields.unitPrice) tableHeader.push('Đơn giá');
-            if (selectedFields.discount) tableHeader.push('Giảm giá');
-            if (selectedFields.vat) tableHeader.push('VAT');
-            if (selectedFields.salePrice) tableHeader.push('Giá bán/trả');
-            if (selectedFields.total) tableHeader.push('Thành tiền');
+            if (selectedFields.unit) {
+                tableHeader.push('ĐVT');
+                appendColumnWidth(10);
+            }
+            if (selectedFields.quantity) {
+                tableHeader.push('Số lượng');
+                appendColumnWidth(10, true);
+            }
+            if (selectedFields.unitPrice) {
+                tableHeader.push('Đơn giá');
+                appendColumnWidth(14, true);
+            }
+            if (selectedFields.discount) {
+                tableHeader.push('Giảm giá');
+                appendColumnWidth(14, true);
+            }
+            if (selectedFields.vat) {
+                tableHeader.push('VAT');
+                appendColumnWidth(10, true);
+            }
+            if (selectedFields.salePrice) {
+                tableHeader.push('Giá bán/trả');
+                appendColumnWidth(14, true);
+            }
+            if (selectedFields.total) {
+                tableHeader.push('Thành tiền');
+                appendColumnWidth(16, true);
+            }
         }
         tableHeader.push('Ghi nợ', 'Ghi có');
-        if (showDetails && selectedFields.note) tableHeader.push('Ghi chú');
+        appendColumnWidth(14, true);
+        appendColumnWidth(14, true);
+        if (showDetails && selectedFields.note) {
+            tableHeader.push('Ghi chú');
+            appendColumnWidth(24);
+        }
 
         const tableData: (string | number)[][] = [tableHeader];
 
-        // DEBUG: Log transactions to check if items are available
-        console.log('=== DEBUG ExportDebtModal ===');
-        console.log('Total transactions:', filteredTransactions.length);
-        filteredTransactions.forEach((tx, idx) => {
-            console.log(`Transaction ${idx}:`, tx.code, tx.type, 'items:', tx.items?.length || 0);
-            if (tx.items && tx.items.length > 0) {
-                console.log('  Items:', tx.items);
-            }
-        });
-
         // Add transaction rows with product details
         filteredTransactions.forEach(tx => {
+            const transactionItems = getTransactionItems(tx, filteredTransactions);
+
             // Main transaction row
             const mainRow: (string | number)[] = [
                 formatDateTime(tx.time),
@@ -232,17 +284,17 @@ export default function ExportDebtModal({
 
             // Ghi nợ / Ghi có
             if (tx.type === 'Bán hàng') {
-                mainRow.push(Math.abs(tx.value), '');
+                mainRow.push(getPositiveDebtValue(tx.value), '');
             } else {
-                mainRow.push('', Math.abs(tx.value));
+                mainRow.push('', getPositiveDebtValue(tx.value));
             }
 
             if (showDetails && selectedFields.note) mainRow.push(tx.note || '');
             tableData.push(mainRow);
 
             // Product detail rows - loop through items array
-            if (showDetails && tx.items && tx.items.length > 0) {
-                tx.items.forEach((item) => {
+            if (showDetails && transactionItems.length > 0) {
+                transactionItems.forEach((item) => {
                     const detailRow: (string | number)[] = [
                         '', // Empty time column for detail rows
                         item.productCode || '',
@@ -339,13 +391,13 @@ export default function ExportDebtModal({
         });
         // Debt values aligned right
         ['K9', 'K10', 'K11'].forEach(addr => {
-            applyStyle(addr, { alignment: { horizontal: 'right' } });
+            applyStyle(addr, { alignment: { horizontal: 'right' }, numFmt: '#,##0' });
         });
 
         // === TABLE SECTION ===
         const tableStartRow = headerRows.length; // 0-indexed row where table header starts
         const tableEndRow = tableStartRow + tableData.length - 1;
-        const tableCols = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L'];
+        const tableCols = tableHeader.map((_, index) => XLSX.utils.encode_col(index));
 
         // Apply borders to table header row (with gray background)
         tableCols.forEach(col => {
@@ -362,12 +414,19 @@ export default function ExportDebtModal({
 
         // Apply borders to table data rows
         for (let row = tableStartRow + 1; row <= tableEndRow; row++) {
-            tableCols.forEach(col => {
+            tableCols.forEach((col, columnIndex) => {
                 const cellAddr = `${col}${row + 1}`;
                 if (ws[cellAddr]) {
+                    const isNumericColumn = numericColumnIndices.includes(columnIndex);
                     ws[cellAddr].s = {
                         border: thinBorder,
-                        alignment: { vertical: 'center' },
+                        alignment: {
+                            vertical: 'center',
+                            horizontal: isNumericColumn ? 'right' : 'left',
+                        },
+                        ...(isNumericColumn && typeof ws[cellAddr].v === 'number'
+                            ? { numFmt: '#,##0' }
+                            : {}),
                     };
                 }
             });
@@ -394,20 +453,7 @@ export default function ExportDebtModal({
         applyStyle(`J${signatureRow + 1}`, { font: { italic: true, color: { rgb: '008000' } }, alignment: { horizontal: 'center' } });
 
         // Set column widths for better formatting
-        ws['!cols'] = [
-            { wch: 10 },  // A - Thời gian
-            { wch: 14 },  // B - Mã
-            { wch: 16 },  // C - Diễn giải
-            { wch: 6 },   // D - ĐVT
-            { wch: 9 },   // E - Số lượng
-            { wch: 11 },  // F - Đơn giá
-            { wch: 9 },   // G - Giảm giá
-            { wch: 6 },   // H - VAT
-            { wch: 11 },  // I - Giá bán/trả
-            { wch: 11 },  // J - Thành tiền
-            { wch: 11 },  // K - Ghi nợ
-            { wch: 11 },  // L - Ghi có
-        ];
+        ws['!cols'] = tableColumnWidths;
 
         // Set row heights
         ws['!rows'] = [];

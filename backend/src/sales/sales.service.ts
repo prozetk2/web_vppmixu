@@ -112,6 +112,7 @@ export class SalesService {
                     throw new BadRequestException(`PRODUCT_NOT_FOUND: ${item.productId}`);
                 }
 
+                // Allow decimal quantities - no rounding needed
                 const inventoryQuantity = item.quantity;
                 const displayQuantity = item.displayQuantity ?? inventoryQuantity;
                 const displayUnit =
@@ -125,10 +126,10 @@ export class SalesService {
 
                 subtotal += totalPrice;
 
-                // For Order
+                // For Order - quantity is now Decimal, no need for BigInt
                 orderItems.push({
                     variantId: info.variant.id,
-                    quantity: BigInt(inventoryQuantity),
+                    quantity: inventoryQuantity,
                     unitPrice,
                     totalPrice,
                     discount,

@@ -6,8 +6,8 @@ export class OrderItemDto {
     productId: string;
 
     @IsNumber()
-    @Min(1)
-    quantity: number;
+    @Min(0.001) // Allow decimal quantities > 0 (e.g., 0.5 kg)
+    quantity: number; // Base unit quantity for inventory (can be decimal now)
 
     @IsOptional()
     @IsNumber()
@@ -24,7 +24,7 @@ export class OrderItemDto {
     @IsOptional()
     @IsNumber()
     @Min(0)
-    displayQuantity?: number;
+    displayQuantity?: number; // Display unit quantity (can be decimal)
 
     @IsOptional()
     @IsNumber()

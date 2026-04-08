@@ -774,6 +774,12 @@ tr.dragging {
     font-size: 0.8125rem;
 }
 
+.summary-line .discount-amount {
+    min-width: 72px;
+    text-align: right;
+    color: #dc2626;
+}
+
 .summary-line .payment-input {
     width: 100px;
     padding: 0.25rem 0.5rem;
@@ -2038,8 +2044,8 @@ tr.dragging {
     .print-template.paper-a5 {
         --print-page-width: 100%;
         --print-content-width: 100%;
-        --print-cell-padding-y: 1px;
-        --print-cell-padding-x: 2px;
+        --print-cell-padding-y: 2px;
+        --print-cell-padding-x: 3px;
         --print-empty-row-height: 20px;
         --print-title-margin: 2px 0;
         --print-order-margin-bottom: 2px;
@@ -2048,11 +2054,10 @@ tr.dragging {
         --print-table-margin-bottom: 2px;
         --print-footer-margin-top: 3px;
         --print-footer-margin-bottom: 2px;
-        --print-label-width: 70px;
+        --print-label-width: 104px;
         --print-topbar-margin-bottom: 1px;
-        /* Scale fonts up for A5 */
-        font-size: 0.8em;
-        line-height: 1.05;
+        font-size: 0.88em;
+        line-height: 1.08;
     }
 
     .print-template.paper-a4 {
@@ -2070,7 +2075,8 @@ tr.dragging {
         --print-footer-margin-bottom: 25px;
         --print-label-width: 100px;
         --print-topbar-margin-bottom: 6px;
-        line-height: 1.2;
+        font-size: 1.03em;
+        line-height: 1.24;
     }
 
     .print-template.paper-a5 .invoice-print-table .col-stt-print {

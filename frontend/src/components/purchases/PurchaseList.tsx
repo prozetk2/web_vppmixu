@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { purchasesAPI, suppliersAPI, productsAPI, warehousesAPI, priceListsAPI, categoriesAPI } from '../../services/api';
+import { readTabState, writeTabState } from '../../services/tabStateCache';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import CurrencyInput from '../shared/CurrencyInput';
@@ -22,6 +23,7 @@ interface Purchase {
     orderNumber: string;
     status: string;
     totalAmount: number;
+    discountAmount?: number;
     amountPaid?: number;
     amountDue?: number;
     note?: string;
@@ -57,6 +59,7 @@ interface FormItem {
     productId: string;
     productSearch: string;
     quantity: number;
+    quantityInput: string;
     unitCost: number;
     unit: string;
 }
@@ -85,41 +88,180 @@ const formatQuantity = (value: number) => {
     }).format(value);
 };
 
+const createEmptyFormItem = (unit = 'Cái', unitCost = 0): FormItem => ({
+    productId: '',
+    productSearch: '',
+    quantity: 0,
+    quantityInput: '0',
+    unitCost,
+    unit,
+});
+
+const sanitizeQuantityInput = (value: string) => {
+    const normalized = value.replace(/\./g, ',').replace(/[^0-9,]/g, '');
+    const separatorIndex = normalized.indexOf(',');
+
+    if (separatorIndex === -1) {
+        return normalized;
+    }
+
+    const integerPartRaw = normalized.slice(0, separatorIndex);
+    const decimalPart = normalized
+        .slice(separatorIndex + 1)
+        .replace(/,/g, '')
+        .slice(0, 3);
+    const integerPart = integerPartRaw || '0';
+
+    return decimalPart ? `${integerPart},${decimalPart}` : `${integerPart},`;
+};
+
+const parseQuantityInput = (value: string) => {
+    const normalized = value.replace(',', '.').trim();
+
+    if (!normalized) {
+        return 0;
+    }
+
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+        return 0;
+    }
+
+    return Math.round(parsed * 1000) / 1000;
+};
+
+const formatQuantityInput = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) {
+        return '0';
+    }
+
+    const rounded = Math.round(value * 1000) / 1000;
+    return Number.isInteger(rounded) ? String(rounded) : String(rounded).replace('.', ',');
+};
+
+const sanitizePercentInput = (value: string) => {
+    const normalized = value.replace(/\./g, ',').replace(/[^0-9,]/g, '');
+    const separatorIndex = normalized.indexOf(',');
+
+    if (separatorIndex === -1) {
+        return normalized;
+    }
+
+    const integerPartRaw = normalized.slice(0, separatorIndex);
+    const decimalPart = normalized
+        .slice(separatorIndex + 1)
+        .replace(/,/g, '')
+        .slice(0, 2);
+    const integerPart = integerPartRaw || '0';
+
+    return decimalPart ? `${integerPart},${decimalPart}` : `${integerPart},`;
+};
+
+const parsePercentInput = (value: string) => {
+    const normalized = value.replace(',', '.').trim();
+
+    if (!normalized) {
+        return 0;
+    }
+
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed)) {
+        return 0;
+    }
+
+    const clamped = Math.min(Math.max(parsed, 0), 100);
+    return Math.round(clamped * 100) / 100;
+};
+
+const formatPercentInput = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) {
+        return '0';
+    }
+
+    const rounded = Math.round(Math.min(Math.max(value, 0), 100) * 100) / 100;
+    return Number.isInteger(rounded) ? String(rounded) : String(rounded).replace('.', ',');
+};
+
+const deriveDiscountPercent = (discountAmount: number, subtotalAmount: number) => {
+    if (!Number.isFinite(discountAmount) || !Number.isFinite(subtotalAmount) || subtotalAmount <= 0) {
+        return 0;
+    }
+
+    return Math.round(Math.min(Math.max((discountAmount / subtotalAmount) * 100, 0), 100) * 100) / 100;
+};
+
+interface PurchaseListCacheState {
+    page: number;
+    itemsPerPage: number;
+    statusConfirmed: boolean;
+    statusPaid: boolean;
+    statusPartial: boolean;
+    statusCancelled: boolean;
+    dateRangeType: 'last_year' | 'custom';
+    fromDate: string;
+    toDate: string;
+    creatorFilter: string;
+    importerFilter: string;
+    searchQuery: string;
+    sidebarCollapsed: boolean;
+}
+
+const PURCHASE_LIST_CACHE_KEY = 'purchase-list';
+
+const PURCHASE_LIST_CACHE_DEFAULTS: PurchaseListCacheState = {
+    page: 1,
+    itemsPerPage: 15,
+    statusConfirmed: true,
+    statusPaid: true,
+    statusPartial: true,
+    statusCancelled: false,
+    dateRangeType: 'custom',
+    fromDate: '',
+    toDate: '',
+    creatorFilter: '',
+    importerFilter: '',
+    searchQuery: '',
+    sidebarCollapsed: false,
+};
+
 export default function PurchaseList() {
+    const cachedStateRef = useRef<PurchaseListCacheState>(
+        readTabState(PURCHASE_LIST_CACHE_KEY, PURCHASE_LIST_CACHE_DEFAULTS)
+    );
     const [purchases, setPurchases] = useState<Purchase[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
     const [loading, setLoading] = useState(true);
-    const [page, setPage] = useState(1);
+    const [page, setPage] = useState(cachedStateRef.current.page);
     const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
-    const [itemsPerPage, setItemsPerPage] = useState(15);
+    const [itemsPerPage, setItemsPerPage] = useState(cachedStateRef.current.itemsPerPage);
     const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
     // Sidebar Filters - Status checkboxes
-    const [statusConfirmed, setStatusConfirmed] = useState(true);
-    const [statusPaid, setStatusPaid] = useState(true);
-    const [statusPartial, setStatusPartial] = useState(true);
-    const [statusCancelled, setStatusCancelled] = useState(false);
+    const [statusConfirmed, setStatusConfirmed] = useState(cachedStateRef.current.statusConfirmed);
+    const [statusPaid, setStatusPaid] = useState(cachedStateRef.current.statusPaid);
+    const [statusPartial, setStatusPartial] = useState(cachedStateRef.current.statusPartial);
+    const [statusCancelled, setStatusCancelled] = useState(cachedStateRef.current.statusCancelled);
 
     // Sidebar Filters - Date range
-    const [dateRangeType, setDateRangeType] = useState<'last_year' | 'custom'>('custom');
-    const [fromDate, setFromDate] = useState('');
-    const [toDate, setToDate] = useState('');
+    const [dateRangeType, setDateRangeType] = useState<'last_year' | 'custom'>(cachedStateRef.current.dateRangeType);
+    const [fromDate, setFromDate] = useState(cachedStateRef.current.fromDate);
+    const [toDate, setToDate] = useState(cachedStateRef.current.toDate);
 
     // Sidebar Filters - Creator/Importer (placeholders)
-    const [creatorFilter, setCreatorFilter] = useState('');
-    const [importerFilter, setImporterFilter] = useState('');
+    const [creatorFilter, setCreatorFilter] = useState(cachedStateRef.current.creatorFilter);
+    const [importerFilter, setImporterFilter] = useState(cachedStateRef.current.importerFilter);
 
     // Search
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(cachedStateRef.current.searchQuery);
 
     // Selection
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
 
     // Sidebar collapsed state
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(cachedStateRef.current.sidebarCollapsed);
     const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
 
     // Product search in form
@@ -132,11 +274,13 @@ export default function PurchaseList() {
         supplierId: '',
         warehouseId: '',
         note: '',
+        discountPercent: 0,
+        discountPercentInput: '0',
         prepaymentAmount: 0,
         paymentMethod: 'CASH',
         purchaseDate: '',
     });
-    const [items, setItems] = useState<FormItem[]>([{ productId: '', productSearch: '', quantity: 1, unitCost: 0, unit: 'Cái' }]);
+    const [items, setItems] = useState<FormItem[]>([createEmptyFormItem()]);
     const [submitting, setSubmitting] = useState(false);
 
     // Detail Modal state
@@ -276,7 +420,39 @@ export default function PurchaseList() {
 
     useEffect(() => {
         fetchPurchases();
-    }, [page, statusConfirmed, statusPaid, statusPartial, statusCancelled, searchQuery, fromDate, toDate]);
+    }, [page, itemsPerPage, statusConfirmed, statusPaid, statusPartial, statusCancelled, searchQuery, fromDate, toDate]);
+
+    useEffect(() => {
+        writeTabState(PURCHASE_LIST_CACHE_KEY, {
+            page,
+            itemsPerPage,
+            statusConfirmed,
+            statusPaid,
+            statusPartial,
+            statusCancelled,
+            dateRangeType,
+            fromDate,
+            toDate,
+            creatorFilter,
+            importerFilter,
+            searchQuery,
+            sidebarCollapsed,
+        });
+    }, [
+        page,
+        itemsPerPage,
+        statusConfirmed,
+        statusPaid,
+        statusPartial,
+        statusCancelled,
+        dateRangeType,
+        fromDate,
+        toDate,
+        creatorFilter,
+        importerFilter,
+        searchQuery,
+        sidebarCollapsed,
+    ]);
 
     const fetchInitialData = async () => {
         try {
@@ -321,7 +497,7 @@ export default function PurchaseList() {
     const fetchPurchases = async () => {
         setLoading(true);
         try {
-            const params: Record<string, unknown> = { page, limit: 15 };
+            const params: Record<string, unknown> = { page, limit: itemsPerPage };
             if (statusFilter) params.status = statusFilter;
             if (searchQuery) params.search = searchQuery;
             if (fromDate) params.fromDate = fromDate;
@@ -344,33 +520,48 @@ export default function PurchaseList() {
         setEditingId(null);
         const now = new Date();
         const formattedDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-        setFormData({ supplierId: '', warehouseId: '', note: '', prepaymentAmount: 0, paymentMethod: 'CASH', purchaseDate: formattedDate });
-        setItems([{ productId: '', productSearch: '', quantity: 1, unitCost: 0, unit: 'Cái' }]);
+        setFormData({
+            supplierId: '',
+            warehouseId: '',
+            note: '',
+            discountPercent: 0,
+            discountPercentInput: '0',
+            prepaymentAmount: 0,
+            paymentMethod: 'CASH',
+            purchaseDate: formattedDate,
+        });
+        setItems([createEmptyFormItem()]);
         setIsModalOpen(true);
     };
 
     const openEditModal = (purchase: Purchase) => {
+        const purchaseSubtotal = purchase.purchaseItems.reduce((sum, item) => sum + Number(item.totalCost || 0), 0);
+        const purchaseDiscountPercent = deriveDiscountPercent(Number(purchase.discountAmount) || 0, purchaseSubtotal);
         setEditingId(purchase.id);
         setFormData({
             supplierId: purchase.supplier?.id || '',
             warehouseId: '',
             note: purchase.note || '',
+            discountPercent: purchaseDiscountPercent,
+            discountPercentInput: formatPercentInput(purchaseDiscountPercent),
             prepaymentAmount: 0,
             paymentMethod: 'CASH',
             purchaseDate: purchase.createdAt ? new Date(purchase.createdAt).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
         });
-        setItems(purchase.purchaseItems.map(item => {
+        const mappedItems = purchase.purchaseItems.map(item => {
             const product = products.find(p =>
                 item.variant?.product?.name === p.name || item.variant?.product?.sku === p.sku
             );
             return {
                 productId: product?.id || '',
                 productSearch: '',
-                quantity: item.quantity,
+                quantity: Number(item.quantity) || 0,
+                quantityInput: formatQuantityInput(Number(item.quantity) || 0),
                 unitCost: Number(item.unitCost),
                 unit: item.unit || product?.baseUnitCode || product?.unit || 'Cái',
             };
-        }));
+        });
+        setItems(mappedItems.length > 0 ? mappedItems : [createEmptyFormItem()]);
         setIsModalOpen(true);
     };
 
@@ -390,7 +581,7 @@ export default function PurchaseList() {
     };
 
     const addItem = () => {
-        setItems([...items, { productId: '', productSearch: '', quantity: 1, unitCost: 0, unit: 'Cái' }]);
+        setItems([...items, createEmptyFormItem()]);
     };
 
     const removeItem = (index: number) => {
@@ -408,7 +599,9 @@ export default function PurchaseList() {
         } else if (field === 'productSearch') {
             newItems[index].productSearch = value as string;
         } else if (field === 'quantity') {
-            newItems[index].quantity = Number(value) || 1;
+            const sanitizedValue = sanitizeQuantityInput(String(value));
+            newItems[index].quantityInput = sanitizedValue || '';
+            newItems[index].quantity = parseQuantityInput(sanitizedValue);
         } else if (field === 'unitCost') {
             newItems[index].unitCost = Number(value) || 0;
         } else if (field === 'unit') {
@@ -417,13 +610,54 @@ export default function PurchaseList() {
         setItems(newItems);
     };
 
+    const normalizeQuantityField = (index: number) => {
+        setItems(prevItems => prevItems.map((item, itemIndex) => {
+            if (itemIndex !== index) {
+                return item;
+            }
+
+            return {
+                ...item,
+                quantity: parseQuantityInput(item.quantityInput),
+                quantityInput: formatQuantityInput(parseQuantityInput(item.quantityInput)),
+            };
+        }));
+    };
+
+    const updateDiscountPercent = (value: string) => {
+        const sanitizedValue = sanitizePercentInput(value);
+        setFormData(prev => ({
+            ...prev,
+            discountPercentInput: sanitizedValue || '',
+            discountPercent: parsePercentInput(sanitizedValue),
+        }));
+    };
+
+    const normalizeDiscountPercentField = () => {
+        setFormData(prev => {
+            const normalizedPercent = parsePercentInput(prev.discountPercentInput);
+            return {
+                ...prev,
+                discountPercent: normalizedPercent,
+                discountPercentInput: formatPercentInput(normalizedPercent),
+            };
+        });
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.supplierId) {
             toast.error('Vui lòng chọn nhà cung cấp');
             return;
         }
-        const validItems = items.filter((i) => i.productId && i.quantity > 0);
+        const validItems = items
+            .filter((i) => i.productId && i.quantity > 0)
+            .map((item) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                unitCost: item.unitCost,
+                unit: item.unit,
+            }));
         if (validItems.length === 0) {
             toast.error('Vui lòng thêm ít nhất 1 sản phẩm');
             return;
@@ -435,6 +669,7 @@ export default function PurchaseList() {
                 supplierId: formData.supplierId,
                 warehouseId: formData.warehouseId || undefined,
                 items: validItems,
+                discountAmount: appliedDiscountAmount,
                 note: formData.note || undefined,
                 prepaymentAmount: formData.prepaymentAmount || undefined,
                 paymentMethod: formData.prepaymentAmount > 0 ? formData.paymentMethod : undefined,
@@ -874,7 +1109,12 @@ export default function PurchaseList() {
     const formatCurrency = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
     const formatDate = (dateStr: string) => new Date(dateStr).toLocaleString('vi-VN');
 
-    const totalAmount = items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0);
+    const subtotalAmount = items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0);
+    const appliedDiscountAmount = Math.min(
+        Math.round(subtotalAmount * Math.min(Math.max(formData.discountPercent || 0, 0), 100) / 100),
+        subtotalAmount
+    );
+    const totalAmount = Math.max(0, subtotalAmount - appliedDiscountAmount);
 
     return (
         <div className="purchase-page">
@@ -1338,7 +1578,7 @@ export default function PurchaseList() {
                                                                                 if (idx === items.length - 1) {
                                                                                     setItems(prev => [
                                                                                         ...prev,
-                                                                                        { productId: '', productSearch: '', quantity: 1, unitCost: Number(p.defaultCost) || 0, unit: p.baseUnitCode || p.unit || 'Cái' }
+                                                                                        createEmptyFormItem(p.baseUnitCode || p.unit || 'Cái', Number(p.defaultCost) || 0)
                                                                                     ]);
                                                                                 }
 
@@ -1377,10 +1617,11 @@ export default function PurchaseList() {
                                                 </td>
                                                 <td className="col-qty">
                                                     <input
-                                                        type="number"
-                                                        min="1"
-                                                        value={item.quantity}
+                                                        type="text"
+                                                        inputMode="decimal"
+                                                        value={item.quantityInput}
                                                         onChange={(e) => updateItem(idx, 'quantity', e.target.value)}
+                                                        onBlur={() => normalizeQuantityField(idx)}
                                                         className="inline-input qty-input"
                                                     />
                                                 </td>
@@ -1570,12 +1811,21 @@ export default function PurchaseList() {
                             <div className="info-row">
                                 <span className="info-label">Tổng tiền hàng</span>
                                 <input type="text" value="0" readOnly className="info-input" />
-                                <span className="info-amount">{formatCurrency(totalAmount)}</span>
+                                <span className="info-amount">{formatCurrency(subtotalAmount)}</span>
                             </div>
 
                             <div className="info-row">
-                                <span className="info-label">Giảm giá</span>
-                                <input type="text" value="0" className="info-input discount-input" />
+                                <span className="info-label">Giảm giá (%)</span>
+                                <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={formData.discountPercentInput}
+                                    onChange={(e) => updateDiscountPercent(e.target.value)}
+                                    onBlur={normalizeDiscountPercentField}
+                                    placeholder="0"
+                                    className="info-input discount-input"
+                                />
+                                <span className="info-amount">-{formatCurrency(appliedDiscountAmount)}</span>
                             </div>
 
                             <div className="info-row highlight">
@@ -1729,7 +1979,19 @@ export default function PurchaseList() {
                                 </table>
                             </div>
                             <div className="detail-grand-total">
-                                <span className="total-label">Tổng cộng:</span>
+                                <span className="total-label">Tổng tiền hàng:</span>
+                                <span className="total-amount">
+                                    {formatCurrency(Number(selectedPurchase.totalAmount) + Number(selectedPurchase.discountAmount || 0))}đ
+                                </span>
+                            </div>
+                            {Number(selectedPurchase.discountAmount || 0) > 0 && (
+                                <div className="detail-grand-total">
+                                    <span className="total-label">Giảm giá:</span>
+                                    <span className="total-amount">-{formatCurrency(Number(selectedPurchase.discountAmount || 0))}đ</span>
+                                </div>
+                            )}
+                            <div className="detail-grand-total">
+                                <span className="total-label">Cần trả nhà cung cấp:</span>
                                 <span className="total-amount">{formatCurrency(Number(selectedPurchase.totalAmount))}đ</span>
                             </div>
                         </div>

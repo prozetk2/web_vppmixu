@@ -183,8 +183,8 @@ model Inventory {
   id          BigInt   @id @default(autoincrement())
   variantId   BigInt   @map("variant_id")
   warehouseId BigInt   @map("warehouse_id")
-  quantity    BigInt   @default(0)
-  reserved    BigInt   @default(0)
+  quantity    Decimal  @default(0) @db.Decimal(15, 3)
+  reserved    Decimal  @default(0) @db.Decimal(15, 3)
   updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
 
   variant   ProductVariant @relation(fields: [variantId], references: [id])
@@ -319,7 +319,7 @@ model OrderItem {
   id         BigInt  @id @default(autoincrement())
   orderId    BigInt  @map("order_id")
   variantId  BigInt  @map("variant_id")
-  quantity   BigInt
+  quantity   Decimal @db.Decimal(15, 3)
   unitPrice  Decimal @map("unit_price")
   totalPrice Decimal @map("total_price")
   discount   Decimal? @default(0)
@@ -430,8 +430,8 @@ model StockMovement {
   variantId       BigInt   @map("variant_id")
   fromWarehouseId BigInt?  @map("from_warehouse_id")
   toWarehouseId   BigInt?  @map("to_warehouse_id")
-  quantity        BigInt
-  displayQuantity Decimal? @map("display_quantity")
+  quantity        Decimal  @db.Decimal(15, 3)
+  displayQuantity Decimal? @map("display_quantity") @db.Decimal(15, 3)
   displayUnit     String?  @map("display_unit")
   unitCost        Decimal? @map("unit_cost")
   performedBy     BigInt?  @map("performed_by")
@@ -516,7 +516,8 @@ model SupplierPayment {
   // but usually one payment pays for multiple orders or general debt.
   // For now, keep it simple as general payment.
 
-  supplier    Supplier @relation(fields: [supplierId], references: [id])
+  supplier    Supplier                    @relation(fields: [supplierId], references: [id])
+  allocations SupplierPaymentAllocation[]
 
   @@map("supplier_payment")
 }
@@ -528,6 +529,7 @@ model PurchaseOrder {
   warehouseId   BigInt?   @map("warehouse_id")
   status        String    @default("PENDING")
   totalAmount   Decimal   @default(0) @map("total_amount")
+  discountAmount Decimal? @default(0) @map("discount_amount")
   amountPaid    Decimal   @default(0) @map("amount_paid")
   amountDue     Decimal?  @map("amount_due")
   note          String?
@@ -537,15 +539,32 @@ model PurchaseOrder {
   supplier      Supplier        @relation(fields: [supplierId], references: [id])
   warehouse     Warehouse?      @relation(fields: [warehouseId], references: [id])
   purchaseItems PurchaseItem[]
+  paymentAllocations SupplierPaymentAllocation[]
 
   @@map("purchase_order")
+}
+
+model SupplierPaymentAllocation {
+  id              BigInt   @id @default(autoincrement())
+  paymentId       BigInt   @map("payment_id")
+  purchaseOrderId BigInt   @map("purchase_order_id")
+  amount          Decimal  @db.Decimal(15, 2)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  payment       SupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, purchaseOrderId])
+  @@index([paymentId])
+  @@index([purchaseOrderId])
+  @@map("supplier_payment_allocation")
 }
 
 model PurchaseItem {
   id              BigInt  @id @default(autoincrement())
   purchaseOrderId BigInt  @map("purchase_order_id")
   variantId       BigInt  @map("variant_id")
-  quantity        BigInt
+  quantity        Decimal @db.Decimal(15, 3)
   unitCost        Decimal @map("unit_cost")
   unit            String?
   totalCost       Decimal @map("total_cost")

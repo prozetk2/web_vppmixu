@@ -22,6 +22,28 @@
     color: #374151;
 }
 
+.category-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.category-create-trigger {
+    border: none;
+    background: transparent;
+    color: #4f46e5;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+.category-create-trigger:hover {
+    color: #3730a3;
+    text-decoration: underline;
+}
+
 .required {
     color: #ef4444;
 }
@@ -210,6 +232,72 @@
     color: #64748b;
     font-size: 14px;
     font-style: italic;
+}
+
+.select-dropdown-create {
+    width: 100%;
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    background: #eef2ff;
+    color: #4338ca;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 12px 14px;
+    text-align: left;
+}
+
+.select-dropdown-create:hover {
+    background: #e0e7ff;
+}
+
+.inline-category-card {
+    margin-top: 12px;
+    padding: 16px;
+    border: 1px solid #c7d2fe;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #f8faff 0%, #eef2ff 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.inline-category-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.inline-category-subtitle {
+    margin-top: 4px;
+    color: #6b7280;
+    font-size: 12px;
+}
+
+.inline-category-close {
+    border: none;
+    background: transparent;
+    color: #6b7280;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0;
+}
+
+.inline-category-close:hover:not(:disabled) {
+    color: #111827;
+}
+
+.inline-category-form-row {
+    gap: 12px;
+}
+
+.inline-category-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 4px;
 }
 /* Image Upload UI */
 .image-upload-wrapper {
@@ -480,5 +568,14 @@
     
     .thumbnail-grid-section {
         grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .category-label-row,
+    .inline-category-header,
+    .inline-category-actions {
+        flex-direction: column;
+        align-items: stretch;
     }
 }

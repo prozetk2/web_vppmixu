@@ -66,6 +66,7 @@ interface Invoice {
     seller: string;
     branch?: string;
     createdAt: string;
+    items?: TransactionItem[];
 }
 
 interface TransactionItem {
@@ -87,6 +88,7 @@ interface DebtTransaction {
     value: number;
     runningBalance: number;
     items?: TransactionItem[];
+    note?: string;
 }
 
 interface DebtData {
@@ -186,6 +188,10 @@ export default function CustomerDetail({
         return new Intl.NumberFormat('vi-VN').format(value);
     };
 
+    const getPositiveDebtValue = (value?: number | null): number => {
+        return Math.abs(Number(value || 0));
+    };
+
     const formatDate = (dateStr: string): string => {
         if (!dateStr) return 'Chưa có';
         const date = new Date(dateStr);
@@ -198,6 +204,28 @@ export default function CustomerDetail({
         return date.toLocaleDateString('vi-VN') + ' ' + date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     };
 
+    const getInvoiceStatusLabel = (status?: string): string => {
+        if (status === 'COMPLETED') return 'Hoàn thành';
+        if (status === 'CANCELLED') return 'Đã hủy';
+        if (status === 'DRAFT') return 'Nháp';
+        return status || '';
+    };
+
+    const getTransactionItems = (tx: DebtTransaction): TransactionItem[] => {
+        if (tx.items && tx.items.length > 0) {
+            return tx.items;
+        }
+
+        const hasDetailedSibling = debtData?.transactions.some(
+            (other) => other.id !== tx.id && other.code === tx.code && !!other.items?.length
+        );
+        if (hasDetailedSibling) {
+            return [];
+        }
+
+        return invoices.find((inv) => inv.invoiceNumber === tx.code)?.items || [];
+    };
+
     const handleExportFile = () => {
         if (!customer) {
             alert('Không có dữ liệu để xuất');
@@ -205,61 +233,198 @@ export default function CustomerDetail({
         }
 
         if (activeTab === 'history') {
-            // Export invoice history
+            // Export invoice history with invoice line details
             if (!invoices || invoices.length === 0) {
                 alert('Không có lịch sử bán hàng để xuất');
                 return;
             }
 
-            const exportData = invoices.map(inv => ({
-                'Mã hóa đơn': inv.invoiceNumber,
-                'Thời gian': formatDateTime(inv.createdAt),
-                'Người bán': inv.seller || 'N/A',
-                'Tổng cộng': inv.totalAmount,
-                'Đã thanh toán': inv.amountPaid || 0,
-                'Còn nợ': (inv.totalAmount - (inv.amountPaid || 0)),
-                'Trạng thái': inv.status === 'COMPLETED' ? 'Hoàn thành' : inv.status === 'CANCELLED' ? 'Đã hủy' : inv.status,
-            }));
+            const headers = [
+                'Mã hóa đơn',
+                'Thời gian',
+                'Người bán',
+                'Trạng thái',
+                'Mã hàng',
+                'Tên hàng',
+                'ĐVT',
+                'Số lượng',
+                'Đơn giá',
+                'Giảm giá',
+                'Giá bán',
+                'Thành tiền',
+                'Tổng cộng',
+                'Đã thanh toán',
+                'Còn nợ',
+            ];
+
+            const exportRows = invoices.flatMap((inv) => {
+                const invoiceItems = inv.items || [];
+                const amountDue = getPositiveDebtValue(inv.amountDue || (inv.totalAmount - (inv.amountPaid || 0)));
+
+                if (invoiceItems.length > 0) {
+                    return invoiceItems.map((item, index) => ([
+                        index === 0 ? inv.invoiceNumber : '',
+                        index === 0 ? formatDateTime(inv.createdAt) : '',
+                        index === 0 ? (inv.seller || 'N/A') : '',
+                        index === 0 ? getInvoiceStatusLabel(inv.status) : '',
+                        item.productCode || '',
+                        item.productName || '',
+                        item.unit || '',
+                        item.quantity || 0,
+                        item.unitPrice || 0,
+                        item.discountAmount || 0,
+                        item.salePrice || 0,
+                        item.totalPrice || 0,
+                        index === 0 ? inv.totalAmount : '',
+                        index === 0 ? (inv.amountPaid || 0) : '',
+                        index === 0 ? amountDue : '',
+                    ]));
+                }
+
+                return [[
+                    inv.invoiceNumber,
+                    formatDateTime(inv.createdAt),
+                    inv.seller || 'N/A',
+                    getInvoiceStatusLabel(inv.status),
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    inv.totalAmount,
+                    inv.amountPaid || 0,
+                    amountDue,
+                ]];
+            });
 
             const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(exportData);
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...exportRows]);
             ws['!cols'] = [
                 { wch: 18 }, // Mã hóa đơn
                 { wch: 20 }, // Thời gian
                 { wch: 15 }, // Người bán
+                { wch: 15 }, // Trạng thái
+                { wch: 15 }, // Mã hàng
+                { wch: 30 }, // Tên hàng
+                { wch: 10 }, // ĐVT
+                { wch: 10 }, // Số lượng
+                { wch: 15 }, // Đơn giá
+                { wch: 15 }, // Giảm giá
+                { wch: 15 }, // Giá bán
+                { wch: 15 }, // Thành tiền
                 { wch: 15 }, // Tổng cộng
                 { wch: 15 }, // Đã thanh toán
                 { wch: 15 }, // Còn nợ
-                { wch: 15 }, // Trạng thái
             ];
+
+            const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+            for (let row = range.s.r + 1; row <= range.e.r; row++) {
+                ['H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'].forEach((col) => {
+                    const cell = ws[`${col}${row + 1}`];
+                    if (cell && typeof cell.v === 'number') {
+                        cell.z = '#,##0';
+                    }
+                });
+            }
+
             XLSX.utils.book_append_sheet(wb, ws, 'Lịch sử bán hàng');
-            XLSX.writeFile(wb, `LichSuBanHang_${customer.code || 'KH'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            XLSX.writeFile(wb, `LichSuBanHangChiTiet_${customer.code || 'KH'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
         } else {
-            // Export debt transactions
+            // Export debt transactions with invoice line details
             if (!debtData || debtData.transactions.length === 0) {
                 alert('Không có dữ liệu công nợ để xuất');
                 return;
             }
 
-            const exportData = debtData.transactions.map(tx => ({
-                'Mã phiếu': tx.code,
-                'Thời gian': formatDateTime(tx.time),
-                'Loại': tx.type,
-                'Giá trị': Math.abs(tx.value),
-                'Dư nợ': tx.runningBalance,
-            }));
+            const headers = [
+                'Mã phiếu',
+                'Thời gian',
+                'Loại',
+                'Mã hàng',
+                'Tên hàng',
+                'ĐVT',
+                'Số lượng',
+                'Đơn giá',
+                'Giảm giá',
+                'Giá bán',
+                'Thành tiền',
+                'Giá trị',
+                'Nợ của khách hàng',
+            ];
+
+            const exportRows = debtData.transactions.flatMap((tx) => {
+                const transactionValue = getPositiveDebtValue(tx.value);
+                const runningDebt = getPositiveDebtValue(tx.runningBalance);
+                const transactionItems = getTransactionItems(tx);
+
+                if (transactionItems.length > 0) {
+                    return transactionItems.map((item, index) => ([
+                        index === 0 ? tx.code : '',
+                        index === 0 ? formatDateTime(tx.time) : '',
+                        index === 0 ? tx.type : '',
+                        item.productCode || '',
+                        item.productName || '',
+                        item.unit || '',
+                        item.quantity || 0,
+                        item.unitPrice || 0,
+                        item.discountAmount || 0,
+                        item.salePrice || 0,
+                        item.totalPrice || 0,
+                        index === 0 ? transactionValue : '',
+                        index === 0 ? runningDebt : '',
+                    ]));
+                }
+
+                return [[
+                    tx.code,
+                    formatDateTime(tx.time),
+                    tx.type,
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    transactionValue,
+                    runningDebt,
+                ]];
+            });
 
             const wb = XLSX.utils.book_new();
-            const ws = XLSX.utils.json_to_sheet(exportData);
+            const ws = XLSX.utils.aoa_to_sheet([headers, ...exportRows]);
             ws['!cols'] = [
                 { wch: 18 }, // Mã phiếu
                 { wch: 20 }, // Thời gian
                 { wch: 12 }, // Loại
+                { wch: 15 }, // Mã hàng
+                { wch: 30 }, // Tên hàng
+                { wch: 10 }, // ĐVT
+                { wch: 10 }, // Số lượng
+                { wch: 15 }, // Đơn giá
+                { wch: 15 }, // Giảm giá
+                { wch: 15 }, // Giá bán
+                { wch: 15 }, // Thành tiền
                 { wch: 15 }, // Giá trị
-                { wch: 15 }, // Dư nợ
+                { wch: 18 }, // Nợ của khách hàng
             ];
-            XLSX.utils.book_append_sheet(wb, ws, 'Giao dịch công nợ');
-            XLSX.writeFile(wb, `GiaoDich_${customer.code || 'KH'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+            const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+            for (let row = range.s.r + 1; row <= range.e.r; row++) {
+                ['G', 'H', 'I', 'J', 'K', 'L', 'M'].forEach((col) => {
+                    const cell = ws[`${col}${row + 1}`];
+                    if (cell && typeof cell.v === 'number') {
+                        cell.z = '#,##0';
+                    }
+                });
+            }
+
+            XLSX.utils.book_append_sheet(wb, ws, 'Công nợ chi tiết');
+            XLSX.writeFile(wb, `CongNoChiTiet_${customer.code || 'KH'}_${new Date().toISOString().slice(0, 10)}.xlsx`);
         }
     };
 
@@ -513,7 +678,7 @@ export default function CustomerDetail({
                                     <th>Thời gian</th>
                                     <th>Loại</th>
                                     <th className="text-right">Giá trị</th>
-                                    <th className="text-right">Dư nợ khách hàng</th>
+                                    <th className="text-right">Nợ của khách hàng</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -551,7 +716,7 @@ export default function CustomerDetail({
                                                 <td>{formatDateTime(tx.time)}</td>
                                                 <td>{tx.type}</td>
                                                 <td className="text-right">{formatCurrency(Math.abs(tx.value))}</td>
-                                                <td className="text-right">{formatCurrency(tx.runningBalance)}</td>
+                                                <td className="text-right">{formatCurrency(getPositiveDebtValue(tx.runningBalance))}</td>
                                             </tr>
                                         );
                                     })
@@ -595,7 +760,7 @@ export default function CustomerDetail({
                 customerId={customerId}
                 customerName={customer.name}
                 customerAddress={customer.address}
-                currentDebt={customer.currentDebt || 0}
+                currentDebt={getPositiveDebtValue(customer.currentDebt)}
                 invoices={invoices.map(inv => ({
                     ...inv,
                     amountDue: inv.amountDue || (inv.totalAmount - inv.amountPaid)
@@ -609,7 +774,7 @@ export default function CustomerDetail({
                 onClose={() => setIsAdjustmentModalOpen(false)}
                 customerId={customerId}
                 customerName={customer.name}
-                currentDebt={customer.currentDebt || 0}
+                currentDebt={getPositiveDebtValue(customer.currentDebt)}
                 onSuccess={handleAdjustmentSuccess}
             />
 
@@ -620,7 +785,7 @@ export default function CustomerDetail({
                 customerId={customerId}
                 customerName={customer.name}
                 customerAddress={customer.address}
-                currentDebt={customer.currentDebt || 0}
+                currentDebt={getPositiveDebtValue(customer.currentDebt)}
                 onSuccess={handleDiscountSuccess}
             />
 
@@ -632,8 +797,13 @@ export default function CustomerDetail({
                 customerCode={customer.code}
                 customerAddress={customer.address}
                 customerPhone={customer.phone}
-                currentDebt={customer.currentDebt || 0}
+                currentDebt={getPositiveDebtValue(customer.currentDebt)}
                 transactions={debtData?.transactions || []}
+                invoiceItemsByCode={Object.fromEntries(
+                    invoices
+                        .filter((invoice) => invoice.invoiceNumber && invoice.items?.length)
+                        .map((invoice) => [invoice.invoiceNumber, invoice.items || []])
+                )}
             />
 
             {/* Invoice Detail Modal */}

@@ -4,6 +4,14 @@ import './ProductForm.css';
 interface Category {
   id: string;
   name: string;
+  parentId?: string;
+  code?: string;
+}
+
+interface CategoryCreateData {
+  name: string;
+  code?: string;
+  parentId?: string;
 }
 
 interface ProductFormData {
@@ -22,14 +30,22 @@ interface ProductFormData {
 interface ProductFormProps {
   product?: ProductFormData | null;
   categories: Category[];
+  onCreateCategory?: (data: CategoryCreateData) => Promise<Category>;
   onSubmit: (data: ProductFormData) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
 }
 
+const createEmptyCategoryDraft = (name = '') => ({
+  name,
+  code: '',
+  parentId: '',
+});
+
 export default function ProductForm({
   product,
   categories,
+  onCreateCategory,
   onSubmit,
   onCancel,
   isLoading = false,
@@ -49,6 +65,10 @@ export default function ProductForm({
   const [importNote, setImportNote] = useState<string>('');
   const [categorySearch, setCategorySearch] = useState('');
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showCreateCategoryForm, setShowCreateCategoryForm] = useState(false);
+  const [newCategoryData, setNewCategoryData] = useState(createEmptyCategoryDraft());
+  const [newCategoryError, setNewCategoryError] = useState('');
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [localPreviews, setLocalPreviews] = useState<string[]>(Array(10).fill(''));
 
@@ -90,6 +110,11 @@ export default function ProductForm({
         images: '',
       });
     }
+    setCategorySearch('');
+    setShowCategoryDropdown(false);
+    setShowCreateCategoryForm(false);
+    setNewCategoryData(createEmptyCategoryDraft());
+    setNewCategoryError('');
   }, [product]);
 
   const validate = (): boolean => {
@@ -158,6 +183,64 @@ export default function ProductForm({
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
   }, [errors]);
+
+  const openCreateCategoryForm = useCallback((prefillName = '') => {
+    if (!onCreateCategory) return;
+
+    setShowCreateCategoryForm(true);
+    setShowCategoryDropdown(false);
+    setNewCategoryError('');
+    setNewCategoryData(createEmptyCategoryDraft(prefillName.trim()));
+  }, [onCreateCategory]);
+
+  const closeCreateCategoryForm = useCallback(() => {
+    setShowCreateCategoryForm(false);
+    setNewCategoryData(createEmptyCategoryDraft());
+    setNewCategoryError('');
+  }, []);
+
+  const handleCategoryDraftChange = useCallback((
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setNewCategoryData((prev) => ({ ...prev, [name]: value }));
+    if (newCategoryError) {
+      setNewCategoryError('');
+    }
+  }, [newCategoryError]);
+
+  const handleCreateCategory = useCallback(async () => {
+    if (!onCreateCategory || isCreatingCategory) return;
+
+    const categoryName = newCategoryData.name.trim() || categorySearch.trim();
+    if (!categoryName) {
+      setNewCategoryError('Tên danh mục là bắt buộc');
+      return;
+    }
+
+    setIsCreatingCategory(true);
+    setNewCategoryError('');
+
+    try {
+      const createdCategory = await onCreateCategory({
+        name: categoryName,
+        code: newCategoryData.code.trim() || undefined,
+        parentId: newCategoryData.parentId || undefined,
+      });
+
+      setFormData((prev) => ({
+        ...prev,
+        categoryId: createdCategory.id,
+      }));
+      setCategorySearch('');
+      closeCreateCategoryForm();
+    } catch (error: any) {
+      const message = error?.response?.data?.message;
+      setNewCategoryError(Array.isArray(message) ? message[0] : message || 'Không thể thêm danh mục');
+    } finally {
+      setIsCreatingCategory(false);
+    }
+  }, [categorySearch, closeCreateCategoryForm, isCreatingCategory, newCategoryData.code, newCategoryData.name, newCategoryData.parentId, onCreateCategory]);
 
   const compressImage = (file: File, maxWidth: number = 800, quality: number = 0.75): Promise<File> => {
     return new Promise((resolve, reject) => {
@@ -384,6 +467,8 @@ export default function ProductForm({
   const sale = toNumber(formData.defaultPrice);
   const cost = toNumber(formData.defaultCost ?? 0);
   const profit = sale - cost;
+  const selectedCategoryName = categories.find((c) => c.id === formData.categoryId)?.name || '';
+  const showCreateCategorySuggestion = Boolean(onCreateCategory) && (!!categorySearch.trim() || filteredCategories.length === 0);
 
   return (
     <form onSubmit={handleSubmit} className="product-form">
@@ -420,22 +505,33 @@ export default function ProductForm({
       </div>
 
       <div className="form-group" style={{ position: 'relative' }}>
-        <label htmlFor="categoryId" className="form-label">Danh mục</label>
+        <div className="category-label-row">
+          <label htmlFor="categoryId" className="form-label">Danh mục</label>
+          {onCreateCategory && (
+            <button
+              type="button"
+              className="category-create-trigger"
+              onClick={() => openCreateCategoryForm(categorySearch || '')}
+            >
+              + Thêm danh mục mới
+            </button>
+          )}
+        </div>
         <div className="select-search-container">
           <input
             type="text"
             className="form-input"
             placeholder={
               formData.categoryId
-                ? categories.find(c => c.id === formData.categoryId)?.name || 'Tìm danh mục...'
+                ? selectedCategoryName || 'Tìm danh mục...'
                 : '-- Chọn danh mục -- (Gõ để tìm)'
             }
             value={categorySearch}
             onChange={(e) => {
               setCategorySearch(e.target.value);
               setShowCategoryDropdown(true);
-              if (formData.categoryId && e.target.value !== categories.find(c => c.id === formData.categoryId)?.name) {
-                setFormData({ ...formData, categoryId: '' });
+              if (formData.categoryId && e.target.value !== selectedCategoryName) {
+                setFormData((prev) => ({ ...prev, categoryId: '' }));
               }
             }}
             onFocus={() => setShowCategoryDropdown(true)}
@@ -449,9 +545,10 @@ export default function ProductForm({
                     key={cat.id}
                     className="select-dropdown-item"
                     onMouseDown={() => {
-                      setFormData({ ...formData, categoryId: cat.id });
+                      setFormData((prev) => ({ ...prev, categoryId: cat.id }));
                       setCategorySearch(''); // Clear search to show placeholder
                       setShowCategoryDropdown(false);
+                      setShowCreateCategoryForm(false);
                     }}
                   >
                     {cat.name}
@@ -460,9 +557,112 @@ export default function ProductForm({
               ) : (
                 <div className="select-dropdown-empty">Không tìm thấy danh mục</div>
               )}
+              {showCreateCategorySuggestion && (
+                <button
+                  type="button"
+                  className="select-dropdown-create"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    openCreateCategoryForm(categorySearch);
+                  }}
+                >
+                  + Tạo danh mục mới{categorySearch.trim() ? `: "${categorySearch.trim()}"` : ''}
+                </button>
+              )}
             </div>
           )}
         </div>
+        {showCreateCategoryForm && (
+          <div className="inline-category-card">
+            <div className="inline-category-header">
+              <div>
+                <strong>Tạo danh mục mới</strong>
+                <div className="inline-category-subtitle">Tạo xong sẽ tự chọn cho sản phẩm này.</div>
+              </div>
+              <button
+                type="button"
+                className="inline-category-close"
+                onClick={closeCreateCategoryForm}
+                disabled={isCreatingCategory}
+              >
+                Đóng
+              </button>
+            </div>
+
+            <div className="form-row inline-category-form-row">
+              <div className="form-group">
+                <label htmlFor="newCategoryName" className="form-label">
+                  Tên danh mục <span className="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="newCategoryName"
+                  name="name"
+                  value={newCategoryData.name}
+                  onChange={handleCategoryDraftChange}
+                  className={`form-input ${newCategoryError ? 'error' : ''}`}
+                  placeholder="VD: Văn phòng phẩm mới"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="newCategoryCode" className="form-label">
+                  Mã danh mục
+                </label>
+                <input
+                  type="text"
+                  id="newCategoryCode"
+                  name="code"
+                  value={newCategoryData.code}
+                  onChange={handleCategoryDraftChange}
+                  className="form-input"
+                  placeholder="Tùy chọn"
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="newCategoryParentId" className="form-label">
+                Danh mục cha
+              </label>
+              <select
+                id="newCategoryParentId"
+                name="parentId"
+                value={newCategoryData.parentId}
+                onChange={handleCategoryDraftChange}
+                className="form-select"
+              >
+                <option value="">-- Không có (danh mục gốc) --</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {newCategoryError && <span className="error-text">{newCategoryError}</span>}
+
+            <div className="inline-category-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={closeCreateCategoryForm}
+                disabled={isCreatingCategory}
+              >
+                Huỷ
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleCreateCategory}
+                disabled={isCreatingCategory}
+              >
+                {isCreatingCategory ? 'Đang tạo...' : 'Tạo và chọn'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="form-group">

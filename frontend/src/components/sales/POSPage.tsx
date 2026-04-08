@@ -54,6 +54,7 @@ interface Invoice {
     customerId: string;
     discountPercent: number;
     discountAmount: number;
+    discountPercentInput?: string;
     paymentMethod: PaymentMethod;
     customerPayment: number;
     createdAt: Date;
@@ -96,6 +97,14 @@ export type StoreConfigInfo = {
     tableFontSize?: number;
 };
 
+const DEFAULT_PRINT_FONT_SIZES = {
+    logoFontSize: 34,
+    companyNameFontSize: 23,
+    titleFontSize: 30,
+    textFontSize: 17,
+    tableFontSize: 18,
+} as const;
+
 export const defaultStoreConfigs: Record<string, StoreConfigInfo> = {
     MIXU: {
         logoText: 'MIXU',
@@ -104,7 +113,8 @@ export const defaultStoreConfigs: Record<string, StoreConfigInfo> = {
         address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
         phone: '0932.542.168 - 0934.792.168',
         website: 'mixuoffice.com',
-        email: 'mixuoffice@gmail.com'
+        email: 'mixuoffice@gmail.com',
+        ...DEFAULT_PRINT_FONT_SIZES,
     },
     THANH_VAN: {
         logoText: 'THANH VÂN',
@@ -113,7 +123,8 @@ export const defaultStoreConfigs: Record<string, StoreConfigInfo> = {
         address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
         phone: '0932.542.168 - 0934.792.168',
         website: 'thanhvan.com',
-        email: 'thanhvan@gmail.com'
+        email: 'thanhvan@gmail.com',
+        ...DEFAULT_PRINT_FONT_SIZES,
     },
     VIET_HONG: {
         logoText: '',
@@ -122,7 +133,8 @@ export const defaultStoreConfigs: Record<string, StoreConfigInfo> = {
         address: '119 Nguyễn Hữu Thọ, Q. Hải Châu, Tp. Đà Nẵng',
         phone: '0236. 6563583 - 0932.542.168',
         website: 'mixuoffice.com',
-        email: 'Mixuhoadon@gmail.com'
+        email: 'Mixuhoadon@gmail.com',
+        ...DEFAULT_PRINT_FONT_SIZES,
     },
     CUSTOM: {
         logoText: 'TÊN CỬA HÀNG',
@@ -132,13 +144,38 @@ export const defaultStoreConfigs: Record<string, StoreConfigInfo> = {
         phone: '0901234567',
         website: 'cuahang.com',
         email: 'lienhe@cuahang.com',
-        logoFontSize: 28,
-        companyNameFontSize: 19,
-        titleFontSize: 24,
-        textFontSize: 14,
-        tableFontSize: 15
+        ...DEFAULT_PRINT_FONT_SIZES,
     }
 };
+
+const normalizePrintFontSize = (value: unknown, fallback: number) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+        return fallback;
+    }
+
+    return Math.max(Math.round(parsed), fallback);
+};
+
+const normalizeStoreConfig = (config: StoreConfigInfo): StoreConfigInfo => ({
+    ...config,
+    logoFontSize: normalizePrintFontSize(config.logoFontSize, DEFAULT_PRINT_FONT_SIZES.logoFontSize),
+    companyNameFontSize: normalizePrintFontSize(config.companyNameFontSize, DEFAULT_PRINT_FONT_SIZES.companyNameFontSize),
+    titleFontSize: normalizePrintFontSize(config.titleFontSize, DEFAULT_PRINT_FONT_SIZES.titleFontSize),
+    textFontSize: normalizePrintFontSize(config.textFontSize, DEFAULT_PRINT_FONT_SIZES.textFontSize),
+    tableFontSize: normalizePrintFontSize(config.tableFontSize, DEFAULT_PRINT_FONT_SIZES.tableFontSize),
+});
+
+const mergeStoreConfigs = (savedConfigs?: Record<string, Partial<StoreConfigInfo>>) =>
+    Object.fromEntries(
+        Object.entries(defaultStoreConfigs).map(([key, config]) => [
+            key,
+            normalizeStoreConfig({
+                ...config,
+                ...(savedConfigs?.[key] || {}),
+            }),
+        ])
+    ) as Record<string, StoreConfigInfo>;
 
 const removeAccents = (str: string) => {
     return str
@@ -201,6 +238,7 @@ const createNewInvoice = (index: number): Invoice => ({
     customerId: '',
     discountPercent: 0,
     discountAmount: 0,
+    discountPercentInput: '0',
     paymentMethod: 'CASH',
     customerPayment: 0,
     createdAt: new Date(),
@@ -221,6 +259,74 @@ const formatQuantityValue = (value: number) => {
     }).format(value);
 };
 
+const sanitizePercentInput = (value: string) => {
+    const normalized = value.replace(/\./g, ',').replace(/[^0-9,]/g, '');
+    const separatorIndex = normalized.indexOf(',');
+
+    if (separatorIndex === -1) {
+        return normalized;
+    }
+
+    const integerPartRaw = normalized.slice(0, separatorIndex);
+    const decimalPart = normalized
+        .slice(separatorIndex + 1)
+        .replace(/,/g, '')
+        .slice(0, 2);
+    const integerPart = integerPartRaw || '0';
+
+    return decimalPart ? `${integerPart},${decimalPart}` : `${integerPart},`;
+};
+
+const parsePercentInput = (value: string) => {
+    const normalized = value.replace(',', '.').trim();
+
+    if (!normalized) {
+        return 0;
+    }
+
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed)) {
+        return 0;
+    }
+
+    const clamped = Math.min(Math.max(parsed, 0), 100);
+    return Math.round(clamped * 100) / 100;
+};
+
+const formatPercentInput = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) {
+        return '0';
+    }
+
+    const rounded = Math.round(Math.min(Math.max(value, 0), 100) * 100) / 100;
+    return Number.isInteger(rounded) ? String(rounded) : String(rounded).replace('.', ',');
+};
+
+const getInvoiceSubtotal = (invoice?: Pick<Invoice, 'cart'>) =>
+    (invoice?.cart || []).reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+
+const deriveDiscountPercent = (discountAmount: number, subtotalAmount: number) => {
+    if (!Number.isFinite(discountAmount) || !Number.isFinite(subtotalAmount) || subtotalAmount <= 0) {
+        return 0;
+    }
+
+    return Math.round(Math.min(Math.max((discountAmount / subtotalAmount) * 100, 0), 100) * 100) / 100;
+};
+
+const getInvoiceCalculatedDiscount = (invoice?: Pick<Invoice, 'cart' | 'discountPercent' | 'discountAmount'>) => {
+    const subtotal = getInvoiceSubtotal(invoice);
+    const normalizedPercent = Math.min(Math.max(Number(invoice?.discountPercent || 0), 0), 100);
+
+    if (normalizedPercent > 0) {
+        return Math.min(Math.round(subtotal * normalizedPercent / 100), subtotal);
+    }
+
+    return Math.min(Math.max(Number(invoice?.discountAmount || 0), 0), subtotal);
+};
+
+const getInvoiceTotal = (invoice?: Pick<Invoice, 'cart' | 'discountPercent' | 'discountAmount'>) =>
+    Math.max(0, getInvoiceSubtotal(invoice) - getInvoiceCalculatedDiscount(invoice));
+
 const PRINT_LAYOUTS = {
     A4: {
         extraRows: 10,
@@ -228,15 +334,15 @@ const PRINT_LAYOUTS = {
         contentWidth: '100%',
         topbarFontOffset: -1,
         companyTextOffset: 1,
-        titleFontOffset: 0,
-        tableFontOffset: 0,
+        titleFontOffset: 1,
+        tableFontOffset: 1,
     },
     A5: {
         extraRows: 5,
         pageWidth: '100%',
         contentWidth: '100%',
         topbarFontOffset: -2,
-        companyTextOffset: 0,
+        companyTextOffset: -1,
         titleFontOffset: -3,
         tableFontOffset: -1,
     },
@@ -262,13 +368,13 @@ const PrintInvoice = ({
 }) => {
     if (!invoice) return null;
 
-    const total = invoice.cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0) - invoice.discountAmount;
+    const total = getInvoiceTotal(invoice);
     const printTime = `${invoice.createdAt.getHours().toString().padStart(2, '0')}:${invoice.createdAt.getMinutes().toString().padStart(2, '0')} ${invoice.createdAt.getDate().toString().padStart(2, '0')}/${(invoice.createdAt.getMonth() + 1).toString().padStart(2, '0')}/${invoice.createdAt.getFullYear().toString().slice(-2)}`;
     const invoiceDate = `${invoice.createdAt.getDate().toString().padStart(2, '0')}/${(invoice.createdAt.getMonth() + 1).toString().padStart(2, '0')}/${invoice.createdAt.getFullYear()} ${invoice.createdAt.getHours().toString().padStart(2, '0')}:${invoice.createdAt.getMinutes().toString().padStart(2, '0')}`;
 
     // Determine which store config to use (strip _EXTRA suffix)
     const templateBase = settings.template.replace('_EXTRA', '');
-    const storeInfo = storeConfigs[templateBase] || storeConfigs.MIXU;
+    const storeInfo = normalizeStoreConfig(storeConfigs[templateBase] || storeConfigs.MIXU || defaultStoreConfigs.MIXU);
     const layout = PRINT_LAYOUTS[settings.paperSize === 'A4' ? 'A4' : 'A5'];
 
     // Check if template has extra rows
@@ -286,10 +392,17 @@ const PrintInvoice = ({
     const customerDisplayName = customerName || 'Khách lẻ';
     const customerPhoneDisplay = customerPhone || emptyText;
     const customerAddressDisplay = customerAddress || emptyText;
-    const tableFontSize = paperPx(storeInfo.tableFontSize || 15, layout.tableFontOffset);
+    const logoFontSize = paperPx(storeInfo.logoFontSize || DEFAULT_PRINT_FONT_SIZES.logoFontSize, layout.companyTextOffset);
+    const companyNameFontSize = paperPx(storeInfo.companyNameFontSize || DEFAULT_PRINT_FONT_SIZES.companyNameFontSize, layout.companyTextOffset);
+    const titleFontSize = paperPx(storeInfo.titleFontSize || DEFAULT_PRINT_FONT_SIZES.titleFontSize, layout.titleFontOffset);
+    const baseTextFontSize = paperPx(storeInfo.textFontSize || DEFAULT_PRINT_FONT_SIZES.textFontSize, layout.companyTextOffset);
+    const tableFontSize = paperPx(storeInfo.tableFontSize || DEFAULT_PRINT_FONT_SIZES.tableFontSize, layout.tableFontOffset);
 
     const renderLineItemsTable = (compactSummary = false) => (
-        <table className={`print-table invoice-print-table ${compactSummary ? 'print-table-compact' : ''}`}>
+        <table
+            className={`print-table invoice-print-table ${compactSummary ? 'print-table-compact' : ''}`}
+            style={{ fontSize: tableFontSize }}
+        >
             <colgroup>
                 <col className="col-stt-print" />
                 <col className="col-name-print" />
@@ -346,12 +459,12 @@ const PrintInvoice = ({
             {/* Header: Centered */}
             <div className="print-header-centered">
                 {storeInfo.logoText && (
-                    <div className="store-name-centered">
+                    <div className="store-name-centered" style={{ fontSize: logoFontSize }}>
                         {storeInfo.logoText} {storeInfo.logoSub && <small>{storeInfo.logoSub}</small>}
                     </div>
                 )}
-                <div className="company-name-centered">{storeInfo.companyName}</div>
-                <div className="company-details-centered">
+                <div className="company-name-centered" style={{ fontSize: companyNameFontSize }}>{storeInfo.companyName}</div>
+                <div className="company-details-centered" style={{ fontSize: baseTextFontSize }}>
                     <span className="label-red">A</span> - {storeInfo.address}.<br />
                     <span className="label-red">T</span> - {storeInfo.phone}.<br />
                     <span className="label-red">W</span> - {storeInfo.website} - <span className="label-red">E</span> - {storeInfo.email}.
@@ -359,10 +472,10 @@ const PrintInvoice = ({
             </div>
 
             {/* Invoice Title: Centered */}
-            <div className="print-invoice-title">HÓA ĐƠN BÁN HÀNG</div>
+            <div className="print-invoice-title" style={{ fontSize: titleFontSize }}>HÓA ĐƠN BÁN HÀNG</div>
 
             {/* Order Info: Two columns */}
-            <div className="print-order-section">
+            <div className="print-order-section" style={{ fontSize: baseTextFontSize }}>
                 <div className="order-left">
                     <span>Mã đơn hàng: <strong>{orderNumber}</strong></span><br />
                     <span>{invoiceDate}</span>
@@ -371,7 +484,7 @@ const PrintInvoice = ({
                 </div>
             </div>
 
-            <div className="customer-info-print">
+            <div className="customer-info-print" style={{ fontSize: baseTextFontSize }}>
                 <div className="row">
                     <span className="label">Khách hàng:</span>
                     <span className="value">{customerDisplayName}</span>
@@ -388,7 +501,7 @@ const PrintInvoice = ({
 
             {renderLineItemsTable()}
 
-            <div className="print-footer">
+            <div className="print-footer" style={{ fontSize: baseTextFontSize }}>
                 <div className="signature-block">
                     <p className="role">Người mua hàng</p>
                 </div>
@@ -566,25 +679,28 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         try {
             const saved = localStorage.getItem('vppmixu_store_configs');
             if (saved) {
-                return { ...defaultStoreConfigs, ...JSON.parse(saved) };
+                return mergeStoreConfigs(JSON.parse(saved));
             }
         } catch (e) {
             console.error('Cannot read store configs from local storage');
         }
-        return defaultStoreConfigs;
+        return mergeStoreConfigs();
     });
+
+    useEffect(() => {
+        localStorage.setItem('vppmixu_store_configs', JSON.stringify(customStoreConfigs));
+    }, [customStoreConfigs]);
 
     const updateStoreConfig = (field: keyof StoreConfigInfo, value: any) => {
         const baseTemplate = printSettings.template.replace('_EXTRA', '');
         const newConfigs = {
             ...customStoreConfigs,
-            [baseTemplate]: {
+            [baseTemplate]: normalizeStoreConfig({
                 ...customStoreConfigs[baseTemplate],
                 [field]: value
-            }
+            })
         };
         setCustomStoreConfigs(newConfigs);
-        localStorage.setItem('vppmixu_store_configs', JSON.stringify(newConfigs));
     };
 
     // Helper to format currency while typing (prevents truncation/rounding)
@@ -646,6 +762,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             return null;
         }
 
+        // Allow decimal quantities - no need to check for integer
         return roundedBaseQuantity;
     };
 
@@ -724,10 +841,21 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (parsed.invoices && Array.isArray(parsed.invoices)) {
-                    return parsed.invoices.map((inv: any) => ({
-                        ...inv,
-                        createdAt: new Date(inv.createdAt)
-                    }));
+                    return parsed.invoices.map((inv: any) => {
+                        const subtotal = (inv.cart || []).reduce((sum: number, item: any) =>
+                            sum + Number(item.unitPrice || 0) * Number(item.quantity || 0), 0);
+                        const storedPercent = Math.min(Math.max(Number(inv.discountPercent || 0), 0), 100);
+                        const normalizedPercent = storedPercent > 0
+                            ? storedPercent
+                            : deriveDiscountPercent(Number(inv.discountAmount || 0), subtotal);
+
+                        return {
+                            ...inv,
+                            discountPercent: normalizedPercent,
+                            discountPercentInput: inv.discountPercentInput ?? formatPercentInput(normalizedPercent),
+                            createdAt: new Date(inv.createdAt)
+                        };
+                    });
                 }
             }
         } catch (e) {
@@ -807,7 +935,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     const cart = activeInvoice?.cart || [];
     const selectedCustomer = activeInvoice?.customerId || '';
     const discountPercent = activeInvoice?.discountPercent || 0;
-    const discountAmount = activeInvoice?.discountAmount || 0;
+    const discountPercentInput = activeInvoice?.discountPercentInput ?? formatPercentInput(discountPercent);
     const paymentMethod = activeInvoice?.paymentMethod || 'CASH';
     const customerPayment = activeInvoice?.customerPayment || 0;
 
@@ -827,6 +955,22 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             inv.id === activeInvoiceId ? { ...inv, ...updates } : inv
         ));
     }, [activeInvoiceId]);
+
+    const updateActiveInvoiceDiscountPercent = useCallback((value: string) => {
+        const sanitizedValue = sanitizePercentInput(value);
+        updateActiveInvoice({
+            discountPercentInput: sanitizedValue || '',
+            discountPercent: parsePercentInput(sanitizedValue),
+        });
+    }, [updateActiveInvoice]);
+
+    const normalizeActiveInvoiceDiscountPercent = useCallback(() => {
+        const normalizedPercent = parsePercentInput(discountPercentInput);
+        updateActiveInvoice({
+            discountPercentInput: formatPercentInput(normalizedPercent),
+            discountPercent: normalizedPercent,
+        });
+    }, [discountPercentInput, updateActiveInvoice]);
 
     // Add new invoice tab
     const addNewInvoice = useCallback(() => {
@@ -1038,6 +1182,9 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             }
 
             if (cartItems.length > 0) {
+                const editSubtotal = cartItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+                const editDiscountPercent = deriveDiscountPercent(Number(editData.discountAmount) || 0, editSubtotal);
+
                 // Find customer by name if available
                 let customerIdToUse = '';
                 if (editData.customerName) {
@@ -1050,17 +1197,29 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     customerIdToUse = editData.customerId;
                 }
 
+                // Parse the original invoice date - keep the old date when editing
+                let originalDate = new Date();
+                if (editData.createdAt) {
+                    originalDate = new Date(editData.createdAt);
+                    console.log('Using original invoice date:', originalDate);
+                } else if (editData.issuedAt) {
+                    originalDate = new Date(editData.issuedAt);
+                    console.log('Using issued date:', originalDate);
+                }
+
                 // Create a new invoice tab for editing - store original invoice ID
                 const editInvoice: Invoice = {
                     id: generateId(),
                     name: `Sửa: ${editData.invoiceNumber}`,
                     cart: cartItems,
                     customerId: customerIdToUse,
-                    discountPercent: 0,
+                    discountPercent: editDiscountPercent,
                     discountAmount: Number(editData.discountAmount) || 0,
+                    discountPercentInput: formatPercentInput(editDiscountPercent),
                     paymentMethod: 'CASH',
                     customerPayment: Number(editData.totalAmount) || 0,
-                    createdAt: new Date(),
+                    createdAt: originalDate, // Use original date instead of new Date()
+                    dateManuallyChanged: true, // Mark as manually set to prevent auto-update
                     editingInvoiceId: editData.invoiceId?.toString(), // Store original invoice ID for update
                 };
 
@@ -1383,11 +1542,9 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     };
 
     // Calculate totals with discount
-    const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
-    const calculatedDiscount = discountPercent > 0
-        ? Math.round(subtotal * discountPercent / 100)
-        : discountAmount;
-    const total = Math.max(0, subtotal - calculatedDiscount);
+    const subtotal = getInvoiceSubtotal(activeInvoice);
+    const calculatedDiscount = getInvoiceCalculatedDiscount(activeInvoice);
+    const total = getInvoiceTotal(activeInvoice);
 
 
     // Save changed prices to price list
@@ -1444,13 +1601,10 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     cashAmount: paymentMethod === 'CASH' ? total : 0,
                     cardAmount: paymentMethod === 'CARD' ? total : 0,
                     transferAmount: paymentMethod === 'TRANSFER' ? total : 0,
-                    // Use current time unless user manually changed the date picker
-                    issuedAt: activeInvoice?.dateManuallyChanged
-                        ? activeInvoice.createdAt.toISOString()
-                        : new Date().toISOString(),
-                    createdAt: activeInvoice?.dateManuallyChanged
-                        ? activeInvoice.createdAt.toISOString()
-                        : new Date().toISOString(),
+                    // When editing: always use the invoice's createdAt (which is the original date)
+                    // unless user manually changed it via date picker
+                    issuedAt: activeInvoice?.createdAt.toISOString(),
+                    createdAt: activeInvoice?.createdAt.toISOString(),
                     items: cart.map((item) => ({
                         productCode: item.product.sku || '',
                         productName: item.product.name,
@@ -1570,6 +1724,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 customerId: '',
                 discountPercent: 0,
                 discountAmount: 0,
+                discountPercentInput: '0',
                 editingInvoiceId: undefined,
             });
             fetchData(); // Refresh stock
@@ -2238,15 +2393,17 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                     <span className="amount">{formatCurrency(subtotal)}</span>
                                 </div>
                             <div className="summary-line">
-                                <span>Giảm giá</span>
+                                <span>Giảm giá (%)</span>
                                 <input
-                                    type="number"
-                                    min="0"
-                                    value={discountAmount || ''}
-                                    onChange={(e) => updateActiveInvoice({ discountAmount: Number(e.target.value) || 0, discountPercent: 0 })}
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={discountPercentInput}
+                                    onChange={(e) => updateActiveInvoiceDiscountPercent(e.target.value)}
+                                    onBlur={normalizeActiveInvoiceDiscountPercent}
                                     placeholder="0"
                                     className="discount-input"
                                 />
+                                <span className="amount discount-amount">-{formatCurrency(calculatedDiscount)}</span>
                             </div>
                             <div className="summary-line highlight">
                                 <span>Khách cần trả</span>
@@ -2560,7 +2717,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         <span style={{ flex: 1 }}>Cỡ chữ tiêu đề (px)</span>
                                         <input
                                             type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.titleFontSize || 24}
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.titleFontSize || DEFAULT_PRINT_FONT_SIZES.titleFontSize}
                                             onChange={(e) => updateStoreConfig('titleFontSize', parseInt(e.target.value) as any)}
                                             className="custom-config-input"
                                             style={{ width: '80px' }}
@@ -2570,7 +2727,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         <span style={{ flex: 1 }}>Cỡ chữ Logo (px)</span>
                                         <input
                                             type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.logoFontSize || 28}
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.logoFontSize || DEFAULT_PRINT_FONT_SIZES.logoFontSize}
                                             onChange={(e) => updateStoreConfig('logoFontSize', parseInt(e.target.value) as any)}
                                             className="custom-config-input"
                                             style={{ width: '80px' }}
@@ -2580,7 +2737,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         <span style={{ flex: 1 }}>Cỡ chữ Tên CTy (px)</span>
                                         <input
                                             type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.companyNameFontSize || 19}
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.companyNameFontSize || DEFAULT_PRINT_FONT_SIZES.companyNameFontSize}
                                             onChange={(e) => updateStoreConfig('companyNameFontSize', parseInt(e.target.value) as any)}
                                             className="custom-config-input"
                                             style={{ width: '80px' }}
@@ -2590,7 +2747,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         <span style={{ flex: 1 }}>Cỡ chữ nội dung nhỏ (px)</span>
                                         <input
                                             type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.textFontSize || 14}
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.textFontSize || DEFAULT_PRINT_FONT_SIZES.textFontSize}
                                             onChange={(e) => updateStoreConfig('textFontSize', parseInt(e.target.value) as any)}
                                             className="custom-config-input"
                                             style={{ width: '80px' }}
@@ -2600,7 +2757,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         <span style={{ flex: 1 }}>Cỡ chữ danh sách Hàng (px)</span>
                                         <input
                                             type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.tableFontSize || 15}
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.tableFontSize || DEFAULT_PRINT_FONT_SIZES.tableFontSize}
                                             onChange={(e) => updateStoreConfig('tableFontSize', parseInt(e.target.value) as any)}
                                             className="custom-config-input"
                                             style={{ width: '80px' }}

@@ -291,6 +291,16 @@ export class CustomersService {
             notes: inv.notes,
             createdAt: inv.createdAt,
             issuedAt: inv.issuedAt,
+            items: inv.items.map((item) => ({
+                productCode: item.productCode || '',
+                productName: item.productName || '',
+                unit: item.unit || 'Cái',
+                quantity: Number(item.quantity || 0),
+                unitPrice: Number(item.unitPrice || 0),
+                discountAmount: Number(item.discountAmount || 0),
+                salePrice: Number(item.salePrice || item.unitPrice || 0),
+                totalPrice: Number(item.totalPrice || 0),
+            })),
             itemCount: inv.items.length,
         }));
     }

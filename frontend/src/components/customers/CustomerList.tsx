@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { customersAPI } from '../../services/api';
+import { readTabState, writeTabState } from '../../services/tabStateCache';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import * as XLSX from 'xlsx';
@@ -122,7 +123,64 @@ interface CustomerListProps {
     onOpenInvoice?: (invoiceId: string) => void;
 }
 
+interface CustomerListCacheState {
+    filterGroup: string;
+    dateCreatedRange: string;
+    filterCreator: string;
+    filterType: string;
+    filterGender: string;
+    birthDateRange: string;
+    lastTxDateRange: string;
+    salesRangeFrom: string;
+    salesRangeTo: string;
+    salesTimeRange: string;
+    currentDebtFrom: string;
+    currentDebtTo: string;
+    debtDaysFrom: string;
+    debtDaysTo: string;
+    deliveryArea: string;
+    customerStatus: string;
+    sidebarCollapsed: boolean;
+    searchQuery: string;
+    debtFilter: 'all' | 'has-debt' | 'no-debt';
+    debtDaysFilter: 'all' | '<30' | '>30' | '>60';
+    sortBy: 'name' | 'debt' | 'date';
+    currentPage: number;
+    itemsPerPage: number;
+}
+
+const CUSTOMER_LIST_CACHE_KEY = 'customer-list';
+
+const CUSTOMER_LIST_CACHE_DEFAULTS: CustomerListCacheState = {
+    filterGroup: 'all',
+    dateCreatedRange: 'all',
+    filterCreator: '',
+    filterType: 'all',
+    filterGender: 'all',
+    birthDateRange: 'all',
+    lastTxDateRange: 'all',
+    salesRangeFrom: '',
+    salesRangeTo: '',
+    salesTimeRange: 'all',
+    currentDebtFrom: '',
+    currentDebtTo: '',
+    debtDaysFrom: '',
+    debtDaysTo: '',
+    deliveryArea: '',
+    customerStatus: 'active',
+    sidebarCollapsed: false,
+    searchQuery: '',
+    debtFilter: 'all',
+    debtDaysFilter: 'all',
+    sortBy: 'date',
+    currentPage: 1,
+    itemsPerPage: 100,
+};
+
 export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
+    const cachedStateRef = useRef<CustomerListCacheState>(
+        readTabState(CUSTOMER_LIST_CACHE_KEY, CUSTOMER_LIST_CACHE_DEFAULTS)
+    );
     // Helper function to create empty form data
     const createEmptyFormData = (): FormData => ({
         code: '',
@@ -166,42 +224,95 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
     const [submitting, setSubmitting] = useState(false);
 
     // Sidebar Filter States
-    const [filterGroup, setFilterGroup] = useState('all');
-    const [dateCreatedRange, setDateCreatedRange] = useState('all');
-    const [filterCreator, setFilterCreator] = useState('');
-    const [filterType, setFilterType] = useState('all');
-    const [filterGender, setFilterGender] = useState('all');
-    const [birthDateRange, setBirthDateRange] = useState('all');
-    const [lastTxDateRange, setLastTxDateRange] = useState('all');
-    const [salesRangeFrom, setSalesRangeFrom] = useState('');
-    const [salesRangeTo, setSalesRangeTo] = useState('');
-    const [salesTimeRange, setSalesTimeRange] = useState('all');
-    const [currentDebtFrom, setCurrentDebtFrom] = useState('');
-    const [currentDebtTo, setCurrentDebtTo] = useState('');
-    const [debtDaysFrom, setDebtDaysFrom] = useState('');
-    const [debtDaysTo, setDebtDaysTo] = useState('');
-    const [deliveryArea, setDeliveryArea] = useState('');
-    const [customerStatus, setCustomerStatus] = useState('active');
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [filterGroup, setFilterGroup] = useState(cachedStateRef.current.filterGroup);
+    const [dateCreatedRange, setDateCreatedRange] = useState(cachedStateRef.current.dateCreatedRange);
+    const [filterCreator, setFilterCreator] = useState(cachedStateRef.current.filterCreator);
+    const [filterType, setFilterType] = useState(cachedStateRef.current.filterType);
+    const [filterGender, setFilterGender] = useState(cachedStateRef.current.filterGender);
+    const [birthDateRange, setBirthDateRange] = useState(cachedStateRef.current.birthDateRange);
+    const [lastTxDateRange, setLastTxDateRange] = useState(cachedStateRef.current.lastTxDateRange);
+    const [salesRangeFrom, setSalesRangeFrom] = useState(cachedStateRef.current.salesRangeFrom);
+    const [salesRangeTo, setSalesRangeTo] = useState(cachedStateRef.current.salesRangeTo);
+    const [salesTimeRange, setSalesTimeRange] = useState(cachedStateRef.current.salesTimeRange);
+    const [currentDebtFrom, setCurrentDebtFrom] = useState(cachedStateRef.current.currentDebtFrom);
+    const [currentDebtTo, setCurrentDebtTo] = useState(cachedStateRef.current.currentDebtTo);
+    const [debtDaysFrom, setDebtDaysFrom] = useState(cachedStateRef.current.debtDaysFrom);
+    const [debtDaysTo, setDebtDaysTo] = useState(cachedStateRef.current.debtDaysTo);
+    const [deliveryArea, setDeliveryArea] = useState(cachedStateRef.current.deliveryArea);
+    const [customerStatus, setCustomerStatus] = useState(cachedStateRef.current.customerStatus);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(cachedStateRef.current.sidebarCollapsed);
     const [importNote, setImportNote] = useState('');
     const [importing, setImporting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Search & Filter state
-    const [searchQuery, setSearchQuery] = useState('');
-    const [debtFilter, _setDebtFilter] = useState<'all' | 'has-debt' | 'no-debt'>('all');
-    const [debtDaysFilter, _setDebtDaysFilter] = useState<'all' | '<30' | '>30' | '>60'>('all');
-    const [sortBy, setSortBy] = useState<'name' | 'debt' | 'date'>('date');
+    const [searchQuery, setSearchQuery] = useState(cachedStateRef.current.searchQuery);
+    const [debtFilter, _setDebtFilter] = useState<'all' | 'has-debt' | 'no-debt'>(cachedStateRef.current.debtFilter);
+    const [debtDaysFilter, _setDebtDaysFilter] = useState<'all' | '<30' | '>30' | '>60'>(cachedStateRef.current.debtDaysFilter);
+    const [sortBy, setSortBy] = useState<'name' | 'debt' | 'date'>(cachedStateRef.current.sortBy);
 
     // Pagination state
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(100);
+    const [currentPage, setCurrentPage] = useState(cachedStateRef.current.currentPage);
+    const [itemsPerPage, setItemsPerPage] = useState(cachedStateRef.current.itemsPerPage);
+    const hasInitializedPaginationResetRef = useRef(false);
 
     const toast = useToast();
 
     useEffect(() => {
         fetchCustomers();
     }, []);
+
+    useEffect(() => {
+        writeTabState(CUSTOMER_LIST_CACHE_KEY, {
+            filterGroup,
+            dateCreatedRange,
+            filterCreator,
+            filterType,
+            filterGender,
+            birthDateRange,
+            lastTxDateRange,
+            salesRangeFrom,
+            salesRangeTo,
+            salesTimeRange,
+            currentDebtFrom,
+            currentDebtTo,
+            debtDaysFrom,
+            debtDaysTo,
+            deliveryArea,
+            customerStatus,
+            sidebarCollapsed,
+            searchQuery,
+            debtFilter,
+            debtDaysFilter,
+            sortBy,
+            currentPage,
+            itemsPerPage,
+        });
+    }, [
+        filterGroup,
+        dateCreatedRange,
+        filterCreator,
+        filterType,
+        filterGender,
+        birthDateRange,
+        lastTxDateRange,
+        salesRangeFrom,
+        salesRangeTo,
+        salesTimeRange,
+        currentDebtFrom,
+        currentDebtTo,
+        debtDaysFrom,
+        debtDaysTo,
+        deliveryArea,
+        customerStatus,
+        sidebarCollapsed,
+        searchQuery,
+        debtFilter,
+        debtDaysFilter,
+        sortBy,
+        currentPage,
+        itemsPerPage,
+    ]);
 
 
 
@@ -294,13 +405,13 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
         if (currentDebtFrom) {
             const fromValue = parseFloat(currentDebtFrom);
             if (!isNaN(fromValue)) {
-                result = result.filter(c => (c.currentDebt || 0) >= fromValue);
+                result = result.filter(c => getPositiveDebtValue(c.currentDebt) >= fromValue);
             }
         }
         if (currentDebtTo) {
             const toValue = parseFloat(currentDebtTo);
             if (!isNaN(toValue)) {
-                result = result.filter(c => (c.currentDebt || 0) <= toValue);
+                result = result.filter(c => getPositiveDebtValue(c.currentDebt) <= toValue);
             }
         }
 
@@ -320,9 +431,9 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
 
         // Legacy debt filter
         if (debtFilter === 'has-debt') {
-            result = result.filter(c => c.currentDebt && c.currentDebt > 0);
+            result = result.filter(c => getPositiveDebtValue(c.currentDebt) > 0);
         } else if (debtFilter === 'no-debt') {
-            result = result.filter(c => !c.currentDebt || c.currentDebt === 0);
+            result = result.filter(c => getPositiveDebtValue(c.currentDebt) === 0);
         }
 
         // Legacy debt days filter
@@ -338,7 +449,7 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
         if (sortBy === 'name') {
             result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         } else if (sortBy === 'debt') {
-            result.sort((a, b) => (Number(b.currentDebt) || 0) - (Number(a.currentDebt) || 0));
+            result.sort((a, b) => getPositiveDebtValue(b.currentDebt) - getPositiveDebtValue(a.currentDebt));
         } else if (sortBy === 'date') {
             result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         }
@@ -348,6 +459,10 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
 
     // Reset to page 1 when filters change
     useEffect(() => {
+        if (!hasInitializedPaginationResetRef.current) {
+            hasInitializedPaginationResetRef.current = true;
+            return;
+        }
         setCurrentPage(1);
     }, [searchQuery, filterType, filterGender, customerStatus, salesRangeFrom, salesRangeTo, currentDebtFrom, currentDebtTo, debtDaysFrom, debtDaysTo, debtFilter, debtDaysFilter, itemsPerPage]);
 
@@ -480,6 +595,11 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
         const num = typeof value === 'number' ? value : parseFloat(value);
         if (isNaN(num)) return '0';
         return new Intl.NumberFormat('vi-VN').format(num);
+    };
+
+    const getPositiveDebtValue = (value?: number | string | null): number => {
+        const num = typeof value === 'number' ? value : parseFloat(value || '0');
+        return isNaN(num) ? 0 : Math.abs(num);
     };
 
     // === IMPORT FUNCTIONALITY ===
@@ -872,7 +992,7 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
                 'Ngày tạo': c.createdAt ? new Date(c.createdAt).toLocaleDateString('vi-VN') : '',
                 'Ngày giao dịch cuối': '', // Last transaction date
                 'Số ngày nợ': c.debtDays || 0,
-                'Nợ cần thu': c.currentDebt || 0,
+                'Nợ cần thu': getPositiveDebtValue(c.currentDebt),
                 'Tổng bán': c.totalSales || 0,
                 'Tổng bán trừ TH': c.totalSalesAfterReturn || 0,
                 'Trạng thái': c.active !== false ? 'Đang giao dịch' : 'Ngừng giao dịch',
@@ -1370,8 +1490,8 @@ export default function CustomerList({ onOpenInvoice }: CustomerListProps) {
                                                 </td>
                                                 <td className="customer-contact">{c.phone || '—'}</td>
                                                 <td className="text-right">
-                                                    <span className={c.currentDebt && c.currentDebt > 0 ? 'debt-amount' : ''}>
-                                                        {c.currentDebt ? formatCurrency(c.currentDebt) : '0'}đ
+                                                    <span className={getPositiveDebtValue(c.currentDebt) > 0 ? 'debt-amount' : ''}>
+                                                        {formatCurrency(getPositiveDebtValue(c.currentDebt))}đ
                                                     </span>
                                                 </td>
                                                 <td className="text-center">

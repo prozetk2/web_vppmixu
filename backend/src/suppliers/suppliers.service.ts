@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
@@ -10,6 +10,11 @@ import { Prisma } from '@prisma/client';
 @Injectable()
 export class SuppliersService {
     constructor(private readonly prisma: PrismaService) { }
+
+    private normalizePaymentMethod(method?: string) {
+        const normalized = (method || 'CASH').trim().toUpperCase();
+        return ['CASH', 'TRANSFER', 'CARD'].includes(normalized) ? normalized : 'CASH';
+    }
 
     private async recalculateCurrentDebt(
         supplierId: bigint,
@@ -233,51 +238,83 @@ export class SuppliersService {
     async payDebt(id: string, dto: CreatePaymentDto) {
         await this.ensureExists(id);
         const { amount, allocations } = dto;
+        const supplierId = BigInt(id);
+        const paymentAmount = Number(amount || 0);
+
+        if (!paymentAmount || paymentAmount <= 0) {
+            throw new BadRequestException('INVALID_PAYMENT_AMOUNT');
+        }
+
+        const paymentCreatedAt = dto.createdAt ? new Date(dto.createdAt) : new Date();
+        if (Number.isNaN(paymentCreatedAt.getTime())) {
+            throw new BadRequestException('INVALID_PAYMENT_DATE');
+        }
 
         return this.prisma.$transaction(async (tx) => {
-            // 1. Update purchase orders if allocated
+            const resolvedAllocations: Array<{
+                purchaseOrderId: bigint;
+                amount: number;
+            }> = [];
+
             if (dto.allocateToPurchases) {
-                if (allocations && allocations.length > 0) {
-                    for (const alloc of allocations) {
-                        if (alloc.amount > 0) {
-                            try {
-                                // Fetch current PO to calculate new values correctly
-                                const po = await tx.purchaseOrder.findUnique({
-                                    where: { id: BigInt(alloc.purchaseOrderId) }
-                                });
+                const purchaseOrders = await tx.purchaseOrder.findMany({
+                    where: {
+                        supplierId,
+                        status: { not: 'CANCELLED' },
+                    },
+                    orderBy: { createdAt: 'asc' },
+                });
 
-                                if (po) {
-                                    const currentPaid = Number(po.amountPaid || 0);
-                                    const total = Number(po.totalAmount || 0);
-                                    const newPaid = currentPaid + Number(alloc.amount);
-                                    const newDue = total - newPaid;
+                const purchaseOrderMap = new Map(
+                    purchaseOrders.map((po) => [
+                        po.id.toString(),
+                        {
+                            id: po.id,
+                            totalAmount: Number(po.totalAmount || 0),
+                            amountPaid: Number(po.amountPaid || 0),
+                        },
+                    ]),
+                );
 
-                                    await tx.purchaseOrder.update({
-                                        where: { id: BigInt(alloc.purchaseOrderId) },
-                                        data: {
-                                            amountPaid: newPaid,
-                                            amountDue: newDue,
-                                            status: newDue <= 0 ? 'PAID' : 'PARTIAL'
-                                        }
-                                    });
-                                }
-                            } catch (e) {
-                                console.error(`Error updating PO ${alloc.purchaseOrderId}`, e);
-                            }
+                const explicitAllocations = (allocations || []).filter((alloc) => Number(alloc.amount) > 0);
+
+                if (explicitAllocations.length > 0) {
+                    const seenPurchaseOrderIds = new Set<string>();
+                    let allocatedTotal = 0;
+
+                    for (const alloc of explicitAllocations) {
+                        if (seenPurchaseOrderIds.has(alloc.purchaseOrderId)) {
+                            throw new BadRequestException('DUPLICATE_PURCHASE_ORDER_ALLOCATION');
                         }
+
+                        seenPurchaseOrderIds.add(alloc.purchaseOrderId);
+
+                        const purchaseOrder = purchaseOrderMap.get(alloc.purchaseOrderId);
+                        if (!purchaseOrder) {
+                            throw new BadRequestException(`PURCHASE_ORDER_NOT_FOUND: ${alloc.purchaseOrderId}`);
+                        }
+
+                        const allocationAmount = Number(alloc.amount || 0);
+                        const outstanding = Math.max(0, purchaseOrder.totalAmount - purchaseOrder.amountPaid);
+
+                        if (allocationAmount > outstanding) {
+                            throw new BadRequestException(`ALLOCATION_EXCEEDS_OUTSTANDING: ${alloc.purchaseOrderId}`);
+                        }
+
+                        allocatedTotal += allocationAmount;
+                        resolvedAllocations.push({
+                            purchaseOrderId: purchaseOrder.id,
+                            amount: allocationAmount,
+                        });
+                    }
+
+                    if (Math.abs(allocatedTotal - paymentAmount) > 0.001) {
+                        throw new BadRequestException('ALLOCATIONS_MUST_MATCH_PAYMENT_AMOUNT');
                     }
                 } else {
-                    // No explicit allocations from UI: auto-allocate FIFO to oldest unpaid purchases.
-                    let remaining = Number(amount);
-                    const unpaidOrders = await tx.purchaseOrder.findMany({
-                        where: {
-                            supplierId: BigInt(id),
-                            status: { in: ['CONFIRMED', 'PARTIAL'] },
-                        },
-                        orderBy: { createdAt: 'asc' },
-                    });
+                    let remaining = paymentAmount;
 
-                    for (const po of unpaidOrders) {
+                    for (const po of purchaseOrders) {
                         if (remaining <= 0) break;
 
                         const total = Number(po.totalAmount || 0);
@@ -286,16 +323,9 @@ export class SuppliersService {
                         if (due <= 0) continue;
 
                         const allocated = Math.min(due, remaining);
-                        const newPaid = currentPaid + allocated;
-                        const newDue = total - newPaid;
-
-                        await tx.purchaseOrder.update({
-                            where: { id: po.id },
-                            data: {
-                                amountPaid: newPaid,
-                                amountDue: newDue,
-                                status: newDue <= 0 ? 'PAID' : 'PARTIAL',
-                            },
+                        resolvedAllocations.push({
+                            purchaseOrderId: po.id,
+                            amount: allocated,
                         });
 
                         remaining -= allocated;
@@ -303,22 +333,75 @@ export class SuppliersService {
                 }
             }
 
-            // 2. Create SupplierPayment record
             const payment = await tx.supplierPayment.create({
                 data: {
-                    supplierId: BigInt(id),
-                    amount: amount,
-                    method: dto.paymentMethod || 'CASH',
+                    supplierId,
+                    amount: paymentAmount,
+                    method: this.normalizePaymentMethod(dto.paymentMethod),
                     note: dto.note,
                     code: `PC${Date.now()}`, // Simple code generation, can be improved
+                    createdAt: paymentCreatedAt,
                 }
             });
 
-            // 3. Recalculate debt from ledger to avoid drift:
-            // currentDebt = max(totalPurchase - sum(payments), 0)
-            await this.recalculateCurrentDebt(BigInt(id), tx);
+            if (resolvedAllocations.length > 0) {
+                for (const alloc of resolvedAllocations) {
+                    const purchaseOrder = await tx.purchaseOrder.findUnique({
+                        where: { id: alloc.purchaseOrderId },
+                        select: {
+                            id: true,
+                            totalAmount: true,
+                            amountPaid: true,
+                        },
+                    });
 
-            return payment;
+                    if (!purchaseOrder) {
+                        continue;
+                    }
+
+                    const currentPaid = Number(purchaseOrder.amountPaid || 0);
+                    const total = Number(purchaseOrder.totalAmount || 0);
+                    const newPaid = currentPaid + alloc.amount;
+                    const newDue = Math.max(0, total - newPaid);
+
+                    await tx.purchaseOrder.update({
+                        where: { id: purchaseOrder.id },
+                        data: {
+                            amountPaid: newPaid,
+                            amountDue: newDue,
+                            status: newDue <= 0 ? 'PAID' : 'PARTIAL',
+                        },
+                    });
+                }
+
+                await tx.supplierPaymentAllocation.createMany({
+                    data: resolvedAllocations.map((alloc) => ({
+                        paymentId: payment.id,
+                        purchaseOrderId: alloc.purchaseOrderId,
+                        amount: alloc.amount,
+                        createdAt: paymentCreatedAt,
+                    })),
+                });
+            }
+
+            await this.recalculateCurrentDebt(supplierId, tx);
+
+            return tx.supplierPayment.findUnique({
+                where: { id: payment.id },
+                include: {
+                    allocations: {
+                        include: {
+                            purchaseOrder: {
+                                select: {
+                                    id: true,
+                                    orderNumber: true,
+                                },
+                            },
+                        },
+                        orderBy: { createdAt: 'asc' },
+                    },
+                },
+            });
         });
     }
 
@@ -328,6 +411,9 @@ export class SuppliersService {
                 id: BigInt(paymentId),
                 supplierId: BigInt(supplierId),
             },
+            include: {
+                allocations: true,
+            },
         });
 
         if (!payment) {
@@ -335,12 +421,40 @@ export class SuppliersService {
         }
 
         return this.prisma.$transaction(async (tx) => {
-            // 1. Xóa payment record
+            for (const allocation of payment.allocations) {
+                const purchaseOrder = await tx.purchaseOrder.findUnique({
+                    where: { id: allocation.purchaseOrderId },
+                    select: {
+                        id: true,
+                        totalAmount: true,
+                        amountPaid: true,
+                    },
+                });
+
+                if (!purchaseOrder) {
+                    continue;
+                }
+
+                const total = Number(purchaseOrder.totalAmount || 0);
+                const currentPaid = Number(purchaseOrder.amountPaid || 0);
+                const allocationAmount = Number(allocation.amount || 0);
+                const newPaid = Math.max(0, currentPaid - allocationAmount);
+                const newDue = Math.max(0, total - newPaid);
+
+                await tx.purchaseOrder.update({
+                    where: { id: purchaseOrder.id },
+                    data: {
+                        amountPaid: newPaid,
+                        amountDue: newDue,
+                        status: newDue <= 0 ? 'PAID' : newPaid > 0 ? 'PARTIAL' : 'CONFIRMED',
+                    },
+                });
+            }
+
             await tx.supplierPayment.delete({
                 where: { id: BigInt(paymentId) },
             });
 
-            // 2. Recalculate debt from remaining payments
             await this.recalculateCurrentDebt(BigInt(supplierId), tx);
 
             return { success: true, message: 'Đã xóa thanh toán thành công' };
@@ -350,7 +464,20 @@ export class SuppliersService {
     async getPayments(id: string) {
         return this.prisma.supplierPayment.findMany({
             where: { supplierId: BigInt(id) },
-            orderBy: { createdAt: 'desc' }
+            orderBy: { createdAt: 'desc' },
+            include: {
+                allocations: {
+                    include: {
+                        purchaseOrder: {
+                            select: {
+                                id: true,
+                                orderNumber: true,
+                            },
+                        },
+                    },
+                    orderBy: { createdAt: 'asc' },
+                },
+            },
         });
     }
 }

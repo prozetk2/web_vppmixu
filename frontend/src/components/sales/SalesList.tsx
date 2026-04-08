@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { salesAPI } from '../../services/api';
+import { readTabState, writeTabState } from '../../services/tabStateCache';
 import Modal from '../shared/Modal';
 import { Toast, useToast } from '../shared/Toast';
 import { MdSearch, MdInbox, MdUndo, MdFileUpload, MdFileDownload, MdExpandMore, MdMoreHoriz, MdViewColumn, MdSettings, MdHelpOutline } from 'react-icons/md';
@@ -42,12 +43,29 @@ const formatQuantity = (value: number) => {
     }).format(value);
 };
 
+interface SalesListCacheState {
+    search: string;
+    statusFilter: string;
+    page: number;
+}
+
+const SALES_LIST_CACHE_KEY = 'sales-list';
+
+const SALES_LIST_CACHE_DEFAULTS: SalesListCacheState = {
+    search: '',
+    statusFilter: '',
+    page: 1,
+};
+
 export default function SalesList() {
+    const cachedStateRef = useRef<SalesListCacheState>(
+        readTabState(SALES_LIST_CACHE_KEY, SALES_LIST_CACHE_DEFAULTS)
+    );
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState('');
-    const [statusFilter, setStatusFilter] = useState('');
-    const [page, setPage] = useState(1);
+    const [search, setSearch] = useState(cachedStateRef.current.search);
+    const [statusFilter, setStatusFilter] = useState(cachedStateRef.current.statusFilter);
+    const [page, setPage] = useState(cachedStateRef.current.page);
     const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [returning, setReturning] = useState(false);
@@ -57,6 +75,14 @@ export default function SalesList() {
     useEffect(() => {
         fetchOrders();
     }, [page, statusFilter]);
+
+    useEffect(() => {
+        writeTabState(SALES_LIST_CACHE_KEY, {
+            search,
+            statusFilter,
+            page,
+        });
+    }, [search, statusFilter, page]);
 
     const fetchOrders = async () => {
         setLoading(true);

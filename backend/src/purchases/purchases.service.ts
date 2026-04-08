@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePurchaseDto } from './dto/create-purchase.dto';
 import { PurchaseQueryDto } from './dto/purchase-query.dto';
@@ -7,6 +8,37 @@ import { UpdatePurchaseDto } from './dto/update-purchase.dto';
 @Injectable()
 export class PurchasesService {
     constructor(private readonly prisma: PrismaService) { }
+
+    private normalizePaymentMethod(method?: string) {
+        const normalized = (method || 'CASH').trim().toUpperCase();
+        return ['CASH', 'TRANSFER', 'CARD'].includes(normalized) ? normalized : 'CASH';
+    }
+
+    private async recalculateSupplierCurrentDebt(
+        supplierId: bigint,
+        tx: Prisma.TransactionClient = this.prisma,
+    ) {
+        const supplier = await tx.supplier.findUnique({
+            where: { id: supplierId },
+            select: { totalPurchase: true },
+        });
+
+        const paymentAgg = await tx.supplierPayment.aggregate({
+            where: { supplierId },
+            _sum: { amount: true },
+        });
+
+        const totalPurchase = Number(supplier?.totalPurchase || 0);
+        const totalPaid = Number(paymentAgg._sum.amount || 0);
+        const currentDebt = Math.max(0, totalPurchase - totalPaid);
+
+        await tx.supplier.update({
+            where: { id: supplierId },
+            data: { currentDebt },
+        });
+
+        return currentDebt;
+    }
 
     // Generate purchase order number: PN + YYMM + 4-digit sequence (10 digits total)
     private async generateOrderNumber(): Promise<string> {
@@ -29,6 +61,22 @@ export class PurchasesService {
         }
 
         return `${prefix}${String(seq).padStart(4, '0')}`;
+    }
+
+    private clampDiscountAmount(requestedDiscount: number | undefined, subtotalAmount: number) {
+        return Math.min(Math.max(requestedDiscount || 0, 0), subtotalAmount);
+    }
+
+    private resolvePurchaseStatus(totalAmount: number, amountPaid: number) {
+        if (amountPaid >= totalAmount && amountPaid > 0) {
+            return 'PAID';
+        }
+
+        if (amountPaid > 0) {
+            return 'PARTIAL';
+        }
+
+        return 'CONFIRMED';
     }
 
     async create(dto: CreatePurchaseDto) {
@@ -65,7 +113,7 @@ export class PurchasesService {
         }
 
         // Calculate totals
-        let totalAmount = 0;
+        let subtotalAmount = 0;
         const purchaseItems: any[] = [];
 
         for (const item of dto.items) {
@@ -76,11 +124,11 @@ export class PurchasesService {
 
             const displayQuantity = item.displayQuantity ?? item.quantity;
             const totalCost = item.unitCost * displayQuantity;
-            totalAmount += totalCost;
+            subtotalAmount += totalCost;
 
             purchaseItems.push({
                 variantId: info.variant.id,
-                quantity: BigInt(item.quantity),
+                quantity: item.quantity,
                 unitCost: item.unitCost,
                 unit: item.unit || info.product.baseUnitCode || info.product.unit || 'Cái',
                 displayQuantity,
@@ -88,30 +136,31 @@ export class PurchasesService {
             });
         }
 
+        const discountAmount = this.clampDiscountAmount(dto.discountAmount, subtotalAmount);
+        const totalAmount = Math.max(0, subtotalAmount - discountAmount);
+
         // Determine payment status
         const prepaymentAmount = dto.prepaymentAmount || 0;
-        let initialStatus = 'CONFIRMED';
-        if (prepaymentAmount >= totalAmount) {
-            initialStatus = 'PAID';
-        } else if (prepaymentAmount > 0) {
-            initialStatus = 'PARTIAL';
-        }
+        const initialStatus = this.resolvePurchaseStatus(totalAmount, prepaymentAmount);
 
         // Create purchase order with auto-confirm and inventory update
         const orderNumber = await this.generateOrderNumber();
+        const supplierId = BigInt(dto.supplierId);
+        const createdAt = dto.createdAt ? new Date(dto.createdAt) : new Date();
 
         return this.prisma.$transaction(async (tx) => {
             const order = await tx.purchaseOrder.create({
                 data: {
                     orderNumber,
-                    supplierId: BigInt(dto.supplierId),
+                    supplierId,
                     warehouseId: dto.warehouseId ? BigInt(dto.warehouseId) : null,
                     status: initialStatus,
                     totalAmount,
+                    discountAmount,
                     amountPaid: prepaymentAmount,
-                    amountDue: totalAmount - prepaymentAmount,
+                    amountDue: Math.max(0, totalAmount - prepaymentAmount),
                     note: dto.note,
-                    createdAt: dto.createdAt ? new Date(dto.createdAt) : undefined,
+                    createdAt,
                     confirmedAt: new Date(),
                     purchaseItems: {
                         create: purchaseItems.map(({ displayQuantity, ...item }) => item),
@@ -132,14 +181,24 @@ export class PurchasesService {
 
             // If prepayment exists, create SupplierPayment record
             if (prepaymentAmount > 0) {
-                await tx.supplierPayment.create({
+                const payment = await tx.supplierPayment.create({
                     data: {
-                        supplierId: BigInt(dto.supplierId),
+                        supplierId,
                         amount: prepaymentAmount,
-                        method: dto.paymentMethod || 'CASH',
+                        method: this.normalizePaymentMethod(dto.paymentMethod),
                         note: `Thanh toán trước cho ${orderNumber}`,
                         code: `PC${Date.now()}`,
+                        createdAt,
                     }
+                });
+
+                await tx.supplierPaymentAllocation.create({
+                    data: {
+                        paymentId: payment.id,
+                        purchaseOrderId: order.id,
+                        amount: prepaymentAmount,
+                        createdAt,
+                    },
                 });
             }
 
@@ -197,14 +256,14 @@ export class PurchasesService {
                 });
             }
 
-            // Update supplier debt: totalPurchase increases by full amount, currentDebt increases by net amount
             await tx.supplier.update({
-                where: { id: BigInt(dto.supplierId) },
+                where: { id: supplierId },
                 data: {
-                    currentDebt: { increment: totalAmount - prepaymentAmount },
                     totalPurchase: { increment: totalAmount },
                 },
             });
+
+            await this.recalculateSupplierCurrentDebt(supplierId, tx);
 
             return order;
         });
@@ -312,6 +371,8 @@ export class PurchasesService {
         if (dto.note !== undefined) updateData.note = dto.note;
         if (dto.createdAt) updateData.createdAt = new Date(dto.createdAt);
 
+        const amountPaid = Number(order.amountPaid || 0);
+
         // If items are provided, recalculate
         if (dto.items && dto.items.length > 0) {
             const productIds = dto.items.map((item) => BigInt(item.productId));
@@ -330,7 +391,7 @@ export class PurchasesService {
                 }
             }
 
-            let totalAmount = 0;
+            let subtotalAmount = 0;
             const purchaseItems: any[] = [];
 
             for (const item of dto.items) {
@@ -340,10 +401,10 @@ export class PurchasesService {
                 }
                 const displayQuantity = item.displayQuantity ?? item.quantity;
                 const totalCost = item.unitCost * displayQuantity;
-                totalAmount += totalCost;
+                subtotalAmount += totalCost;
                 purchaseItems.push({
                     variantId: info.variant.id,
-                    quantity: BigInt(item.quantity),
+                    quantity: item.quantity,
                     unitCost: item.unitCost,
                     unit: item.unit || info.product.baseUnitCode || info.product.unit || 'Cái',
                     displayQuantity,
@@ -351,18 +412,14 @@ export class PurchasesService {
                 });
             }
 
+            const discountAmount = this.clampDiscountAmount(dto.discountAmount ?? Number(order.discountAmount || 0), subtotalAmount);
+            const totalAmount = Math.max(0, subtotalAmount - discountAmount);
             updateData.totalAmount = totalAmount;
+            updateData.discountAmount = discountAmount;
 
             // Recalculate payment status based on existing amountPaid vs new totalAmount
-            const amountPaid = Number(order.amountPaid || 0);
-            if (amountPaid >= totalAmount && amountPaid > 0) {
-                updateData.status = 'PAID';
-            } else if (amountPaid > 0) {
-                updateData.status = 'PARTIAL';
-            } else {
-                updateData.status = 'CONFIRMED';
-            }
-            updateData.amountDue = totalAmount - amountPaid;
+            updateData.status = this.resolvePurchaseStatus(totalAmount, amountPaid);
+            updateData.amountDue = Math.max(0, totalAmount - amountPaid);
 
             return this.prisma.$transaction(async (tx) => {
                 // If order has inventory, reverse old inventory first
@@ -406,12 +463,9 @@ export class PurchasesService {
                         await tx.stockMovement.deleteMany({ where: movementDeleteWhere });
                     }
 
-                    // Reverse supplier debt for the OLD supplier
-                    const oldNetAmt = Number(order.totalAmount) - Number(order.amountPaid || 0);
                     await tx.supplier.update({
                         where: { id: order.supplierId },
                         data: {
-                            currentDebt: { decrement: oldNetAmt },
                             totalPurchase: { decrement: Number(order.totalAmount) },
                         },
                     });
@@ -483,27 +537,72 @@ export class PurchasesService {
                         }
                     }
 
-                    // Re-apply supplier debt for the NEW supplier (or same supplier if unchanged)
                     const targetSupplierId = newSupplierId || order.supplierId;
-                    const newNetAmt = totalAmount - amountPaid;
                     await tx.supplier.update({
                         where: { id: targetSupplierId },
                         data: {
-                            currentDebt: { increment: newNetAmt },
                             totalPurchase: { increment: totalAmount },
                         },
                     });
+                }
+
+                await this.recalculateSupplierCurrentDebt(order.supplierId, tx);
+                if (newSupplierId && newSupplierId !== order.supplierId) {
+                    await this.recalculateSupplierCurrentDebt(newSupplierId, tx);
                 }
 
                 return this.findOne(id);
             });
         }
 
+        if (dto.discountAmount !== undefined) {
+            const subtotalAmount = order.purchaseItems.reduce(
+                (sum, item) => sum + Number(item.totalCost || 0),
+                0,
+            );
+            const discountAmount = this.clampDiscountAmount(dto.discountAmount, subtotalAmount);
+            const totalAmount = Math.max(0, subtotalAmount - discountAmount);
+
+            updateData.discountAmount = discountAmount;
+            updateData.totalAmount = totalAmount;
+            updateData.status = this.resolvePurchaseStatus(totalAmount, amountPaid);
+            updateData.amountDue = Math.max(0, totalAmount - amountPaid);
+        }
+
         // Just update order info without items
-        await this.prisma.purchaseOrder.update({
-            where: { id: BigInt(id) },
-            data: updateData,
-        });
+        if ((dto.discountAmount !== undefined || (newSupplierId && newSupplierId !== order.supplierId)) && hasInventory) {
+            await this.prisma.$transaction(async (tx) => {
+                await tx.purchaseOrder.update({
+                    where: { id: BigInt(id) },
+                    data: updateData,
+                });
+
+                await tx.supplier.update({
+                    where: { id: order.supplierId },
+                    data: {
+                        totalPurchase: { decrement: Number(order.totalAmount) },
+                    },
+                });
+
+                const targetSupplierId = newSupplierId || order.supplierId;
+                await tx.supplier.update({
+                    where: { id: targetSupplierId },
+                    data: {
+                        totalPurchase: { increment: Number(updateData.totalAmount ?? order.totalAmount) },
+                    },
+                });
+
+                await this.recalculateSupplierCurrentDebt(order.supplierId, tx);
+                if (targetSupplierId !== order.supplierId) {
+                    await this.recalculateSupplierCurrentDebt(targetSupplierId, tx);
+                }
+            });
+        } else {
+            await this.prisma.purchaseOrder.update({
+                where: { id: BigInt(id) },
+                data: updateData,
+            });
+        }
 
         return this.findOne(id);
     }
@@ -584,15 +683,14 @@ export class PurchasesService {
                 });
             }
 
-            // 4. Update supplier debt (add net amount to currentDebt)
-            const amountPaid = Number(order.amountPaid || 0);
             await tx.supplier.update({
                 where: { id: order.supplierId },
                 data: {
-                    currentDebt: { increment: Number(order.totalAmount) - amountPaid },
                     totalPurchase: { increment: Number(order.totalAmount) }
                 }
             });
+
+            await this.recalculateSupplierCurrentDebt(order.supplierId, tx);
 
             return this.findOne(id);
         });
@@ -657,12 +755,9 @@ export class PurchasesService {
                     });
                 }
 
-                // Reverse supplier debt: decrement currentDebt by amountDue and totalPurchase by totalAmount
-                const amountPaid = Number(order.amountPaid || 0);
                 await tx.supplier.update({
                     where: { id: order.supplierId },
                     data: {
-                        currentDebt: { decrement: Number(order.totalAmount) - amountPaid },
                         totalPurchase: { decrement: Number(order.totalAmount) },
                     },
                 });
@@ -677,6 +772,10 @@ export class PurchasesService {
             await tx.purchaseOrder.delete({
                 where: { id: BigInt(id) },
             });
+
+            if (order.status === 'CONFIRMED' || order.status === 'PAID' || order.status === 'PARTIAL') {
+                await this.recalculateSupplierCurrentDebt(order.supplierId, tx);
+            }
         });
 
         return { success: true, message: 'Đã xóa đơn nhập hàng thành công và cập nhật lại tồn kho' };

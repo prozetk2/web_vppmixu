@@ -6,7 +6,7 @@ export class PurchaseItemDto {
     productId: string;
 
     @IsNumber()
-    @Min(1)
+    @Min(0.001) // Allow decimal quantities > 0 (e.g., 0.5 kg)
     quantity: number;
 
     @IsString()
@@ -39,6 +39,11 @@ export class CreatePurchaseDto {
     @IsOptional()
     @IsString()
     note?: string;
+
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    discountAmount?: number;
 
     @IsOptional()
     @IsNumber()
