@@ -2054,10 +2054,10 @@ tr.dragging {
         --print-table-margin-bottom: 2px;
         --print-footer-margin-top: 3px;
         --print-footer-margin-bottom: 2px;
-        --print-label-width: 104px;
+        --print-label-width: 96px;
         --print-topbar-margin-bottom: 1px;
-        font-size: 0.88em;
-        line-height: 1.08;
+        font-size: 0.85em;
+        line-height: 1.06;
     }
 
     .print-template.paper-a4 {

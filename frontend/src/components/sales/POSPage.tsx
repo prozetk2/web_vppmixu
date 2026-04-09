@@ -94,15 +94,43 @@ export type StoreConfigInfo = {
     companyNameFontSize?: number;
     titleFontSize?: number;
     textFontSize?: number;
+    companyDetailFontSize?: number;
+    orderInfoFontSize?: number;
+    customerInfoFontSize?: number;
     tableFontSize?: number;
+    footerFontSize?: number;
 };
 
-const DEFAULT_PRINT_FONT_SIZES = {
+const LEGACY_PRINT_FONT_SIZES = {
     logoFontSize: 34,
     companyNameFontSize: 23,
     titleFontSize: 30,
     textFontSize: 17,
     tableFontSize: 18,
+} as const;
+
+const PREVIOUS_PRINT_FONT_SIZES = {
+    logoFontSize: 30,
+    companyNameFontSize: 20,
+    titleFontSize: 26,
+    textFontSize: 14,
+    companyDetailFontSize: 13,
+    orderInfoFontSize: 14,
+    customerInfoFontSize: 14,
+    tableFontSize: 15,
+    footerFontSize: 13,
+} as const;
+
+const DEFAULT_PRINT_FONT_SIZES = {
+    logoFontSize: 20,
+    companyNameFontSize: 20,
+    titleFontSize: 20,
+    textFontSize: 14,
+    companyDetailFontSize: 13,
+    orderInfoFontSize: 14,
+    customerInfoFontSize: 14,
+    tableFontSize: 14,
+    footerFontSize: 13,
 } as const;
 
 export const defaultStoreConfigs: Record<string, StoreConfigInfo> = {
@@ -150,21 +178,74 @@ export const defaultStoreConfigs: Record<string, StoreConfigInfo> = {
 
 const normalizePrintFontSize = (value: unknown, fallback: number) => {
     const parsed = Number(value);
-    if (!Number.isFinite(parsed)) {
+    if (!Number.isFinite(parsed) || parsed <= 0) {
         return fallback;
     }
 
-    return Math.max(Math.round(parsed), fallback);
+    return Math.max(Math.round(parsed), 10);
 };
 
-const normalizeStoreConfig = (config: StoreConfigInfo): StoreConfigInfo => ({
-    ...config,
-    logoFontSize: normalizePrintFontSize(config.logoFontSize, DEFAULT_PRINT_FONT_SIZES.logoFontSize),
-    companyNameFontSize: normalizePrintFontSize(config.companyNameFontSize, DEFAULT_PRINT_FONT_SIZES.companyNameFontSize),
-    titleFontSize: normalizePrintFontSize(config.titleFontSize, DEFAULT_PRINT_FONT_SIZES.titleFontSize),
-    textFontSize: normalizePrintFontSize(config.textFontSize, DEFAULT_PRINT_FONT_SIZES.textFontSize),
-    tableFontSize: normalizePrintFontSize(config.tableFontSize, DEFAULT_PRINT_FONT_SIZES.tableFontSize),
-});
+const matchesPrintFontPreset = (
+    config: Partial<StoreConfigInfo>,
+    preset: Partial<StoreConfigInfo>
+) =>
+    config.logoFontSize === preset.logoFontSize
+    && config.companyNameFontSize === preset.companyNameFontSize
+    && config.titleFontSize === preset.titleFontSize
+    && config.textFontSize === preset.textFontSize
+    && config.companyDetailFontSize === preset.companyDetailFontSize
+    && config.orderInfoFontSize === preset.orderInfoFontSize
+    && config.customerInfoFontSize === preset.customerInfoFontSize
+    && config.tableFontSize === preset.tableFontSize
+    && config.footerFontSize === preset.footerFontSize;
+
+const isLegacyDefaultFontConfig = (config: Partial<StoreConfigInfo>) =>
+    (
+        config.companyDetailFontSize == null
+        && config.orderInfoFontSize == null
+        && config.customerInfoFontSize == null
+        && config.footerFontSize == null
+        && matchesPrintFontPreset(config, LEGACY_PRINT_FONT_SIZES)
+    )
+    || matchesPrintFontPreset(config, PREVIOUS_PRINT_FONT_SIZES);
+
+const normalizeStoreConfig = (config: StoreConfigInfo): StoreConfigInfo => {
+    const migratedConfig = isLegacyDefaultFontConfig(config)
+        ? {
+            ...config,
+            ...DEFAULT_PRINT_FONT_SIZES,
+        }
+        : config;
+    const legacyTextFontSize = normalizePrintFontSize(
+        migratedConfig.textFontSize,
+        DEFAULT_PRINT_FONT_SIZES.textFontSize
+    );
+
+    return {
+        ...migratedConfig,
+        logoFontSize: normalizePrintFontSize(migratedConfig.logoFontSize, DEFAULT_PRINT_FONT_SIZES.logoFontSize),
+        companyNameFontSize: normalizePrintFontSize(migratedConfig.companyNameFontSize, DEFAULT_PRINT_FONT_SIZES.companyNameFontSize),
+        titleFontSize: normalizePrintFontSize(migratedConfig.titleFontSize, DEFAULT_PRINT_FONT_SIZES.titleFontSize),
+        textFontSize: legacyTextFontSize,
+        companyDetailFontSize: normalizePrintFontSize(
+            migratedConfig.companyDetailFontSize,
+            legacyTextFontSize
+        ),
+        orderInfoFontSize: normalizePrintFontSize(
+            migratedConfig.orderInfoFontSize,
+            legacyTextFontSize
+        ),
+        customerInfoFontSize: normalizePrintFontSize(
+            migratedConfig.customerInfoFontSize,
+            legacyTextFontSize
+        ),
+        tableFontSize: normalizePrintFontSize(migratedConfig.tableFontSize, DEFAULT_PRINT_FONT_SIZES.tableFontSize),
+        footerFontSize: normalizePrintFontSize(
+            migratedConfig.footerFontSize,
+            legacyTextFontSize
+        ),
+    };
+};
 
 const mergeStoreConfigs = (savedConfigs?: Record<string, Partial<StoreConfigInfo>>) =>
     Object.fromEntries(
@@ -342,9 +423,9 @@ const PRINT_LAYOUTS = {
         pageWidth: '100%',
         contentWidth: '100%',
         topbarFontOffset: -2,
-        companyTextOffset: -1,
-        titleFontOffset: -3,
-        tableFontOffset: -1,
+        companyTextOffset: 0,
+        titleFontOffset: 0,
+        tableFontOffset: 0,
     },
 } as const;
 
@@ -395,8 +476,23 @@ const PrintInvoice = ({
     const logoFontSize = paperPx(storeInfo.logoFontSize || DEFAULT_PRINT_FONT_SIZES.logoFontSize, layout.companyTextOffset);
     const companyNameFontSize = paperPx(storeInfo.companyNameFontSize || DEFAULT_PRINT_FONT_SIZES.companyNameFontSize, layout.companyTextOffset);
     const titleFontSize = paperPx(storeInfo.titleFontSize || DEFAULT_PRINT_FONT_SIZES.titleFontSize, layout.titleFontOffset);
-    const baseTextFontSize = paperPx(storeInfo.textFontSize || DEFAULT_PRINT_FONT_SIZES.textFontSize, layout.companyTextOffset);
+    const companyDetailFontSize = paperPx(
+        storeInfo.companyDetailFontSize || storeInfo.textFontSize || DEFAULT_PRINT_FONT_SIZES.companyDetailFontSize,
+        layout.companyTextOffset
+    );
+    const orderInfoFontSize = paperPx(
+        storeInfo.orderInfoFontSize || storeInfo.textFontSize || DEFAULT_PRINT_FONT_SIZES.orderInfoFontSize,
+        layout.companyTextOffset
+    );
+    const customerInfoFontSize = paperPx(
+        storeInfo.customerInfoFontSize || storeInfo.textFontSize || DEFAULT_PRINT_FONT_SIZES.customerInfoFontSize,
+        layout.companyTextOffset
+    );
     const tableFontSize = paperPx(storeInfo.tableFontSize || DEFAULT_PRINT_FONT_SIZES.tableFontSize, layout.tableFontOffset);
+    const footerFontSize = paperPx(
+        storeInfo.footerFontSize || storeInfo.textFontSize || DEFAULT_PRINT_FONT_SIZES.footerFontSize,
+        layout.companyTextOffset
+    );
 
     const renderLineItemsTable = (compactSummary = false) => (
         <table
@@ -464,7 +560,7 @@ const PrintInvoice = ({
                     </div>
                 )}
                 <div className="company-name-centered" style={{ fontSize: companyNameFontSize }}>{storeInfo.companyName}</div>
-                <div className="company-details-centered" style={{ fontSize: baseTextFontSize }}>
+                <div className="company-details-centered" style={{ fontSize: companyDetailFontSize }}>
                     <span className="label-red">A</span> - {storeInfo.address}.<br />
                     <span className="label-red">T</span> - {storeInfo.phone}.<br />
                     <span className="label-red">W</span> - {storeInfo.website} - <span className="label-red">E</span> - {storeInfo.email}.
@@ -475,7 +571,7 @@ const PrintInvoice = ({
             <div className="print-invoice-title" style={{ fontSize: titleFontSize }}>HÓA ĐƠN BÁN HÀNG</div>
 
             {/* Order Info: Two columns */}
-            <div className="print-order-section" style={{ fontSize: baseTextFontSize }}>
+            <div className="print-order-section" style={{ fontSize: orderInfoFontSize }}>
                 <div className="order-left">
                     <span>Mã đơn hàng: <strong>{orderNumber}</strong></span><br />
                     <span>{invoiceDate}</span>
@@ -484,7 +580,7 @@ const PrintInvoice = ({
                 </div>
             </div>
 
-            <div className="customer-info-print" style={{ fontSize: baseTextFontSize }}>
+            <div className="customer-info-print" style={{ fontSize: customerInfoFontSize }}>
                 <div className="row">
                     <span className="label">Khách hàng:</span>
                     <span className="value">{customerDisplayName}</span>
@@ -501,7 +597,7 @@ const PrintInvoice = ({
 
             {renderLineItemsTable()}
 
-            <div className="print-footer" style={{ fontSize: baseTextFontSize }}>
+            <div className="print-footer" style={{ fontSize: footerFontSize }}>
                 <div className="signature-block">
                     <p className="role">Người mua hàng</p>
                 </div>
@@ -2744,11 +2840,31 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                         />
                                     </div>
                                     <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Cỡ chữ nội dung nhỏ (px)</span>
+                                        <span style={{ flex: 1 }}>Cỡ chữ thông tin công ty (px)</span>
                                         <input
                                             type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.textFontSize || DEFAULT_PRINT_FONT_SIZES.textFontSize}
-                                            onChange={(e) => updateStoreConfig('textFontSize', parseInt(e.target.value) as any)}
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.companyDetailFontSize || DEFAULT_PRINT_FONT_SIZES.companyDetailFontSize}
+                                            onChange={(e) => updateStoreConfig('companyDetailFontSize', parseInt(e.target.value) as any)}
+                                            className="custom-config-input"
+                                            style={{ width: '80px' }}
+                                        />
+                                    </div>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Cỡ chữ mã đơn / ngày giờ (px)</span>
+                                        <input
+                                            type="number"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.orderInfoFontSize || DEFAULT_PRINT_FONT_SIZES.orderInfoFontSize}
+                                            onChange={(e) => updateStoreConfig('orderInfoFontSize', parseInt(e.target.value) as any)}
+                                            className="custom-config-input"
+                                            style={{ width: '80px' }}
+                                        />
+                                    </div>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Cỡ chữ thông tin khách (px)</span>
+                                        <input
+                                            type="number"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.customerInfoFontSize || DEFAULT_PRINT_FONT_SIZES.customerInfoFontSize}
+                                            onChange={(e) => updateStoreConfig('customerInfoFontSize', parseInt(e.target.value) as any)}
                                             className="custom-config-input"
                                             style={{ width: '80px' }}
                                         />
@@ -2759,6 +2875,16 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                                             type="number"
                                             value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.tableFontSize || DEFAULT_PRINT_FONT_SIZES.tableFontSize}
                                             onChange={(e) => updateStoreConfig('tableFontSize', parseInt(e.target.value) as any)}
+                                            className="custom-config-input"
+                                            style={{ width: '80px' }}
+                                        />
+                                    </div>
+                                    <div className="setting-row">
+                                        <span style={{ flex: 1 }}>Cỡ chữ chữ ký cuối phiếu (px)</span>
+                                        <input
+                                            type="number"
+                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.footerFontSize || DEFAULT_PRINT_FONT_SIZES.footerFontSize}
+                                            onChange={(e) => updateStoreConfig('footerFontSize', parseInt(e.target.value) as any)}
                                             className="custom-config-input"
                                             style={{ width: '80px' }}
                                         />
