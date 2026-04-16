@@ -1424,6 +1424,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                                                         customerName: detail.customerName,
                                                                         discountAmount: detail.discountAmount || 0,
                                                                         totalAmount: detail.totalAmount,
+                                                                        paymentMethod: detail.paymentMethod,
                                                                         status: detail.status,
                                                                         createdAt: detail.createdAt, // Include original date
                                                                         issuedAt: detail.issuedAt, // Include issued date as fallback
@@ -1589,6 +1590,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                                                                     customerName: invoiceToEdit.customerName,
                                                                                     discountAmount: invoiceToEdit.discountAmount || 0,
                                                                                     totalAmount: invoiceToEdit.totalAmount,
+                                                                                    paymentMethod: invoiceToEdit.paymentMethod,
                                                                                     status: invoiceToEdit.status,
                                                                                     createdAt: invoiceToEdit.createdAt, // Include original date
                                                                                     issuedAt: invoiceToEdit.issuedAt, // Include issued date as fallback

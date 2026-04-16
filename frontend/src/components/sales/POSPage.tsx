@@ -944,11 +944,17 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                         const normalizedPercent = storedPercent > 0
                             ? storedPercent
                             : deriveDiscountPercent(Number(inv.discountAmount || 0), subtotal);
+                        const restoredCart = Array.isArray(inv.cart) ? inv.cart : [];
+                        const restoredCustomerPayment = Number(inv.customerPayment || 0);
 
                         return {
                             ...inv,
+                            cart: restoredCart,
                             discountPercent: normalizedPercent,
                             discountPercentInput: inv.discountPercentInput ?? formatPercentInput(normalizedPercent),
+                            customerPayment: restoredCart.length > 0 && Number.isFinite(restoredCustomerPayment)
+                                ? Math.max(0, restoredCustomerPayment)
+                                : 0,
                             createdAt: new Date(inv.createdAt)
                         };
                     });
@@ -1105,6 +1111,26 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             return filtered;
         });
     }, [invoices, activeInvoiceId, invoiceCounter]);
+
+    const resetActiveInvoiceAfterCheckout = useCallback(() => {
+        const freshInvoice = createNewInvoice(invoiceCounter);
+
+        setInvoices(prev => prev.map(inv =>
+            inv.id === activeInvoiceId ? freshInvoice : inv
+        ));
+        setActiveInvoiceId(freshInvoice.id);
+        setInvoiceCounter(prev => prev + 1);
+
+        // Clear UI-only state tied to the completed invoice.
+        setCustomerSearch('');
+        setSearch('');
+        setSearchFocused(false);
+        setShowCustomerDropdown(false);
+        setShowPriceListDropdown(false);
+        setShowQRCode(false);
+        setShowSellerDropdown(false);
+        setShowChannelDropdown(false);
+    }, [activeInvoiceId, invoiceCounter]);
 
     // Return flow state
     const [showReturnModal, setShowReturnModal] = useState(false);
@@ -1312,8 +1338,8 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     discountPercent: editDiscountPercent,
                     discountAmount: Number(editData.discountAmount) || 0,
                     discountPercentInput: formatPercentInput(editDiscountPercent),
-                    paymentMethod: 'CASH',
-                    customerPayment: Number(editData.totalAmount) || 0,
+                    paymentMethod: editData.paymentMethod || 'CASH',
+                    customerPayment: 0,
                     createdAt: originalDate, // Use original date instead of new Date()
                     dateManuallyChanged: true, // Mark as manually set to prevent auto-update
                     editingInvoiceId: editData.invoiceId?.toString(), // Store original invoice ID for update
@@ -1814,15 +1840,8 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 await savePricesToPriceList();
             }
 
-            // Reset active invoice
-            updateActiveInvoice({
-                cart: [],
-                customerId: '',
-                discountPercent: 0,
-                discountAmount: 0,
-                discountPercentInput: '0',
-                editingInvoiceId: undefined,
-            });
+            // Replace the current tab with a completely fresh invoice.
+            resetActiveInvoiceAfterCheckout();
             fetchData(); // Refresh stock
         } catch (error: any) {
             console.error('Checkout error:', error);
