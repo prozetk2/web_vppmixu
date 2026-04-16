@@ -258,6 +258,17 @@ const mergeStoreConfigs = (savedConfigs?: Record<string, Partial<StoreConfigInfo
         ])
     ) as Record<string, StoreConfigInfo>;
 
+const PRINT_TEMPLATE_LABELS = {
+    MIXU: 'MIXU',
+    MIXU_EXTRA: 'MIXU thêm dòng',
+    THANH_VAN: 'Thanh Vân',
+    THANH_VAN_EXTRA: 'Thanh Vân thêm dòng',
+    VIET_HONG: 'Việt Hồng',
+    VIET_HONG_EXTRA: 'Việt Hồng thêm dòng',
+    CUSTOM: 'Tùy chỉnh',
+    CUSTOM_EXTRA: 'Tùy chỉnh thêm dòng',
+} as const;
+
 const removeAccents = (str: string) => {
     return str
         .normalize('NFD')
@@ -745,6 +756,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         };
     });
     const [showPrintSettings, setShowPrintSettings] = useState(false);
+    const [showSuccessPrintSettings, setShowSuccessPrintSettings] = useState(false);
 
     useEffect(() => {
         localStorage.setItem('vppmixu_print_settings', JSON.stringify(printSettings));
@@ -788,11 +800,10 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     }, [customStoreConfigs]);
 
     const updateStoreConfig = (field: keyof StoreConfigInfo, value: any) => {
-        const baseTemplate = printSettings.template.replace('_EXTRA', '');
         const newConfigs = {
             ...customStoreConfigs,
-            [baseTemplate]: normalizeStoreConfig({
-                ...customStoreConfigs[baseTemplate],
+            [activePrintTemplate]: normalizeStoreConfig({
+                ...customStoreConfigs[activePrintTemplate],
                 [field]: value
             })
         };
@@ -868,6 +879,252 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
             maximumFractionDigits: 2
         }).format(value);
     };
+
+    const activePrintTemplate = printSettings.template.replace('_EXTRA', '') as keyof typeof defaultStoreConfigs;
+    const currentPrintTemplateLabel = PRINT_TEMPLATE_LABELS[printSettings.template];
+    const printSummaryBadges = [
+        `Khổ ${printSettings.paperSize}`,
+        `${printSettings.copies} liên`,
+        currentPrintTemplateLabel,
+        printSettings.mergeItems ? 'Gộp hàng' : 'Từng dòng',
+    ];
+
+    const renderPrintSettingsFields = () => (
+        <>
+            <div className="setting-row">
+                <span>Tự động in hóa đơn</span>
+                <label className="toggle-switch">
+                    <input
+                        type="checkbox"
+                        checked={printSettings.autoPrint}
+                        onChange={(e) => setPrintSettings({ ...printSettings, autoPrint: e.target.checked })}
+                    />
+                    <span className="slider round"></span>
+                </label>
+            </div>
+            <div className="setting-row">
+                <span>Gộp hàng cùng loại</span>
+                <label className="toggle-switch">
+                    <input
+                        type="checkbox"
+                        checked={printSettings.mergeItems}
+                        onChange={(e) => setPrintSettings({ ...printSettings, mergeItems: e.target.checked })}
+                    />
+                    <span className="slider round"></span>
+                </label>
+            </div>
+            <div className="setting-row">
+                <span>Hiển thị số lẻ (,00)</span>
+                <label className="toggle-switch">
+                    <input
+                        type="checkbox"
+                        checked={printSettings.showDecimals}
+                        onChange={(e) => setPrintSettings({ ...printSettings, showDecimals: e.target.checked })}
+                    />
+                    <span className="slider round"></span>
+                </label>
+            </div>
+            <div className="setting-row">
+                <span>Số bản in (Liên)</span>
+                <input
+                    type="number"
+                    min="1"
+                    value={printSettings.copies}
+                    onChange={(e) => setPrintSettings({ ...printSettings, copies: Math.max(1, parseInt(e.target.value, 10) || 1) })}
+                    className="copies-input"
+                />
+            </div>
+            <div className="setting-row">
+                <span>Khổ giấy in</span>
+                <select
+                    value={printSettings.paperSize}
+                    onChange={(e) => setPrintSettings({ ...printSettings, paperSize: e.target.value as 'A5' | 'A4' })}
+                    className="copies-input"
+                >
+                    <option value="A5">A5</option>
+                    <option value="A4">A4</option>
+                </select>
+            </div>
+            <div className="print-sync-warning">
+                <strong>Mẹo in đúng khổ</strong>
+                <span>Khổ giấy trong app chỉ đổi mẫu in A4/A5 của hệ thống.</span>
+                <span>Trong popup in của trình duyệt, hãy chọn đúng khổ {printSettings.paperSize} để tránh nội dung bị co hoặc nằm giữa trang.</span>
+                <span>Nếu còn dư khoảng trắng, hãy tắt mục "Đầu trang và chân trang" trong popup in.</span>
+            </div>
+            <div className="template-section">
+                <span className="section-title">Chọn mẫu in</span>
+                <div className="template-options">
+                    <button
+                        className={`template-btn ${printSettings.template === 'MIXU' ? 'active' : ''}`}
+                        onClick={() => setPrintSettings({ ...printSettings, template: 'MIXU' })}
+                    >
+                        MIXU
+                    </button>
+                    <button
+                        className={`template-btn ${printSettings.template === 'MIXU_EXTRA' ? 'active' : ''}`}
+                        onClick={() => setPrintSettings({ ...printSettings, template: 'MIXU_EXTRA' })}
+                    >
+                        MIXU thêm dòng
+                    </button>
+                    <button
+                        className={`template-btn ${printSettings.template === 'THANH_VAN' ? 'active' : ''}`}
+                        onClick={() => setPrintSettings({ ...printSettings, template: 'THANH_VAN' })}
+                    >
+                        Thanh Vân
+                    </button>
+                    <button
+                        className={`template-btn ${printSettings.template === 'THANH_VAN_EXTRA' ? 'active' : ''}`}
+                        onClick={() => setPrintSettings({ ...printSettings, template: 'THANH_VAN_EXTRA' })}
+                    >
+                        Thanh Vân thêm dòng
+                    </button>
+                    <button
+                        className={`template-btn ${printSettings.template === 'VIET_HONG' ? 'active' : ''}`}
+                        onClick={() => setPrintSettings({ ...printSettings, template: 'VIET_HONG' })}
+                    >
+                        Việt Hồng
+                    </button>
+                    <button
+                        className={`template-btn ${printSettings.template === 'VIET_HONG_EXTRA' ? 'active' : ''}`}
+                        onClick={() => setPrintSettings({ ...printSettings, template: 'VIET_HONG_EXTRA' })}
+                    >
+                        Việt Hồng thêm dòng
+                    </button>
+                    <button
+                        className={`template-btn ${printSettings.template === 'CUSTOM' ? 'active' : ''}`}
+                        onClick={() => setPrintSettings({ ...printSettings, template: 'CUSTOM' })}
+                    >
+                        Tùy chỉnh
+                    </button>
+                    <button
+                        className={`template-btn ${printSettings.template === 'CUSTOM_EXTRA' ? 'active' : ''}`}
+                        onClick={() => setPrintSettings({ ...printSettings, template: 'CUSTOM_EXTRA' })}
+                    >
+                        Tùy chỉnh thêm dòng
+                    </button>
+                </div>
+            </div>
+            <div className="template-section" style={{ marginTop: '10px' }}>
+                <span className="section-title">Chỉnh sửa thông tin mẫu in "{activePrintTemplate}"</span>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Tên Công Ty/Cửa Hàng</span>
+                    <input
+                        type="text"
+                        value={customStoreConfigs[activePrintTemplate]?.companyName || ''}
+                        onChange={(e) => updateStoreConfig('companyName', e.target.value)}
+                        className="custom-config-input"
+                    />
+                </div>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Địa chỉ</span>
+                    <input
+                        type="text"
+                        value={customStoreConfigs[activePrintTemplate]?.address || ''}
+                        onChange={(e) => updateStoreConfig('address', e.target.value)}
+                        className="custom-config-input"
+                    />
+                </div>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Số điện thoại</span>
+                    <input
+                        type="text"
+                        value={customStoreConfigs[activePrintTemplate]?.phone || ''}
+                        onChange={(e) => updateStoreConfig('phone', e.target.value)}
+                        className="custom-config-input"
+                    />
+                </div>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Logo (chữ in lớn)</span>
+                    <input
+                        type="text"
+                        value={customStoreConfigs[activePrintTemplate]?.logoText || ''}
+                        onChange={(e) => updateStoreConfig('logoText', e.target.value)}
+                        className="custom-config-input"
+                    />
+                </div>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Cỡ chữ tiêu đề (px)</span>
+                    <input
+                        type="number"
+                        value={customStoreConfigs[activePrintTemplate]?.titleFontSize || DEFAULT_PRINT_FONT_SIZES.titleFontSize}
+                        onChange={(e) => updateStoreConfig('titleFontSize', parseInt(e.target.value, 10) as any)}
+                        className="custom-config-input"
+                        style={{ width: '80px' }}
+                    />
+                </div>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Cỡ chữ Logo (px)</span>
+                    <input
+                        type="number"
+                        value={customStoreConfigs[activePrintTemplate]?.logoFontSize || DEFAULT_PRINT_FONT_SIZES.logoFontSize}
+                        onChange={(e) => updateStoreConfig('logoFontSize', parseInt(e.target.value, 10) as any)}
+                        className="custom-config-input"
+                        style={{ width: '80px' }}
+                    />
+                </div>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Cỡ chữ Tên CTy (px)</span>
+                    <input
+                        type="number"
+                        value={customStoreConfigs[activePrintTemplate]?.companyNameFontSize || DEFAULT_PRINT_FONT_SIZES.companyNameFontSize}
+                        onChange={(e) => updateStoreConfig('companyNameFontSize', parseInt(e.target.value, 10) as any)}
+                        className="custom-config-input"
+                        style={{ width: '80px' }}
+                    />
+                </div>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Cỡ chữ thông tin công ty (px)</span>
+                    <input
+                        type="number"
+                        value={customStoreConfigs[activePrintTemplate]?.companyDetailFontSize || DEFAULT_PRINT_FONT_SIZES.companyDetailFontSize}
+                        onChange={(e) => updateStoreConfig('companyDetailFontSize', parseInt(e.target.value, 10) as any)}
+                        className="custom-config-input"
+                        style={{ width: '80px' }}
+                    />
+                </div>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Cỡ chữ mã đơn / ngày giờ (px)</span>
+                    <input
+                        type="number"
+                        value={customStoreConfigs[activePrintTemplate]?.orderInfoFontSize || DEFAULT_PRINT_FONT_SIZES.orderInfoFontSize}
+                        onChange={(e) => updateStoreConfig('orderInfoFontSize', parseInt(e.target.value, 10) as any)}
+                        className="custom-config-input"
+                        style={{ width: '80px' }}
+                    />
+                </div>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Cỡ chữ thông tin khách (px)</span>
+                    <input
+                        type="number"
+                        value={customStoreConfigs[activePrintTemplate]?.customerInfoFontSize || DEFAULT_PRINT_FONT_SIZES.customerInfoFontSize}
+                        onChange={(e) => updateStoreConfig('customerInfoFontSize', parseInt(e.target.value, 10) as any)}
+                        className="custom-config-input"
+                        style={{ width: '80px' }}
+                    />
+                </div>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Cỡ chữ danh sách Hàng (px)</span>
+                    <input
+                        type="number"
+                        value={customStoreConfigs[activePrintTemplate]?.tableFontSize || DEFAULT_PRINT_FONT_SIZES.tableFontSize}
+                        onChange={(e) => updateStoreConfig('tableFontSize', parseInt(e.target.value, 10) as any)}
+                        className="custom-config-input"
+                        style={{ width: '80px' }}
+                    />
+                </div>
+                <div className="setting-row">
+                    <span style={{ flex: 1 }}>Cỡ chữ chữ ký cuối phiếu (px)</span>
+                    <input
+                        type="number"
+                        value={customStoreConfigs[activePrintTemplate]?.footerFontSize || DEFAULT_PRINT_FONT_SIZES.footerFontSize}
+                        onChange={(e) => updateStoreConfig('footerFontSize', parseInt(e.target.value, 10) as any)}
+                        className="custom-config-input"
+                        style={{ width: '80px' }}
+                    />
+                </div>
+            </div>
+        </>
+    );
 
     // Track price changes for saving to price list
     interface PriceChange {
@@ -1825,6 +2082,8 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                     customerPhone: selectedCustomerData.phone,
                     customerAddress: selectedCustomerData.address || '',
                 });
+                setShowPrintSettings(false);
+                setShowSuccessPrintSettings(false);
 
                 // Quick sale: auto-print and skip success modal
                 if (saleMode === 'quick') {
@@ -1988,6 +2247,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
 
     const closeSuccess = () => {
         setShowSuccess(false);
+        setShowSuccessPrintSettings(false);
         setTimeout(() => setLastCheckoutData(null), 300); // Wait for modal animation
     };
 
@@ -2676,239 +2936,8 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                             <MdSettings />
                         </button>
                         {showPrintSettings && (
-                            <div className="print-settings-popover" onClick={(e) => e.stopPropagation()}>
-                                <div className="setting-row">
-                                    <span>Tự động in hóa đơn</span>
-                                    <label className="toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            checked={printSettings.autoPrint}
-                                            onChange={(e) => setPrintSettings({ ...printSettings, autoPrint: e.target.checked })}
-                                        />
-                                        <span className="slider round"></span>
-                                    </label>
-                                </div>
-                                <div className="setting-row">
-                                    <span>Gộp hàng cùng loại</span>
-                                    <label className="toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            checked={printSettings.mergeItems}
-                                            onChange={(e) => setPrintSettings({ ...printSettings, mergeItems: e.target.checked })}
-                                        />
-                                        <span className="slider round"></span>
-                                    </label>
-                                </div>
-                                <div className="setting-row">
-                                    <span>Hiển thị số lẻ (,00)</span>
-                                    <label className="toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            checked={printSettings.showDecimals}
-                                            onChange={(e) => setPrintSettings({ ...printSettings, showDecimals: e.target.checked })}
-                                        />
-                                        <span className="slider round"></span>
-                                    </label>
-                                </div>
-                                <div className="setting-row">
-                                    <span>Số bản in (Liên)</span>
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        value={printSettings.copies}
-                                        onChange={(e) => setPrintSettings({ ...printSettings, copies: parseInt(e.target.value) || 1 })}
-                                        className="copies-input"
-                                    />
-                                </div>
-                                <div className="setting-row">
-                                    <span>Khổ giấy in</span>
-                                    <select
-                                        value={printSettings.paperSize}
-                                        onChange={(e) => setPrintSettings({ ...printSettings, paperSize: e.target.value as 'A5' | 'A4' })}
-                                        className="copies-input"
-                                    >
-                                        <option value="A5">A5</option>
-                                        <option value="A4">A4</option>
-                                    </select>
-                                </div>
-                                <div className="print-sync-warning">
-                                    <strong>Mẹo in đúng khổ</strong>
-                                    <span>Khổ giấy trong app chỉ đổi mẫu in A4/A5 của hệ thống.</span>
-                                    <span>Trong popup in của trình duyệt, hãy chọn đúng khổ {printSettings.paperSize} để tránh nội dung bị co hoặc nằm giữa trang.</span>
-                                    <span>Nếu còn dư khoảng trắng, hãy tắt mục "Đầu trang và chân trang" trong popup in.</span>
-                                </div>
-                                <div className="template-section">
-                                    <span className="section-title">Chọn mẫu in</span>
-                                    <div className="template-options">
-                                        <button
-                                            className={`template-btn ${printSettings.template === 'MIXU' ? 'active' : ''}`}
-                                            onClick={() => setPrintSettings({ ...printSettings, template: 'MIXU' })}
-                                        >
-                                            MIXU
-                                        </button>
-                                        <button
-                                            className={`template-btn ${printSettings.template === 'MIXU_EXTRA' ? 'active' : ''}`}
-                                            onClick={() => setPrintSettings({ ...printSettings, template: 'MIXU_EXTRA' })}
-                                        >
-                                            MIXU thêm dòng
-                                        </button>
-                                        <button
-                                            className={`template-btn ${printSettings.template === 'THANH_VAN' ? 'active' : ''}`}
-                                            onClick={() => setPrintSettings({ ...printSettings, template: 'THANH_VAN' })}
-                                        >
-                                            Thanh Vân
-                                        </button>
-                                        <button
-                                            className={`template-btn ${printSettings.template === 'THANH_VAN_EXTRA' ? 'active' : ''}`}
-                                            onClick={() => setPrintSettings({ ...printSettings, template: 'THANH_VAN_EXTRA' })}
-                                        >
-                                            Thanh Vân thêm dòng
-                                        </button>
-                                        <button
-                                            className={`template-btn ${printSettings.template === 'VIET_HONG' ? 'active' : ''}`}
-                                            onClick={() => setPrintSettings({ ...printSettings, template: 'VIET_HONG' })}
-                                        >
-                                            Việt Hồng
-                                        </button>
-                                        <button
-                                            className={`template-btn ${printSettings.template === 'VIET_HONG_EXTRA' ? 'active' : ''}`}
-                                            onClick={() => setPrintSettings({ ...printSettings, template: 'VIET_HONG_EXTRA' })}
-                                        >
-                                            Việt Hồng thêm dòng
-                                        </button>
-                                        <button
-                                            className={`template-btn ${printSettings.template === 'CUSTOM' ? 'active' : ''}`}
-                                            onClick={() => setPrintSettings({ ...printSettings, template: 'CUSTOM' })}
-                                        >
-                                            Tùy chỉnh
-                                        </button>
-                                        <button
-                                            className={`template-btn ${printSettings.template === 'CUSTOM_EXTRA' ? 'active' : ''}`}
-                                            onClick={() => setPrintSettings({ ...printSettings, template: 'CUSTOM_EXTRA' })}
-                                        >
-                                            Tùy chỉnh thêm dòng
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="template-section" style={{ marginTop: '10px' }}>
-                                    <span className="section-title">Chỉnh sửa thông tin mẫu in "{printSettings.template.replace('_EXTRA', '')}"</span>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Tên Công Ty/Cửa Hàng</span>
-                                        <input
-                                            type="text"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.companyName || ''}
-                                            onChange={(e) => updateStoreConfig('companyName', e.target.value)}
-                                            className="custom-config-input"
-                                        />
-                                    </div>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Địa chỉ</span>
-                                        <input
-                                            type="text"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.address || ''}
-                                            onChange={(e) => updateStoreConfig('address', e.target.value)}
-                                            className="custom-config-input"
-                                        />
-                                    </div>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Số điện thoại</span>
-                                        <input
-                                            type="text"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.phone || ''}
-                                            onChange={(e) => updateStoreConfig('phone', e.target.value)}
-                                            className="custom-config-input"
-                                        />
-                                    </div>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Logo (chữ in lớn)</span>
-                                        <input
-                                            type="text"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.logoText || ''}
-                                            onChange={(e) => updateStoreConfig('logoText', e.target.value)}
-                                            className="custom-config-input"
-                                        />
-                                    </div>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Cỡ chữ tiêu đề (px)</span>
-                                        <input
-                                            type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.titleFontSize || DEFAULT_PRINT_FONT_SIZES.titleFontSize}
-                                            onChange={(e) => updateStoreConfig('titleFontSize', parseInt(e.target.value) as any)}
-                                            className="custom-config-input"
-                                            style={{ width: '80px' }}
-                                        />
-                                    </div>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Cỡ chữ Logo (px)</span>
-                                        <input
-                                            type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.logoFontSize || DEFAULT_PRINT_FONT_SIZES.logoFontSize}
-                                            onChange={(e) => updateStoreConfig('logoFontSize', parseInt(e.target.value) as any)}
-                                            className="custom-config-input"
-                                            style={{ width: '80px' }}
-                                        />
-                                    </div>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Cỡ chữ Tên CTy (px)</span>
-                                        <input
-                                            type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.companyNameFontSize || DEFAULT_PRINT_FONT_SIZES.companyNameFontSize}
-                                            onChange={(e) => updateStoreConfig('companyNameFontSize', parseInt(e.target.value) as any)}
-                                            className="custom-config-input"
-                                            style={{ width: '80px' }}
-                                        />
-                                    </div>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Cỡ chữ thông tin công ty (px)</span>
-                                        <input
-                                            type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.companyDetailFontSize || DEFAULT_PRINT_FONT_SIZES.companyDetailFontSize}
-                                            onChange={(e) => updateStoreConfig('companyDetailFontSize', parseInt(e.target.value) as any)}
-                                            className="custom-config-input"
-                                            style={{ width: '80px' }}
-                                        />
-                                    </div>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Cỡ chữ mã đơn / ngày giờ (px)</span>
-                                        <input
-                                            type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.orderInfoFontSize || DEFAULT_PRINT_FONT_SIZES.orderInfoFontSize}
-                                            onChange={(e) => updateStoreConfig('orderInfoFontSize', parseInt(e.target.value) as any)}
-                                            className="custom-config-input"
-                                            style={{ width: '80px' }}
-                                        />
-                                    </div>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Cỡ chữ thông tin khách (px)</span>
-                                        <input
-                                            type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.customerInfoFontSize || DEFAULT_PRINT_FONT_SIZES.customerInfoFontSize}
-                                            onChange={(e) => updateStoreConfig('customerInfoFontSize', parseInt(e.target.value) as any)}
-                                            className="custom-config-input"
-                                            style={{ width: '80px' }}
-                                        />
-                                    </div>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Cỡ chữ danh sách Hàng (px)</span>
-                                        <input
-                                            type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.tableFontSize || DEFAULT_PRINT_FONT_SIZES.tableFontSize}
-                                            onChange={(e) => updateStoreConfig('tableFontSize', parseInt(e.target.value) as any)}
-                                            className="custom-config-input"
-                                            style={{ width: '80px' }}
-                                        />
-                                    </div>
-                                    <div className="setting-row">
-                                        <span style={{ flex: 1 }}>Cỡ chữ chữ ký cuối phiếu (px)</span>
-                                        <input
-                                            type="number"
-                                            value={customStoreConfigs[printSettings.template.replace('_EXTRA', '')]?.footerFontSize || DEFAULT_PRINT_FONT_SIZES.footerFontSize}
-                                            onChange={(e) => updateStoreConfig('footerFontSize', parseInt(e.target.value) as any)}
-                                            className="custom-config-input"
-                                            style={{ width: '80px' }}
-                                        />
-                                    </div>
-                                </div>
+                            <div className="print-settings-panel print-settings-popover" onClick={(e) => e.stopPropagation()}>
+                                {renderPrintSettingsFields()}
                                 <div className="popover-footer">
                                     <button className="btn-skip" onClick={() => setShowPrintSettings(false)}>Bỏ qua</button>
                                     <button className="btn-done" onClick={() => setShowPrintSettings(false)}>Xong</button>
@@ -2931,10 +2960,51 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 {/* Success Modal */}
                 {showSuccess && (
                     <div className="success-overlay" onClick={closeSuccess}>
-                        <div className="success-modal" onClick={(e) => e.stopPropagation()}>
-                            <div className="success-icon"><MdCheckCircle size={64} /></div>
-                            <h2>Thanh toán thành công!</h2>
-                            <p>Mã đơn hàng: <strong>{lastOrderNumber}</strong></p>
+                        <div className="success-modal print-success-modal" onClick={(e) => e.stopPropagation()}>
+                            <div className="success-modal-header">
+                                <div>
+                                    <span className="success-kicker">Đã thanh toán</span>
+                                    <h2>In đơn cho khách</h2>
+                                </div>
+                                <div className="success-modal-tools">
+                                    <button
+                                        type="button"
+                                        className={`success-icon-btn ${showSuccessPrintSettings ? 'active' : ''}`}
+                                        onClick={() => setShowSuccessPrintSettings(!showSuccessPrintSettings)}
+                                        title="Tinh chỉnh in đơn"
+                                    >
+                                        <MdSettings />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="success-icon-btn"
+                                        onClick={closeSuccess}
+                                        title="Đóng"
+                                    >
+                                        <MdClose />
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="success-icon"><MdCheckCircle size={56} /></div>
+                            <p className="success-order-number">Mã đơn hàng: <strong>{lastOrderNumber}</strong></p>
+                            <div className="success-print-summary">
+                                {printSummaryBadges.map((item) => (
+                                    <span key={item} className="success-print-chip">{item}</span>
+                                ))}
+                            </div>
+                            <p className="success-hint">Nhấn nút bánh răng để chỉnh mẫu in, khổ giấy, số liên và thông tin cửa hàng trước khi in.</p>
+                            {showSuccessPrintSettings && (
+                                <div className="print-settings-panel print-settings-inline" onClick={(e) => e.stopPropagation()}>
+                                    <div className="success-settings-title">
+                                        <strong>Tinh chỉnh in đơn</strong>
+                                        <span>Áp dụng ngay cho lần in kế tiếp.</span>
+                                    </div>
+                                    {renderPrintSettingsFields()}
+                                    <div className="popover-footer compact">
+                                        <button className="btn-done" onClick={() => setShowSuccessPrintSettings(false)}>Xong</button>
+                                    </div>
+                                </div>
+                            )}
                             <div className="success-actions">
                                 <button onClick={handlePrint} className="btn-print">
                                     <MdPrint /> In hóa đơn
