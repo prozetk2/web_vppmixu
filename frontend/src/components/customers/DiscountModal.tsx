@@ -52,28 +52,7 @@ export default function DiscountModal({
             return;
         }
 
-        setLoading(true);
-        try {
-            // TODO: Call API to create discount receipt
-            // const payload = {
-            //     customerId,
-            //     discountAmount,
-            //     discountDate,
-            //     executor,
-            //     note,
-            //     allocateToInvoices,
-            // };
-            // await discountsAPI.create(payload);
-
-            alert('Tạo phiếu chiết khấu thành công!');
-            onSuccess();
-            onClose();
-        } catch (error) {
-            console.error('Discount error:', error);
-            alert('Lỗi khi tạo phiếu chiết khấu');
-        } finally {
-            setLoading(false);
-        }
+        alert('Chức năng tạo phiếu chiết khấu công nợ khách đang được hoàn thiện, hiện chưa lưu dữ liệu thật.');
     };
 
     if (!isOpen) return null;

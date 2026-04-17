@@ -13,6 +13,22 @@ export class InvoicesService {
         private inventoryService: InventoryService,
     ) { }
 
+    private toSafeNumber(value: Prisma.Decimal | number | string | null | undefined) {
+        const parsed = Number(value ?? 0);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    private normalizeInvoiceAmounts(
+        totalAmountInput: Prisma.Decimal | number | string | null | undefined,
+        amountPaidInput: Prisma.Decimal | number | string | null | undefined,
+    ) {
+        const totalAmount = Math.max(0, this.toSafeNumber(totalAmountInput));
+        const amountPaid = Math.min(Math.max(0, this.toSafeNumber(amountPaidInput)), totalAmount);
+        const amountDue = Math.max(0, totalAmount - amountPaid);
+
+        return { totalAmount, amountPaid, amountDue };
+    }
+
     async findAll(query: InvoiceQueryDto) {
         const where: Prisma.InvoiceWhereInput = {};
 
@@ -220,6 +236,7 @@ export class InvoicesService {
         // Parse customerDob if provided
         const customerDob = dto.customerDob ? new Date(dto.customerDob) : null;
         const issuedAt = dto.issuedAt ? new Date(dto.issuedAt) : new Date();
+        const normalizedAmounts = this.normalizeInvoiceAmounts(invoiceData.totalAmount, invoiceData.amountPaid);
 
         // Use transaction for atomic operation
         return this.prisma.$transaction(async (tx) => {
@@ -243,10 +260,10 @@ export class InvoicesService {
                     salesChannel: invoiceData.salesChannel,
                     creator: invoiceData.creator,
                     notes: invoiceData.notes,
-                    totalAmount: invoiceData.totalAmount,
-                    discountAmount: invoiceData.discountAmount || 0,
-                    amountDue: invoiceData.amountDue,
-                    amountPaid: invoiceData.amountPaid || 0,
+                    totalAmount: normalizedAmounts.totalAmount,
+                    discountAmount: this.toSafeNumber(invoiceData.discountAmount),
+                    amountDue: normalizedAmounts.amountDue,
+                    amountPaid: normalizedAmounts.amountPaid,
                     cashAmount: invoiceData.cashAmount || 0,
                     cardAmount: invoiceData.cardAmount || 0,
                     walletAmount: invoiceData.walletAmount || 0,
@@ -339,11 +356,27 @@ export class InvoicesService {
         // Parse dates
         const customerDob = dto.customerDob ? new Date(dto.customerDob) : undefined;
         const issuedAt = dto.issuedAt ? new Date(dto.issuedAt) : undefined;
+        const shouldNormalizeAmounts =
+            dto.totalAmount !== undefined
+            || dto.amountPaid !== undefined
+            || dto.amountDue !== undefined;
+        const normalizedAmounts = shouldNormalizeAmounts
+            ? this.normalizeInvoiceAmounts(
+                dto.totalAmount !== undefined ? dto.totalAmount : existing.totalAmount,
+                dto.amountPaid !== undefined ? dto.amountPaid : existing.amountPaid,
+            )
+            : null;
 
         return this.prisma.invoice.update({
             where: { id: BigInt(id) },
             data: {
                 ...invoiceData,
+                totalAmount: normalizedAmounts ? normalizedAmounts.totalAmount : invoiceData.totalAmount,
+                amountPaid: normalizedAmounts ? normalizedAmounts.amountPaid : invoiceData.amountPaid,
+                amountDue: normalizedAmounts ? normalizedAmounts.amountDue : invoiceData.amountDue,
+                discountAmount: dto.discountAmount !== undefined
+                    ? this.toSafeNumber(dto.discountAmount)
+                    : invoiceData.discountAmount,
                 customerDob,
                 issuedAt,
                 // Convert storeId string to BigInt if provided

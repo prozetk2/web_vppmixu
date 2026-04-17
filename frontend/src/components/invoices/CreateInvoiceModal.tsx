@@ -194,7 +194,8 @@ export default function CreateInvoiceModal({
         try {
             const totalAmount = calculateTotalAmount();
             const discountAmount = 0; // Global discount not implemented in UI yet
-            const amountDue = totalAmount - discountAmount;
+            const normalizedAmountPaid = Math.min(Math.max(Number(amountPaid) || 0, 0), totalAmount);
+            const amountDue = Math.max(0, totalAmount - normalizedAmountPaid);
 
             const payload = {
                 customerName,
@@ -205,12 +206,12 @@ export default function CreateInvoiceModal({
                 totalAmount,
                 discountAmount,
                 amountDue,
-                amountPaid: Number(amountPaid),
+                amountPaid: normalizedAmountPaid,
                 status: 'COMPLETED',
                 // Map payment amounts based on method
-                cashAmount: paymentMethod === 'CASH' ? Number(amountPaid) : 0,
-                cardAmount: paymentMethod === 'CARD' ? Number(amountPaid) : 0,
-                transferAmount: paymentMethod === 'TRANSFER' ? Number(amountPaid) : 0,
+                cashAmount: paymentMethod === 'CASH' ? normalizedAmountPaid : 0,
+                cardAmount: paymentMethod === 'CARD' ? normalizedAmountPaid : 0,
+                transferAmount: paymentMethod === 'TRANSFER' ? normalizedAmountPaid : 0,
 
                 items: items.map(item => ({
                     productCode: item.productCode,

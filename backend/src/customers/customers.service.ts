@@ -19,6 +19,16 @@ export interface TransactionItem {
 export class CustomersService {
     constructor(private readonly prisma: PrismaService) { }
 
+    private resolveInvoiceAmountDue(invoice: { amountDue?: any; totalAmount?: any; amountPaid?: any }) {
+        if (invoice.amountDue !== null && invoice.amountDue !== undefined) {
+            return Math.max(0, Number(invoice.amountDue || 0));
+        }
+
+        const totalAmount = Math.max(0, Number(invoice.totalAmount || 0));
+        const amountPaid = Math.max(0, Number(invoice.amountPaid || 0));
+        return Math.max(0, totalAmount - amountPaid);
+    }
+
     private generateCode(prefix: string): string {
         const now = new Date();
         const yy = String(now.getFullYear()).slice(-2);
@@ -282,7 +292,7 @@ export class CustomersService {
             orderCode: inv.orderCode,
             totalAmount: Number(inv.totalAmount || 0),
             amountPaid: Number(inv.amountPaid || 0),
-            amountDue: Number(inv.amountDue || 0),
+            amountDue: this.resolveInvoiceAmountDue(inv),
             discountAmount: Number(inv.discountAmount || 0),
             status: inv.status,
             seller: inv.seller || inv.creator || 'N/A',
@@ -362,8 +372,11 @@ export class CustomersService {
 
         // Process invoices
         for (const inv of invoices) {
-            const invoiceAmount = Number(inv.amountDue || inv.totalAmount || 0);
             const paidAmount = Number(inv.amountPaid || 0);
+            const outstandingAmount = this.resolveInvoiceAmountDue(inv);
+            const invoiceAmount = Number(inv.totalAmount || 0) > 0
+                ? Number(inv.totalAmount || 0)
+                : outstandingAmount + paidAmount;
 
             // Map invoice items for this transaction
             const invoiceItems: TransactionItem[] = inv.items.map((item) => ({

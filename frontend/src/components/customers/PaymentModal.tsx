@@ -68,6 +68,14 @@ export default function PaymentModal({
         return date.toLocaleDateString('vi-VN') + ' ' + date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     };
 
+    const resolveInvoiceAmountDue = (invoice: Invoice): number => {
+        if (invoice.amountDue !== null && invoice.amountDue !== undefined) {
+            return Math.max(0, Number(invoice.amountDue || 0));
+        }
+
+        return Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.amountPaid || 0));
+    };
+
     const handleAmountChange = (value: string) => {
         const num = parseFloat(value) || 0;
         setAmount(num);
@@ -88,7 +96,7 @@ export default function PaymentModal({
         );
 
         for (const inv of sortedInvoices) {
-            const due = inv.amountDue || (inv.totalAmount - inv.amountPaid);
+            const due = resolveInvoiceAmountDue(inv);
             if (remaining > 0 && due > 0) {
                 const allocate = Math.min(remaining, due);
                 newAllocations[inv.id] = allocate;
@@ -127,34 +135,7 @@ export default function PaymentModal({
             return;
         }
 
-        setLoading(true);
-        try {
-            // TODO: Call API to create payment receipt
-            // const payload = {
-            //     customerId,
-            //     amount,
-            //     paymentDate,
-            //     collector,
-            //     paymentMethod,
-            //     note,
-            //     allocations: allocateToInvoices ? allocations : {},
-            // };
-            // await paymentsAPI.create(payload);
-
-            alert('Tạo phiếu thu thành công!');
-            onSuccess();
-            onClose();
-
-            if (printAfter) {
-                // TODO: Open print dialog
-                console.log('Print receipt');
-            }
-        } catch (error) {
-            console.error('Payment error:', error);
-            alert('Lỗi khi tạo phiếu thu');
-        } finally {
-            setLoading(false);
-        }
+        alert('Chức năng tạo phiếu thu công nợ khách đang được hoàn thiện, hiện chưa lưu dữ liệu thật.');
     };
 
     if (!isOpen) return null;
@@ -267,7 +248,7 @@ export default function PaymentModal({
                                         <td></td>
                                     </tr>
                                     {invoices.map((inv) => {
-                                        const amountDue = inv.amountDue || (inv.totalAmount - inv.amountPaid);
+                                        const amountDue = resolveInvoiceAmountDue(inv);
                                         return (
                                             <tr key={inv.id}>
                                                 <td>

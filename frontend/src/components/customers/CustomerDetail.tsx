@@ -192,6 +192,14 @@ export default function CustomerDetail({
         return Math.abs(Number(value || 0));
     };
 
+    const resolveInvoiceAmountDue = (invoice: Pick<Invoice, 'amountDue' | 'totalAmount' | 'amountPaid'>): number => {
+        if (invoice.amountDue !== null && invoice.amountDue !== undefined) {
+            return Math.max(0, Number(invoice.amountDue || 0));
+        }
+
+        return Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.amountPaid || 0));
+    };
+
     const formatDate = (dateStr: string): string => {
         if (!dateStr) return 'Chưa có';
         const date = new Date(dateStr);
@@ -259,7 +267,7 @@ export default function CustomerDetail({
 
             const exportRows = invoices.flatMap((inv) => {
                 const invoiceItems = inv.items || [];
-                const amountDue = getPositiveDebtValue(inv.amountDue || (inv.totalAmount - (inv.amountPaid || 0)));
+                const amountDue = getPositiveDebtValue(resolveInvoiceAmountDue(inv));
 
                 if (invoiceItems.length > 0) {
                     return invoiceItems.map((item, index) => ([
@@ -763,7 +771,7 @@ export default function CustomerDetail({
                 currentDebt={getPositiveDebtValue(customer.currentDebt)}
                 invoices={invoices.map(inv => ({
                     ...inv,
-                    amountDue: inv.amountDue || (inv.totalAmount - inv.amountPaid)
+                    amountDue: resolveInvoiceAmountDue(inv)
                 }))}
                 onSuccess={handlePaymentSuccess}
             />

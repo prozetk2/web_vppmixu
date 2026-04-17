@@ -714,7 +714,17 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
             const printTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear().toString().slice(-2)}`;
             const invoiceDate = new Date(invoice.createdAt);
             const invoiceDateStr = `${invoiceDate.getDate().toString().padStart(2, '0')}/${(invoiceDate.getMonth() + 1).toString().padStart(2, '0')}/${invoiceDate.getFullYear()} ${invoiceDate.getHours().toString().padStart(2, '0')}:${invoiceDate.getMinutes().toString().padStart(2, '0')}`;
-            const totalDue = Number(detail.amountDue) || (Number(detail.totalAmount) - Number(detail.discountAmount));
+            const totalAmount = Number(detail.totalAmount ?? invoice.totalAmount ?? 0);
+            const amountPaid = Math.min(
+                Math.max(0, Number(detail.amountPaid ?? invoice.amountPaid ?? 0)),
+                Math.max(0, totalAmount),
+            );
+            const amountDue = Number(detail.amountDue ?? Math.max(0, totalAmount - amountPaid));
+            const paymentStatusLabel = amountPaid <= 0
+                ? 'Chưa thanh toán'
+                : amountPaid >= totalAmount
+                    ? 'Đã thanh toán'
+                    : 'Thanh toán 1 phần';
             const storeInfo = {
                 ...PRINT_TEMPLATE_DEFAULTS,
                 companyName: settings.companyName || PRINT_TEMPLATE_DEFAULTS.companyName,
@@ -1043,8 +1053,16 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                             <tbody>
                                 ${itemRows}
                                 <tr class="summary-row">
-                                    <td colspan="5" class="text-right summary-label"><strong>Số tiền cần phải thanh toán:</strong></td>
-                                    <td class="text-right total-amount"><strong>${escapeHtml(formatCurrency(totalDue))}</strong></td>
+                                    <td colspan="5" class="text-right summary-label"><strong>Tổng thanh toán:</strong></td>
+                                    <td class="text-right total-amount"><strong>${escapeHtml(formatCurrency(totalAmount))}</strong></td>
+                                </tr>
+                                <tr class="summary-row">
+                                    <td colspan="5" class="text-right summary-label"><strong>Khách đã trả:</strong></td>
+                                    <td class="text-right"><strong>${escapeHtml(formatCurrency(amountPaid))}</strong></td>
+                                </tr>
+                                <tr class="summary-row">
+                                    <td colspan="5" class="text-right summary-label"><strong>Còn phải thanh toán:</strong></td>
+                                    <td class="text-right total-amount"><strong>${escapeHtml(formatCurrency(amountDue))}</strong></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1054,7 +1072,7 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                 <div class="role">Người mua hàng</div>
                             </div>
                             <div class="signature-block">
-                                <div class="role">Đã thanh toán</div>
+                                <div class="role">${paymentStatusLabel}</div>
                             </div>
                             <div class="signature-block">
                                 <div class="role">Người bán hàng</div>

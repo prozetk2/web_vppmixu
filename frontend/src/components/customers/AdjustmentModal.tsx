@@ -38,27 +38,7 @@ export default function AdjustmentModal({
     };
 
     const handleSubmit = async () => {
-        setLoading(true);
-        try {
-            // TODO: Call API to adjust debt
-            // const payload = {
-            //     customerId,
-            //     adjustmentDate,
-            //     newDebtValue,
-            //     oldDebtValue: currentDebt,
-            //     description,
-            // };
-            // await customersAPI.adjustDebt(payload);
-
-            alert('Điều chỉnh công nợ thành công!');
-            onSuccess();
-            onClose();
-        } catch (error) {
-            console.error('Adjustment error:', error);
-            alert('Lỗi khi điều chỉnh công nợ');
-        } finally {
-            setLoading(false);
-        }
+        alert('Chức năng điều chỉnh công nợ khách đang được hoàn thiện, hiện chưa lưu dữ liệu thật.');
     };
 
     if (!isOpen) return null;

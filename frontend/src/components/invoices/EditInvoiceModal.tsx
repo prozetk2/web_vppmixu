@@ -178,7 +178,8 @@ export default function EditInvoiceModal({ isOpen, onClose, onSuccess, invoice }
         try {
             const totalAmount = calculateTotalAmount();
             const discountAmount = 0;
-            const amountDue = totalAmount - discountAmount;
+            const normalizedAmountPaid = Math.min(Math.max(Number(amountPaid) || 0, 0), totalAmount);
+            const amountDue = Math.max(0, totalAmount - normalizedAmountPaid);
 
             const payload = {
                 customerName,
@@ -189,11 +190,11 @@ export default function EditInvoiceModal({ isOpen, onClose, onSuccess, invoice }
                 totalAmount,
                 discountAmount,
                 amountDue,
-                amountPaid: Number(amountPaid),
+                amountPaid: normalizedAmountPaid,
                 status: 'COMPLETED',
-                cashAmount: paymentMethod === 'CASH' ? Number(amountPaid) : 0,
-                cardAmount: paymentMethod === 'CARD' ? Number(amountPaid) : 0,
-                transferAmount: paymentMethod === 'TRANSFER' ? Number(amountPaid) : 0,
+                cashAmount: paymentMethod === 'CASH' ? normalizedAmountPaid : 0,
+                cardAmount: paymentMethod === 'CARD' ? normalizedAmountPaid : 0,
+                transferAmount: paymentMethod === 'TRANSFER' ? normalizedAmountPaid : 0,
                 createdAt: createdAt ? new Date(createdAt).toISOString() : undefined,
 
                 items: items.map(item => ({

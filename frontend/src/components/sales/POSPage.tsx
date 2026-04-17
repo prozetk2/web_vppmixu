@@ -419,6 +419,33 @@ const getInvoiceCalculatedDiscount = (invoice?: Pick<Invoice, 'cart' | 'discount
 const getInvoiceTotal = (invoice?: Pick<Invoice, 'cart' | 'discountPercent' | 'discountAmount'>) =>
     Math.max(0, getInvoiceSubtotal(invoice) - getInvoiceCalculatedDiscount(invoice));
 
+const getAppliedPayment = (totalAmount: number, customerPayment: number) => {
+    const normalizedTotal = Math.max(0, Number(totalAmount) || 0);
+    const normalizedPayment = Math.max(0, Number(customerPayment) || 0);
+    return Math.min(normalizedPayment, normalizedTotal);
+};
+
+const getRemainingPayment = (totalAmount: number, appliedPayment: number) =>
+    Math.max(0, (Number(totalAmount) || 0) - (Number(appliedPayment) || 0));
+
+const getPaymentStatusLabel = (totalAmount: number, appliedPayment: number) => {
+    const normalizedTotal = Math.max(0, Number(totalAmount) || 0);
+    const normalizedPayment = Math.max(0, Number(appliedPayment) || 0);
+
+    if (normalizedTotal <= 0 || normalizedPayment <= 0) {
+        return 'Chưa thanh toán';
+    }
+
+    if (normalizedPayment >= normalizedTotal) {
+        return 'Đã thanh toán';
+    }
+
+    return 'Thanh toán 1 phần';
+};
+
+const normalizeCustomerLookup = (value: string) =>
+    removeAccents(value).replace(/\s+/g, ' ').trim();
+
 const PRINT_LAYOUTS = {
     A4: {
         extraRows: 10,
@@ -461,6 +488,9 @@ const PrintInvoice = ({
     if (!invoice) return null;
 
     const total = getInvoiceTotal(invoice);
+    const appliedPayment = getAppliedPayment(total, invoice.customerPayment || 0);
+    const remainingPayment = getRemainingPayment(total, appliedPayment);
+    const paymentStatusLabel = getPaymentStatusLabel(total, appliedPayment);
     const printTime = `${invoice.createdAt.getHours().toString().padStart(2, '0')}:${invoice.createdAt.getMinutes().toString().padStart(2, '0')} ${invoice.createdAt.getDate().toString().padStart(2, '0')}/${(invoice.createdAt.getMonth() + 1).toString().padStart(2, '0')}/${invoice.createdAt.getFullYear().toString().slice(-2)}`;
     const invoiceDate = `${invoice.createdAt.getDate().toString().padStart(2, '0')}/${(invoice.createdAt.getMonth() + 1).toString().padStart(2, '0')}/${invoice.createdAt.getFullYear()} ${invoice.createdAt.getHours().toString().padStart(2, '0')}:${invoice.createdAt.getMinutes().toString().padStart(2, '0')}`;
 
@@ -545,10 +575,20 @@ const PrintInvoice = ({
                     </tr>
                 ))}
                 {!compactSummary && (
-                    <tr className="summary-row">
-                        <td colSpan={5} className="text-right font-bold summary-label">Số tiền cần phải thanh toán:</td>
-                        <td className="text-right font-bold total-amount">{formatAmount(total)}</td>
-                    </tr>
+                    <>
+                        <tr className="summary-row">
+                            <td colSpan={5} className="text-right font-bold summary-label">Tổng thanh toán:</td>
+                            <td className="text-right font-bold total-amount">{formatAmount(total)}</td>
+                        </tr>
+                        <tr className="summary-row">
+                            <td colSpan={5} className="text-right font-bold summary-label">Khách đã trả:</td>
+                            <td className="text-right font-bold">{formatAmount(appliedPayment)}</td>
+                        </tr>
+                        <tr className="summary-row">
+                            <td colSpan={5} className="text-right font-bold summary-label">Còn phải thanh toán:</td>
+                            <td className="text-right font-bold total-amount">{formatAmount(remainingPayment)}</td>
+                        </tr>
+                    </>
                 )}
             </tbody>
         </table>
@@ -613,7 +653,7 @@ const PrintInvoice = ({
                     <p className="role">Người mua hàng</p>
                 </div>
                 <div className="signature-block">
-                    <p className="role">Đã thanh toán</p>
+                    <p className="role">{paymentStatusLabel}</p>
                 </div>
                 <div className="signature-block">
                     <p className="role">Người bán hàng</p>
@@ -1298,15 +1338,46 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     const paymentMethod = activeInvoice?.paymentMethod || 'CASH';
     const customerPayment = activeInvoice?.customerPayment || 0;
 
-    // Cache selected customer data for print
+    // Resolve customer snapshot from the selected item or the current search text.
     const selectedCustomerData = useMemo(() => {
-        const customer = customers.find(c => c.id === selectedCustomer);
+        const selected = customers.find(c => c.id === selectedCustomer);
+        if (selected) {
+            return {
+                id: selected.id,
+                name: selected.name || '',
+                phone: selected.phone || '',
+                address: selected.address || ''
+            };
+        }
+
+        const typedCustomerName = customerSearch.trim();
+        if (!typedCustomerName) {
+            return {
+                id: '',
+                name: '',
+                phone: '',
+                address: ''
+            };
+        }
+
+        const normalizedSearch = normalizeCustomerLookup(typedCustomerName);
+        const matchedCustomer = customers.find((customer) => normalizeCustomerLookup(customer.name) === normalizedSearch);
+
         return {
-            name: customer?.name || '',
-            phone: customer?.phone || '',
-            address: customer?.address || ''
+            id: matchedCustomer?.id || '',
+            name: matchedCustomer?.name || typedCustomerName,
+            phone: matchedCustomer?.phone || '',
+            address: matchedCustomer?.address || ''
         };
-    }, [customers, selectedCustomer]);
+    }, [customerSearch, customers, selectedCustomer]);
+
+    const lastCheckoutPaymentStatusLabel = getPaymentStatusLabel(
+        getInvoiceTotal(lastCheckoutData?.invoice),
+        getAppliedPayment(
+            getInvoiceTotal(lastCheckoutData?.invoice),
+            lastCheckoutData?.invoice.customerPayment || 0,
+        ),
+    );
 
     // Update active invoice
     const updateActiveInvoice = useCallback((updates: Partial<Invoice>) => {
@@ -1966,20 +2037,25 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
         setProcessing(true);
         try {
             const isEditing = !!activeInvoice?.editingInvoiceId;
+            const appliedPayment = getAppliedPayment(total, customerPayment);
+            const remainingPayment = getRemainingPayment(total, appliedPayment);
+            const checkoutCustomer = selectedCustomerData;
 
             if (isEditing) {
                 // Update existing invoice
                 const updatePayload = {
-                    customerName: customers.find(c => c.id === selectedCustomer)?.name || '',
-                    customerPhone: customers.find(c => c.id === selectedCustomer)?.phone || '',
+                    customerName: checkoutCustomer.name || '',
+                    customerPhone: checkoutCustomer.phone || '',
+                    customerAddress: checkoutCustomer.address || '',
                     totalAmount: total,
                     discountAmount: calculatedDiscount,
-                    amountPaid: total,
+                    amountDue: remainingPayment,
+                    amountPaid: appliedPayment,
                     paymentMethod: paymentMethod,
                     status: 'COMPLETED',
-                    cashAmount: paymentMethod === 'CASH' ? total : 0,
-                    cardAmount: paymentMethod === 'CARD' ? total : 0,
-                    transferAmount: paymentMethod === 'TRANSFER' ? total : 0,
+                    cashAmount: paymentMethod === 'CASH' ? appliedPayment : 0,
+                    cardAmount: paymentMethod === 'CARD' ? appliedPayment : 0,
+                    transferAmount: paymentMethod === 'TRANSFER' ? appliedPayment : 0,
                     // When editing: always use the invoice's createdAt (which is the original date)
                     // unless user manually changed it via date picker
                     issuedAt: activeInvoice?.createdAt.toISOString(),
@@ -2011,11 +2087,12 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                         cart: [...activeInvoice.cart],
                         orderNumber: activeInvoice.id,
                         createdAt: editCheckoutTime,
+                        customerPayment,
                     },
                     sellerName: sellers.find(s => s.id === selectedSeller)?.name || 'Người bán',
-                    customerName: selectedCustomerData.name,
-                    customerPhone: selectedCustomerData.phone,
-                    customerAddress: selectedCustomerData.address || '',
+                    customerName: checkoutCustomer.name,
+                    customerPhone: checkoutCustomer.phone,
+                    customerAddress: checkoutCustomer.address || '',
                 });
                 setShowSuccess(true);
             } else {
@@ -2040,15 +2117,20 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 });
 
                 const requestBody = {
-                    customerId: selectedCustomer || undefined,
+                    customerId: checkoutCustomer.id || selectedCustomer || undefined,
+                    customerName: checkoutCustomer.name || undefined,
+                    customerPhone: checkoutCustomer.phone || undefined,
+                    customerAddress: checkoutCustomer.address || undefined,
                     warehouseId: selectedWarehouse || undefined,
                     storeId: selectedSeller || undefined,
                     discountAmount: calculatedDiscount,
                     items: requestItems,
-                    payment: {
-                        amount: total,
-                        method: paymentMethod,
-                    },
+                    payment: appliedPayment > 0
+                        ? {
+                            amount: appliedPayment,
+                            method: paymentMethod,
+                        }
+                        : undefined,
                     // Use current time unless user manually changed the date picker
                     createdAt: activeInvoice?.dateManuallyChanged
                         ? activeInvoice.createdAt.toISOString()
@@ -2076,11 +2158,12 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                         cart: [...activeInvoice.cart],
                         orderNumber: backendOrderNumber,
                         createdAt: checkoutTime,
+                        customerPayment,
                     },
                     sellerName: sellers.find(s => s.id === selectedSeller)?.name || 'Người bán',
-                    customerName: selectedCustomerData.name,
-                    customerPhone: selectedCustomerData.phone,
-                    customerAddress: selectedCustomerData.address || '',
+                    customerName: checkoutCustomer.name,
+                    customerPhone: checkoutCustomer.phone,
+                    customerAddress: checkoutCustomer.address || '',
                 });
                 setShowPrintSettings(false);
                 setShowSuccessPrintSettings(false);
@@ -2088,7 +2171,11 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 // Quick sale: auto-print and skip success modal
                 if (saleMode === 'quick') {
                     setTimeout(() => window.print(), 100);
-                    toast.success(`Đã thanh toán: ${backendOrderNumber}`);
+                    toast.success(
+                        appliedPayment >= total && total > 0
+                            ? `Đã thanh toán: ${backendOrderNumber}`
+                            : `Đã lưu hóa đơn: ${backendOrderNumber}`,
+                    );
                 } else {
                     setShowSuccess(true);
                 }
@@ -2963,7 +3050,7 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                         <div className="success-modal print-success-modal" onClick={(e) => e.stopPropagation()}>
                             <div className="success-modal-header">
                                 <div>
-                                    <span className="success-kicker">Đã thanh toán</span>
+                                    <span className="success-kicker">{lastCheckoutPaymentStatusLabel}</span>
                                     <h2>In đơn cho khách</h2>
                                 </div>
                                 <div className="success-modal-tools">

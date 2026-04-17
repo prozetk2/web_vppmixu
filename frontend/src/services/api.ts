@@ -181,6 +181,9 @@ export const dashboardAPI = {
 export const salesAPI = {
     create: (data: {
         customerId?: string;
+        customerName?: string;
+        customerPhone?: string;
+        customerAddress?: string;
         warehouseId?: string;
         items: {
             productId: string;

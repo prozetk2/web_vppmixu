@@ -144,9 +144,10 @@ export default function InvoiceDetailModal({
 
     const totalQuantity = invoice?.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
     const totalItemsAmount = invoice?.items?.reduce((sum, item) => sum + item.totalPrice, 0) || 0;
-    const discountAmount = invoice?.discountAmount || 0;
-    const amountDue = invoice?.amountDue || (totalItemsAmount - discountAmount);
-    const amountPaid = invoice?.amountPaid || 0;
+    const discountAmount = Number(invoice?.discountAmount || 0);
+    const amountPaid = Math.max(0, Number(invoice?.amountPaid ?? 0));
+    const totalAmount = Math.max(0, Number(invoice?.totalAmount ?? (totalItemsAmount - discountAmount)));
+    const amountDue = Number(invoice?.amountDue ?? Math.max(0, totalAmount - amountPaid));
 
     return (
         <div className="invoice-detail-modal-overlay" onClick={handleOverlayClick}>

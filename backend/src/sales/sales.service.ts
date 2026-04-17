@@ -94,6 +94,10 @@ export class SalesService {
                 });
             }
 
+            const customerNameSnapshot = dto.customerName?.trim() || undefined;
+            const customerPhoneSnapshot = dto.customerPhone?.trim() || undefined;
+            const customerAddressSnapshot = dto.customerAddress?.trim() || undefined;
+
             // 3. Calculate totals & Prepare Items
             let subtotal = 0;
             const orderItems: any[] = [];
@@ -203,10 +207,11 @@ export class SalesService {
 
             // 5. Create Payment
             let amountPaid = 0;
-            let paymentMethod = PaymentMethod.CASH;
-            if (dto.payment && dto.payment.amount > 0) {
-                amountPaid = dto.payment.amount;
-                paymentMethod = dto.payment.method || PaymentMethod.CASH;
+            const requestedPaymentAmount = Math.max(0, Number(dto.payment?.amount || 0));
+            const paymentMethod = dto.payment?.method || PaymentMethod.CASH;
+
+            if (requestedPaymentAmount > 0) {
+                amountPaid = Math.min(requestedPaymentAmount, totalAmount);
 
                 await tx.payment.create({
                     data: {
@@ -215,7 +220,7 @@ export class SalesService {
                         method: paymentMethod,
                         status: 'COMPLETED',
                         paidAt: new Date(),
-                        reference: dto.payment.reference,
+                        reference: dto.payment?.reference,
                     },
                 });
             }
@@ -232,9 +237,9 @@ export class SalesService {
                     storeId: parsedStoreId,
                     customerId: dto.customerId ? BigInt(dto.customerId) : null,
                     customerCode: customerData?.code,
-                    customerName: customerData?.name || 'Khách lẻ',
-                    customerPhone: customerData?.phone,
-                    customerAddress: customerData?.address,
+                    customerName: customerData?.name || customerNameSnapshot || 'Khách lẻ',
+                    customerPhone: customerData?.phone || customerPhoneSnapshot,
+                    customerAddress: customerData?.address || customerAddressSnapshot,
                     customerEmail: customerData?.email,
                     issuedAt: orderDate,
                     createdAt: orderDate,
