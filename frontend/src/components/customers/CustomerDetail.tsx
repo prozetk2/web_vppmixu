@@ -8,6 +8,7 @@ import {
     MdCake,
     MdEdit,
     MdDelete,
+    MdPrint,
     MdAttachMoney,
     MdFileDownload,
     MdPayment,
@@ -102,7 +103,22 @@ interface DebtData {
     transactions: DebtTransaction[];
 }
 
-type TabType = 'info' | 'history' | 'debt';
+interface CustomerPayment {
+    id: string;
+    code?: string;
+    amount: number;
+    method?: string;
+    collector?: string;
+    note?: string;
+    createdAt: string;
+    allocations?: Array<{
+        invoiceId: string;
+        invoiceNumber?: string;
+        amount: number;
+    }>;
+}
+
+type TabType = 'info' | 'history' | 'debt' | 'payments';
 
 export default function CustomerDetail({
     customerId,
@@ -114,8 +130,10 @@ export default function CustomerDetail({
     const [customer, setCustomer] = useState<Customer | null>(null);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [debtData, setDebtData] = useState<DebtData | null>(null);
+    const [customerPayments, setCustomerPayments] = useState<CustomerPayment[]>([]);
     const [loading, setLoading] = useState(true);
     const [debtFilter, setDebtFilter] = useState('all');
+    const [loadingPayments, setLoadingPayments] = useState(false);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
     const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
@@ -145,6 +163,8 @@ export default function CustomerDetail({
         } else if (activeTab === 'debt') {
             fetchDebts();
             fetchInvoices(); // Also fetch invoices to match codes for clicking
+        } else if (activeTab === 'payments') {
+            fetchPayments();
         }
     }, [activeTab, customerId]);
 
@@ -184,6 +204,36 @@ export default function CustomerDetail({
         }
     };
 
+    const fetchPayments = async () => {
+        setLoadingPayments(true);
+        try {
+            const response = await customersAPI.getPayments(customerId);
+            const paymentsData = response.data?.data || response.data;
+            const payments = Array.isArray(paymentsData) ? paymentsData : [];
+
+            setCustomerPayments(payments.map((p: any) => ({
+                id: p.id?.toString(),
+                code: p.code,
+                amount: Number(p.amount) || 0,
+                method: p.method,
+                collector: p.collector,
+                note: p.note,
+                createdAt: p.createdAt,
+                allocations: (p.allocations || []).map((allocation: any) => ({
+                    invoiceId: allocation.invoiceId?.toString() || allocation.invoice?.id?.toString(),
+                    invoiceNumber: allocation.invoice?.invoiceNumber,
+                    amount: Number(allocation.amount) || 0,
+                })),
+            })));
+        } catch (error) {
+            console.error('Failed to fetch payments:', error);
+            alert('Không thể tải danh sách phiếu thu');
+            setCustomerPayments([]);
+        } finally {
+            setLoadingPayments(false);
+        }
+    };
+
     const formatCurrency = (value: number): string => {
         return new Intl.NumberFormat('vi-VN').format(value);
     };
@@ -210,6 +260,120 @@ export default function CustomerDetail({
         if (!dateStr) return 'Chưa có';
         const date = new Date(dateStr);
         return date.toLocaleDateString('vi-VN') + ' ' + date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    };
+
+    const getPaymentMethodLabel = (method?: string): string => {
+        if (method === 'TRANSFER') return 'Chuyển khoản';
+        if (method === 'CARD') return 'Thẻ';
+        return 'Tiền mặt';
+    };
+
+    const getPaymentAllocationSummary = (payment: CustomerPayment): string => {
+        const allocations = payment.allocations || [];
+        if (allocations.length === 0) return 'Không phân bổ';
+
+        const invoiceCodes = allocations
+            .map((alloc) => alloc.invoiceNumber || alloc.invoiceId)
+            .filter((code) => !!code);
+
+        const displayed = invoiceCodes.slice(0, 3).join(', ');
+        return invoiceCodes.length > 3 ? `${displayed} (+${invoiceCodes.length - 3})` : displayed;
+    };
+
+    const handlePrintPayment = (payment: CustomerPayment) => {
+        if (!customer) {
+            alert('Không có thông tin khách hàng để in');
+            return;
+        }
+
+        const allocationRows = (payment.allocations || []).length > 0
+            ? (payment.allocations || []).map((allocation, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${allocation.invoiceNumber || allocation.invoiceId || ''}</td>
+                    <td style="text-align:right;">${new Intl.NumberFormat('vi-VN').format(Number(allocation.amount || 0))}</td>
+                </tr>
+            `).join('')
+            : `
+                <tr>
+                    <td colspan="3" style="text-align:center;">Thanh toán không phân bổ theo hóa đơn</td>
+                </tr>
+            `;
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Không thể mở cửa sổ in. Vui lòng cho phép popup.');
+            return;
+        }
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8" />
+                <title>Phiếu thu ${payment.code || 'PT'}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
+                    .header { text-align: center; margin-bottom: 24px; }
+                    .header h1 { margin: 0 0 8px; font-size: 24px; }
+                    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin-bottom: 20px; }
+                    .meta-row strong { display: inline-block; min-width: 120px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+                    th, td { border: 1px solid #333; padding: 8px; font-size: 14px; }
+                    th { background: #f3f3f3; }
+                    .summary { margin-top: 20px; text-align: right; font-size: 16px; }
+                    .note { margin-top: 16px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>PHIEU THU CONG NO</h1>
+                    <div>Ma phieu: <strong>${payment.code || 'PT'}</strong></div>
+                </div>
+                <div class="meta">
+                    <div class="meta-row"><strong>Khach hang:</strong> ${customer.name}</div>
+                    <div class="meta-row"><strong>Thoi gian:</strong> ${formatDateTime(payment.createdAt)}</div>
+                    <div class="meta-row"><strong>Dia chi:</strong> ${customer.address || 'N/A'}</div>
+                    <div class="meta-row"><strong>Phuong thuc:</strong> ${getPaymentMethodLabel(payment.method)}</div>
+                    <div class="meta-row"><strong>Nguoi thu:</strong> ${payment.collector || 'N/A'}</div>
+                    <div class="meta-row"><strong>So tien:</strong> ${new Intl.NumberFormat('vi-VN').format(Number(payment.amount || 0))} đ</div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>STT</th>
+                            <th>Hoa don</th>
+                            <th>So tien thu</th>
+                        </tr>
+                    </thead>
+                    <tbody>${allocationRows}</tbody>
+                </table>
+                <div class="summary">
+                    <strong>Tong thu: ${new Intl.NumberFormat('vi-VN').format(Number(payment.amount || 0))} đ</strong>
+                </div>
+                <div class="note"><strong>Ghi chu:</strong> ${payment.note || 'Khong co'}</div>
+            </body>
+            </html>
+        `);
+
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => printWindow.print(), 250);
+    };
+
+    const handleDeletePayment = async (payment: CustomerPayment) => {
+        if (!window.confirm(`Xác nhận xóa phiếu thu ${formatCurrency(payment.amount)}đ? Công nợ sẽ tăng lại.`)) return;
+        try {
+            await customersAPI.deletePayment(customerId, payment.id);
+            alert('Đã xóa phiếu thu thành công');
+            fetchPayments();
+            fetchCustomer();
+            fetchDebts();
+            fetchInvoices();
+        } catch (error: any) {
+            console.error('Failed to delete payment:', error);
+            alert(error.response?.data?.message || 'Không thể xóa phiếu thu');
+        }
     };
 
     const getInvoiceStatusLabel = (status?: string): string => {
@@ -508,6 +672,12 @@ export default function CustomerDetail({
                 >
                     Nợ cần thu từ khách
                 </button>
+                <button
+                    className={`tab-btn ${activeTab === 'payments' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('payments')}
+                >
+                    Phiếu thu
+                </button>
             </div>
 
             {/* Tab Content */}
@@ -756,6 +926,69 @@ export default function CustomerDetail({
                                     <MdQrCode /> Tạo QR
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Tab: Phiếu thu */}
+                {activeTab === 'payments' && (
+                    <div className="tab-payments">
+                        <table className="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Mã phiếu</th>
+                                    <th>Thời gian</th>
+                                    <th>Phương thức</th>
+                                    <th className="text-right">Số tiền</th>
+                                    <th>Phân bổ</th>
+                                    <th>Ghi chú</th>
+                                    <th className="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loadingPayments ? (
+                                    <tr>
+                                        <td colSpan={7} className="empty-message">Đang tải...</td>
+                                    </tr>
+                                ) : customerPayments.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} className="empty-message">Chưa có phiếu thu</td>
+                                    </tr>
+                                ) : (
+                                    customerPayments.map((payment) => (
+                                        <tr key={payment.id}>
+                                            <td>{payment.code || payment.id}</td>
+                                            <td>{formatDateTime(payment.createdAt)}</td>
+                                            <td>{getPaymentMethodLabel(payment.method)}</td>
+                                            <td className="text-right">{formatCurrency(payment.amount)}</td>
+                                            <td>{getPaymentAllocationSummary(payment)}</td>
+                                            <td>{payment.note || ''}</td>
+                                            <td className="text-center">
+                                                <button
+                                                    className="btn-outline"
+                                                    onClick={() => handlePrintPayment(payment)}
+                                                    title="In phiếu thu"
+                                                >
+                                                    <MdPrint />
+                                                </button>
+                                                <button
+                                                    className="btn-outline"
+                                                    onClick={() => handleDeletePayment(payment)}
+                                                    title="Xóa phiếu thu"
+                                                >
+                                                    <MdDelete />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+
+                        <div className="history-actions">
+                            <button className="btn-primary" onClick={handlePayment}>
+                                <MdPayment /> Tạo phiếu thu
+                            </button>
                         </div>
                     </div>
                 )}

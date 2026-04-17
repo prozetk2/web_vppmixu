@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
+import { CreateCustomerPaymentDto } from './dto/create-payment.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 
 // Exported interface for transaction items in debt summary
@@ -13,6 +15,31 @@ export interface TransactionItem {
     discountAmount: number;
     salePrice: number;
     totalPrice: number;
+}
+
+export interface CustomerPaymentAllocationRecord {
+    id: bigint;
+    paymentId: bigint;
+    invoiceId: bigint;
+    amount: number;
+    createdAt: Date;
+    invoice: {
+        id: string;
+        invoiceNumber: string | null;
+        createdAt: Date | null;
+    } | null;
+}
+
+export interface CustomerPaymentRecord {
+    id: bigint;
+    code: string | null;
+    customerId: bigint;
+    amount: number;
+    method: string | null;
+    collector: string | null;
+    note: string | null;
+    createdAt: Date;
+    allocations: CustomerPaymentAllocationRecord[];
 }
 
 @Injectable()
@@ -35,6 +62,235 @@ export class CustomersService {
         const mm = String(now.getMonth() + 1).padStart(2, '0');
         const rand = String(Math.floor(Math.random() * 100)).padStart(2, '0');
         return `${prefix}${yy}${mm}${rand}`;
+    }
+
+    private normalizePaymentMethod(method?: string) {
+        const normalized = (method || 'CASH').trim().toUpperCase();
+        return ['CASH', 'TRANSFER', 'CARD'].includes(normalized) ? normalized : 'CASH';
+    }
+
+    private getCustomerInvoiceWhere(customer: { id: bigint; code?: string | null }): Prisma.InvoiceWhereInput {
+        const orConditions: Prisma.InvoiceWhereInput[] = [
+            { customerId: customer.id },
+        ];
+
+        if (customer.code) {
+            orConditions.push({ customerCode: customer.code });
+        }
+
+        return {
+            OR: orConditions,
+            status: { not: 'CANCELLED' },
+        };
+    }
+
+    private async recalculateCurrentDebt(
+        customer: { id: bigint; code?: string | null; currentDebt?: Prisma.Decimal | number | null },
+        tx: Prisma.TransactionClient = this.prisma,
+        fallbackCurrentDebt?: number,
+    ): Promise<number> {
+        const invoices = await tx.invoice.findMany({
+            where: this.getCustomerInvoiceWhere(customer),
+            select: {
+                amountDue: true,
+                amountPaid: true,
+                totalAmount: true,
+            },
+        });
+
+        const currentDebt = invoices.length > 0
+            ? invoices.reduce((sum, invoice) => sum + this.resolveInvoiceAmountDue(invoice), 0)
+            : Math.max(0, Number(fallbackCurrentDebt ?? customer.currentDebt ?? 0));
+
+        await tx.customer.update({
+            where: { id: customer.id },
+            data: { currentDebt },
+        });
+
+        return currentDebt;
+    }
+
+    private mergeInvoicePaymentMethod(existingMethod: string | null | undefined, newMethod: string, currentPaid: number) {
+        const normalizedExisting = (existingMethod || '').trim().toUpperCase();
+        if (currentPaid <= 0 || !normalizedExisting) {
+            return newMethod;
+        }
+
+        return normalizedExisting === newMethod ? normalizedExisting : 'MULTIPLE';
+    }
+
+    private resolveInvoicePaymentMethodFromAmounts(cashAmount: number, cardAmount: number, transferAmount: number) {
+        const hasCash = cashAmount > 0.001;
+        const hasCard = cardAmount > 0.001;
+        const hasTransfer = transferAmount > 0.001;
+        const activeCount = Number(hasCash) + Number(hasCard) + Number(hasTransfer);
+
+        if (activeCount <= 0) {
+            return null;
+        }
+
+        if (activeCount > 1) {
+            return 'MULTIPLE';
+        }
+
+        if (hasCash) return 'CASH';
+        if (hasCard) return 'CARD';
+        return 'TRANSFER';
+    }
+
+    private generatePaymentCode() {
+        return `PT${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    }
+
+    private async createCustomerPayment(
+        tx: Prisma.TransactionClient,
+        data: {
+            customerId: bigint;
+            amount: number;
+            method: string;
+            collector?: string | null;
+            note?: string | null;
+            code: string;
+            createdAt: Date;
+        },
+    ): Promise<bigint> {
+        const rows = await tx.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`
+            INSERT INTO "customer_payment" (
+                "code",
+                "customer_id",
+                "amount",
+                "method",
+                "collector",
+                "note",
+                "created_at"
+            )
+            VALUES (
+                ${data.code},
+                ${data.customerId},
+                ${data.amount},
+                ${data.method},
+                ${data.collector ?? null},
+                ${data.note ?? null},
+                ${data.createdAt}
+            )
+            RETURNING "id"
+        `);
+
+        return rows[0].id;
+    }
+
+    private async createCustomerPaymentAllocations(
+        tx: Prisma.TransactionClient,
+        paymentId: bigint,
+        allocations: Array<{ invoiceId: bigint; amount: number }>,
+        createdAt: Date,
+    ) {
+        for (const allocation of allocations) {
+            await tx.$executeRaw(Prisma.sql`
+                INSERT INTO "customer_payment_allocation" (
+                    "payment_id",
+                    "invoice_id",
+                    "amount",
+                    "created_at"
+                )
+                VALUES (
+                    ${paymentId},
+                    ${allocation.invoiceId},
+                    ${allocation.amount},
+                    ${createdAt}
+                )
+            `);
+        }
+    }
+
+    private async getCustomerPaymentsWithAllocations(
+        customerId: bigint,
+        tx: Prisma.TransactionClient | PrismaService = this.prisma,
+        order: 'asc' | 'desc' = 'desc',
+    ): Promise<CustomerPaymentRecord[]> {
+        const direction = order === 'asc' ? Prisma.raw('ASC') : Prisma.raw('DESC');
+        const payments = await tx.$queryRaw<Array<{
+            id: bigint;
+            code: string | null;
+            customerId: bigint;
+            amount: Prisma.Decimal | number | string;
+            method: string | null;
+            collector: string | null;
+            note: string | null;
+            createdAt: Date;
+        }>>(Prisma.sql`
+            SELECT
+                "id",
+                "code",
+                "customer_id" AS "customerId",
+                "amount",
+                "method",
+                "collector",
+                "note",
+                "created_at" AS "createdAt"
+            FROM "customer_payment"
+            WHERE "customer_id" = ${customerId}
+            ORDER BY "created_at" ${direction}, "id" ${direction}
+        `);
+
+        if (payments.length === 0) {
+            return [];
+        }
+
+        const paymentIds = payments.map((payment) => payment.id);
+        const allocations = await tx.$queryRaw<Array<{
+            id: bigint;
+            paymentId: bigint;
+            invoiceId: bigint;
+            amount: Prisma.Decimal | number | string;
+            createdAt: Date;
+            invoiceNumber: string | null;
+            invoiceCreatedAt: Date | null;
+        }>>(Prisma.sql`
+            SELECT
+                alloc."id",
+                alloc."payment_id" AS "paymentId",
+                alloc."invoice_id" AS "invoiceId",
+                alloc."amount",
+                alloc."created_at" AS "createdAt",
+                inv."invoice_number" AS "invoiceNumber",
+                inv."created_at" AS "invoiceCreatedAt"
+            FROM "customer_payment_allocation" alloc
+            LEFT JOIN "invoice" inv ON inv."id" = alloc."invoice_id"
+            WHERE alloc."payment_id" IN (${Prisma.join(paymentIds)})
+            ORDER BY alloc."created_at" ASC, alloc."id" ASC
+        `);
+
+        const allocationsByPaymentId = new Map<string, CustomerPaymentAllocationRecord[]>();
+        allocations.forEach((allocation) => {
+            const paymentKey = allocation.paymentId.toString();
+            const bucket = allocationsByPaymentId.get(paymentKey) || [];
+            bucket.push({
+                id: allocation.id,
+                paymentId: allocation.paymentId,
+                invoiceId: allocation.invoiceId,
+                amount: Number(allocation.amount || 0),
+                createdAt: allocation.createdAt,
+                invoice: {
+                    id: allocation.invoiceId.toString(),
+                    invoiceNumber: allocation.invoiceNumber,
+                    createdAt: allocation.invoiceCreatedAt,
+                },
+            });
+            allocationsByPaymentId.set(paymentKey, bucket);
+        });
+
+        return payments.map((payment) => ({
+            id: payment.id,
+            code: payment.code,
+            customerId: payment.customerId,
+            amount: Number(payment.amount || 0),
+            method: payment.method,
+            collector: payment.collector,
+            note: payment.note,
+            createdAt: payment.createdAt,
+            allocations: allocationsByPaymentId.get(payment.id.toString()) || [],
+        }));
     }
 
     async create(dto: CreateCustomerDto) {
@@ -181,7 +437,24 @@ export class CustomersService {
         if (!customer) {
             throw new NotFoundException('CUSTOMER_NOT_FOUND');
         }
-        return customer;
+
+        const invoices = await this.prisma.invoice.findMany({
+            where: this.getCustomerInvoiceWhere(customer),
+            select: {
+                amountDue: true,
+                amountPaid: true,
+                totalAmount: true,
+            },
+        });
+
+        if (invoices.length === 0) {
+            return customer;
+        }
+
+        return {
+            ...customer,
+            currentDebt: invoices.reduce((sum, invoice) => sum + this.resolveInvoiceAmountDue(invoice), 0),
+        };
     }
 
     async update(id: string, dto: UpdateCustomerDto) {
@@ -315,49 +588,386 @@ export class CustomersService {
         }));
     }
 
+    async payDebt(id: string, dto: CreateCustomerPaymentDto) {
+        const customer = await this.ensureExists(id);
+        const customerId = BigInt(id);
+        const paymentAmount = Number(dto.amount || 0);
+
+        if (!paymentAmount || paymentAmount <= 0) {
+            throw new BadRequestException('INVALID_PAYMENT_AMOUNT');
+        }
+
+        const paymentCreatedAt = dto.createdAt ? new Date(dto.createdAt) : new Date();
+        if (Number.isNaN(paymentCreatedAt.getTime())) {
+            throw new BadRequestException('INVALID_PAYMENT_DATE');
+        }
+
+        return this.prisma.$transaction(async (tx) => {
+            const outstandingInvoices = await tx.invoice.findMany({
+                where: this.getCustomerInvoiceWhere(customer),
+                orderBy: { createdAt: 'asc' },
+                select: {
+                    id: true,
+                    invoiceNumber: true,
+                    totalAmount: true,
+                    amountPaid: true,
+                    amountDue: true,
+                    paymentMethod: true,
+                    cashAmount: true,
+                    cardAmount: true,
+                    transferAmount: true,
+                },
+            });
+
+            const invoiceMap = new Map(
+                outstandingInvoices.map((invoice) => [
+                    invoice.id.toString(),
+                    {
+                        ...invoice,
+                        outstanding: this.resolveInvoiceAmountDue(invoice),
+                    },
+                ]),
+            );
+
+            const totalOutstanding = Array.from(invoiceMap.values())
+                .reduce((sum, invoice) => sum + invoice.outstanding, 0);
+
+            if (totalOutstanding <= 0) {
+                const fallbackDebt = Math.max(0, Number(customer.currentDebt || 0));
+                if (paymentAmount > fallbackDebt) {
+                    throw new BadRequestException('PAYMENT_EXCEEDS_OUTSTANDING_DEBT');
+                }
+
+                const paymentId = await this.createCustomerPayment(tx, {
+                    customerId,
+                    amount: paymentAmount,
+                    method: this.normalizePaymentMethod(dto.paymentMethod),
+                    collector: dto.collector?.trim() || null,
+                    note: dto.note,
+                    code: this.generatePaymentCode(),
+                    createdAt: paymentCreatedAt,
+                });
+
+                await this.recalculateCurrentDebt(
+                    customer,
+                    tx,
+                    Math.max(0, fallbackDebt - paymentAmount),
+                );
+
+                const payments = await this.getCustomerPaymentsWithAllocations(customerId, tx, 'desc');
+                return payments.find((payment) => payment.id === paymentId) || null;
+            }
+
+            if (paymentAmount - totalOutstanding > 0.001) {
+                throw new BadRequestException('PAYMENT_EXCEEDS_OUTSTANDING_DEBT');
+            }
+
+            const resolvedAllocations: Array<{ invoiceId: bigint; amount: number }> = [];
+            const explicitAllocations = (dto.allocations || []).filter((allocation) => Number(allocation.amount) > 0);
+
+            if (explicitAllocations.length > 0) {
+                let allocatedTotal = 0;
+                const seenInvoiceIds = new Set<string>();
+
+                for (const allocation of explicitAllocations) {
+                    if (seenInvoiceIds.has(allocation.invoiceId)) {
+                        throw new BadRequestException('DUPLICATE_INVOICE_ALLOCATION');
+                    }
+
+                    seenInvoiceIds.add(allocation.invoiceId);
+
+                    const invoice = invoiceMap.get(allocation.invoiceId);
+                    if (!invoice) {
+                        throw new BadRequestException(`INVOICE_NOT_FOUND: ${allocation.invoiceId}`);
+                    }
+
+                    const allocationAmount = Number(allocation.amount || 0);
+                    if (allocationAmount > invoice.outstanding) {
+                        throw new BadRequestException(`ALLOCATION_EXCEEDS_OUTSTANDING: ${allocation.invoiceId}`);
+                    }
+
+                    allocatedTotal += allocationAmount;
+                    resolvedAllocations.push({
+                        invoiceId: invoice.id,
+                        amount: allocationAmount,
+                    });
+                }
+
+                if (Math.abs(allocatedTotal - paymentAmount) > 0.001) {
+                    throw new BadRequestException('ALLOCATIONS_MUST_MATCH_PAYMENT_AMOUNT');
+                }
+            } else {
+                let remaining = paymentAmount;
+
+                for (const invoice of outstandingInvoices) {
+                    if (remaining <= 0) break;
+
+                    const outstanding = this.resolveInvoiceAmountDue(invoice);
+                    if (outstanding <= 0) continue;
+
+                    const allocatedAmount = Math.min(outstanding, remaining);
+                    resolvedAllocations.push({
+                        invoiceId: invoice.id,
+                        amount: allocatedAmount,
+                    });
+
+                    remaining -= allocatedAmount;
+                }
+            }
+
+            const paymentMethod = this.normalizePaymentMethod(dto.paymentMethod);
+            const paymentId = await this.createCustomerPayment(tx, {
+                customerId,
+                amount: paymentAmount,
+                method: paymentMethod,
+                collector: dto.collector?.trim() || null,
+                note: dto.note,
+                code: this.generatePaymentCode(),
+                createdAt: paymentCreatedAt,
+            });
+
+            for (const allocation of resolvedAllocations) {
+                const invoice = invoiceMap.get(allocation.invoiceId.toString());
+                if (!invoice) continue;
+
+                const currentPaid = Number(invoice.amountPaid || 0);
+                const totalAmount = Number(invoice.totalAmount || 0);
+                const newPaid = Math.min(totalAmount, currentPaid + allocation.amount);
+                const newDue = Math.max(0, totalAmount - newPaid);
+
+                await tx.invoice.update({
+                    where: { id: allocation.invoiceId },
+                    data: {
+                        amountPaid: newPaid,
+                        amountDue: newDue,
+                        paymentMethod: this.mergeInvoicePaymentMethod(invoice.paymentMethod, paymentMethod, currentPaid),
+                        cashAmount: paymentMethod === 'CASH'
+                            ? Number(invoice.cashAmount || 0) + allocation.amount
+                            : Number(invoice.cashAmount || 0),
+                        cardAmount: paymentMethod === 'CARD'
+                            ? Number(invoice.cardAmount || 0) + allocation.amount
+                            : Number(invoice.cardAmount || 0),
+                        transferAmount: paymentMethod === 'TRANSFER'
+                            ? Number(invoice.transferAmount || 0) + allocation.amount
+                            : Number(invoice.transferAmount || 0),
+                    },
+                });
+            }
+
+            if (resolvedAllocations.length > 0) {
+                await this.createCustomerPaymentAllocations(tx, paymentId, resolvedAllocations, paymentCreatedAt);
+            }
+
+            await this.recalculateCurrentDebt(customer, tx);
+
+            const payments = await this.getCustomerPaymentsWithAllocations(customerId, tx, 'desc');
+            return payments.find((payment) => payment.id === paymentId) || null;
+        });
+    }
+
+    async getPayments(id: string) {
+        await this.ensureExists(id);
+        return this.getCustomerPaymentsWithAllocations(BigInt(id), this.prisma, 'desc');
+    }
+
+    async deletePayment(customerId: string, paymentId: string) {
+        const customer = await this.ensureExists(customerId);
+
+        const customerIdBigint = BigInt(customerId);
+        const paymentIdBigint = BigInt(paymentId);
+
+        return this.prisma.$transaction(async (tx) => {
+            const payments = await tx.$queryRaw<Array<{
+                id: bigint;
+                amount: Prisma.Decimal | number | string;
+                method: string | null;
+            }>>(Prisma.sql`
+                SELECT "id", "amount", "method"
+                FROM "customer_payment"
+                WHERE "id" = ${paymentIdBigint}
+                  AND "customer_id" = ${customerIdBigint}
+                LIMIT 1
+            `);
+
+            if (payments.length === 0) {
+                throw new NotFoundException('PAYMENT_NOT_FOUND');
+            }
+
+            const payment = payments[0];
+            const paymentAmount = Number(payment.amount || 0);
+            const paymentMethod = this.normalizePaymentMethod(payment.method || undefined);
+
+            const allocations = await tx.$queryRaw<Array<{
+                invoiceId: bigint;
+                amount: Prisma.Decimal | number | string;
+            }>>(Prisma.sql`
+                SELECT "invoice_id" AS "invoiceId", "amount"
+                FROM "customer_payment_allocation"
+                WHERE "payment_id" = ${payment.id}
+                ORDER BY "created_at" ASC, "id" ASC
+            `);
+
+            for (const allocation of allocations) {
+                const invoice = await tx.invoice.findUnique({
+                    where: { id: allocation.invoiceId },
+                    select: {
+                        id: true,
+                        totalAmount: true,
+                        amountPaid: true,
+                        amountDue: true,
+                        paymentMethod: true,
+                        cashAmount: true,
+                        cardAmount: true,
+                        transferAmount: true,
+                    },
+                });
+
+                if (!invoice) {
+                    continue;
+                }
+
+                const allocationAmount = Math.max(0, Number(allocation.amount || 0));
+                const totalAmount = Math.max(0, Number(invoice.totalAmount || 0));
+                const currentPaid = Math.max(0, Number(invoice.amountPaid || 0));
+                const newPaid = Math.max(0, currentPaid - allocationAmount);
+                const newDue = Math.max(0, totalAmount - newPaid);
+
+                const currentCash = Math.max(0, Number(invoice.cashAmount || 0));
+                const currentCard = Math.max(0, Number(invoice.cardAmount || 0));
+                const currentTransfer = Math.max(0, Number(invoice.transferAmount || 0));
+
+                const newCash = paymentMethod === 'CASH'
+                    ? Math.max(0, currentCash - allocationAmount)
+                    : currentCash;
+                const newCard = paymentMethod === 'CARD'
+                    ? Math.max(0, currentCard - allocationAmount)
+                    : currentCard;
+                const newTransfer = paymentMethod === 'TRANSFER'
+                    ? Math.max(0, currentTransfer - allocationAmount)
+                    : currentTransfer;
+
+                await tx.invoice.update({
+                    where: { id: invoice.id },
+                    data: {
+                        amountPaid: newPaid,
+                        amountDue: newDue,
+                        cashAmount: newCash,
+                        cardAmount: newCard,
+                        transferAmount: newTransfer,
+                        paymentMethod: this.resolveInvoicePaymentMethodFromAmounts(newCash, newCard, newTransfer),
+                    },
+                });
+            }
+
+            await tx.$executeRaw(Prisma.sql`
+                DELETE FROM "customer_payment"
+                WHERE "id" = ${payment.id}
+            `);
+
+            const currentDebt = Math.max(0, Number(customer.currentDebt || 0));
+            await this.recalculateCurrentDebt(customer, tx, Math.max(0, currentDebt + paymentAmount));
+
+            return { success: true, message: 'Đã xóa phiếu thu thành công' };
+        });
+    }
+
     // Get customer's debt summary with transactions
     async getDebts(id: string, filter?: string) {
         const customer = await this.ensureExists(id);
 
-        // Get invoices for this customer (main debt source) with items
-        // First try by customerId FK
-        let invoices = await this.prisma.invoice.findMany({
-            where: { customerId: BigInt(id) },
+        const invoiceWhere = this.getCustomerInvoiceWhere(customer);
+        const invoices = await this.prisma.invoice.findMany({
+            where: invoiceWhere,
             orderBy: { createdAt: 'asc' }, // Oldest first for running balance
             include: {
                 items: true,
             },
         });
 
-        // If no invoices found and customer has code, try by customerCode
-        if (invoices.length === 0 && customer.code) {
-            invoices = await this.prisma.invoice.findMany({
-                where: { customerCode: customer.code },
-                orderBy: { createdAt: 'asc' },
-                include: {
-                    items: true,
-                },
-            });
-        }
+        const customerPayments = await this.getCustomerPaymentsWithAllocations(BigInt(id), this.prisma, 'asc');
 
-        // Build transactions list with running balance
-        const transactions: {
+        const rawTransactions: Array<{
             id: string;
             code: string;
             time: Date;
             type: string;
             value: number;
-            runningBalance: number;
             items?: TransactionItem[];
-        }[] = [];
-
-        let runningBalance = 0;
+            note?: string;
+        }> = [];
 
         // Check if customer has imported debt data
         const hasImportedData = customer.currentDebt !== null && customer.totalSales !== null;
 
         if (hasImportedData && invoices.length === 0) {
-            // Use imported data when no actual invoices exist
+            if (customerPayments.length === 0) {
+                return {
+                    customerId: id,
+                    customerName: customer.name,
+                    customerCode: customer.code,
+                    totalSales: Number(customer.totalSales || 0),
+                    totalPaid: Number(customer.totalSales || 0) - Number(customer.currentDebt || 0),
+                    totalDebt: Number(customer.currentDebt || 0),
+                    transactionCount: 0,
+                    transactions: [],
+                };
+            }
+
+            const openingDebt = Math.max(
+                0,
+                Number(customer.currentDebt || 0)
+                + customerPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+            );
+
+            rawTransactions.push({
+                id: 'opening-balance',
+                code: 'SODUDAUKY',
+                time: customer.createdAt,
+                type: 'Dư đầu kỳ',
+                value: openingDebt,
+                note: 'Số dư công nợ trước khi ghi nhận phiếu thu',
+            });
+
+            for (const payment of customerPayments) {
+                rawTransactions.push({
+                    id: payment.id.toString(),
+                    code: payment.code || `PT${payment.id}`,
+                    time: payment.createdAt,
+                    type: 'Thanh toán',
+                    value: -Number(payment.amount || 0),
+                    note: payment.note || undefined,
+                });
+            }
+
+            const transactions = rawTransactions
+                .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+                .reduce<Array<{
+                    id: string;
+                    code: string;
+                    time: Date;
+                    type: string;
+                    value: number;
+                    runningBalance: number;
+                    items?: TransactionItem[];
+                    note?: string;
+                }>>((acc, transaction) => {
+                    const runningBalance = (acc[acc.length - 1]?.runningBalance || 0) + transaction.value;
+                    acc.push({
+                        ...transaction,
+                        runningBalance,
+                    });
+                    return acc;
+                }, []);
+
+            let filteredTransactions = transactions;
+            if (filter && filter !== 'all') {
+                filteredTransactions = transactions.filter((transaction) => transaction.type === filter);
+            }
+
+            filteredTransactions = [...filteredTransactions].sort(
+                (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime(),
+            );
+
             return {
                 customerId: id,
                 customerName: customer.name,
@@ -365,12 +975,20 @@ export class CustomersService {
                 totalSales: Number(customer.totalSales || 0),
                 totalPaid: Number(customer.totalSales || 0) - Number(customer.currentDebt || 0),
                 totalDebt: Number(customer.currentDebt || 0),
-                transactionCount: 0,
-                transactions: [],
+                transactionCount: filteredTransactions.length,
+                transactions: filteredTransactions,
             };
         }
 
-        // Process invoices
+        const allocatedAmountByInvoiceId = new Map<string, number>();
+        customerPayments.forEach((payment) => {
+            payment.allocations.forEach((allocation) => {
+                const invoiceId = allocation.invoiceId.toString();
+                const existingAmount = allocatedAmountByInvoiceId.get(invoiceId) || 0;
+                allocatedAmountByInvoiceId.set(invoiceId, existingAmount + Number(allocation.amount || 0));
+            });
+        });
+
         for (const inv of invoices) {
             const paidAmount = Number(inv.amountPaid || 0);
             const outstandingAmount = this.resolveInvoiceAmountDue(inv);
@@ -392,32 +1010,68 @@ export class CustomersService {
 
             // Sale transaction (increases debt)
             if (invoiceAmount > 0) {
-                runningBalance += invoiceAmount;
-                transactions.push({
+                rawTransactions.push({
                     id: inv.id.toString(),
                     code: inv.invoiceNumber || `HD${inv.id}`,
                     time: inv.createdAt,
                     type: 'Bán hàng',
                     value: invoiceAmount,
-                    runningBalance: runningBalance,
                     items: invoiceItems, // Include items for sale transactions
                 });
             }
 
-            // Payment transaction (decreases debt)
-            if (paidAmount > 0) {
-                runningBalance -= paidAmount;
-                transactions.push({
-                    id: `${inv.id}-payment`,
+            const allocatedLater = allocatedAmountByInvoiceId.get(inv.id.toString()) || 0;
+            const initialPaidAmount = Math.max(0, paidAmount - allocatedLater);
+            if (initialPaidAmount > 0) {
+                rawTransactions.push({
+                    id: `${inv.id}-initial-payment`,
                     code: inv.invoiceNumber || `HD${inv.id}`,
                     time: inv.createdAt,
                     type: 'Thanh toán',
-                    value: -paidAmount,
-                    runningBalance: runningBalance,
-                    // No items for payment transactions
+                    value: -initialPaidAmount,
+                    note: 'Thanh toán lúc tạo đơn',
                 });
             }
         }
+
+        for (const payment of customerPayments) {
+            rawTransactions.push({
+                id: payment.id.toString(),
+                code: payment.code || `PT${payment.id}`,
+                time: payment.createdAt,
+                type: 'Thanh toán',
+                value: -Number(payment.amount || 0),
+                note: payment.note || undefined,
+            });
+        }
+
+        const transactions = rawTransactions
+            .sort((a, b) => {
+                const timeDiff = new Date(a.time).getTime() - new Date(b.time).getTime();
+                if (timeDiff !== 0) {
+                    return timeDiff;
+                }
+
+                if (a.type === b.type) return 0;
+                return a.type === 'Bán hàng' ? -1 : 1;
+            })
+            .reduce<Array<{
+                id: string;
+                code: string;
+                time: Date;
+                type: string;
+                value: number;
+                runningBalance: number;
+                items?: TransactionItem[];
+                note?: string;
+            }>>((acc, transaction) => {
+                const runningBalance = (acc[acc.length - 1]?.runningBalance || 0) + transaction.value;
+                acc.push({
+                    ...transaction,
+                    runningBalance,
+                });
+                return acc;
+            }, []);
 
         // Filter transactions if filter is provided
         let filteredTransactions = transactions;
@@ -431,7 +1085,7 @@ export class CustomersService {
         // Calculate totals
         const totalSales = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
         const totalPaid = invoices.reduce((sum, inv) => sum + Number(inv.amountPaid || 0), 0);
-        const totalDebt = totalSales - totalPaid;
+        const totalDebt = Math.max(0, totalSales - totalPaid);
 
         return {
             customerId: id,

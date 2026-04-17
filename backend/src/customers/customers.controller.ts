@@ -4,6 +4,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CreateCustomerPaymentDto } from './dto/create-payment.dto';
 import { CustomersService } from './customers.service';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -52,5 +53,22 @@ export class CustomersController {
     @Get(':id/debts')
     getDebts(@Param('id') id: string, @Query('filter') filter?: string) {
         return this.customersService.getDebts(id, filter);
+    }
+
+    @Post(':id/payments')
+    @Roles('ADMIN', 'MANAGER', 'SALESPERSON')
+    payDebt(@Param('id') id: string, @Body() createPaymentDto: CreateCustomerPaymentDto) {
+        return this.customersService.payDebt(id, createPaymentDto);
+    }
+
+    @Get(':id/payments')
+    getPayments(@Param('id') id: string) {
+        return this.customersService.getPayments(id);
+    }
+
+    @Delete(':id/payments/:paymentId')
+    @Roles('ADMIN', 'MANAGER')
+    deletePayment(@Param('id') id: string, @Param('paymentId') paymentId: string) {
+        return this.customersService.deletePayment(id, paymentId);
     }
 }

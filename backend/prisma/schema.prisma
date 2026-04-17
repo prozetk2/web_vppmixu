@@ -173,8 +173,9 @@ model Customer {
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  invoices Invoice[]
-  orders   Order[]
+  invoices        Invoice[]
+  orders          Order[]
+  customerPayments CustomerPayment[]
 
   @@map("customer")
 }
@@ -249,6 +250,7 @@ model Invoice {
   customer  Customer?         @relation(fields: [customerId], references: [id])
   eInvoices InvoiceEInvoice[]
   items     InvoiceItem[]
+  paymentAllocations CustomerPaymentAllocation[]
 
   @@map("invoice")
 }
@@ -342,6 +344,38 @@ model Payment {
   order Order? @relation(fields: [orderId], references: [id])
 
   @@map("payment")
+}
+
+model CustomerPayment {
+  id          BigInt   @id @default(autoincrement())
+  code        String?  @unique
+  customerId  BigInt   @map("customer_id")
+  amount      Decimal
+  method      String?
+  collector   String?
+  note        String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  customer    Customer                   @relation(fields: [customerId], references: [id])
+  allocations CustomerPaymentAllocation[]
+
+  @@map("customer_payment")
+}
+
+model CustomerPaymentAllocation {
+  id         BigInt   @id @default(autoincrement())
+  paymentId  BigInt   @map("payment_id")
+  invoiceId  BigInt   @map("invoice_id")
+  amount     Decimal  @db.Decimal(15, 2)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  payment CustomerPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, invoiceId])
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@map("customer_payment_allocation")
 }
 
 model Product {

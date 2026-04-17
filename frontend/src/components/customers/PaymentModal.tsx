@@ -1,3 +1,4 @@
+import { customersAPI } from '../../services/api';
 import { useState, useEffect } from 'react';
 import { MdClose, MdPrint, MdSave } from 'react-icons/md';
 import './PaymentModal.css';
@@ -25,6 +26,7 @@ interface PaymentModalProps {
 export default function PaymentModal({
     isOpen,
     onClose,
+    customerId,
     customerName,
     customerAddress,
     currentDebt,
@@ -39,24 +41,6 @@ export default function PaymentModal({
     const [allocateToInvoices, setAllocateToInvoices] = useState(true);
     const [allocations, setAllocations] = useState<Record<string, number>>({});
     const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (isOpen) {
-            // Set default date to now
-            const now = new Date();
-            const dateStr = now.toISOString().slice(0, 16);
-            setPaymentDate(dateStr);
-            setAmount(0);
-            setNote('');
-
-            // Initialize allocations
-            const allocs: Record<string, number> = {};
-            invoices.forEach(inv => {
-                allocs[inv.id] = 0;
-            });
-            setAllocations(allocs);
-        }
-    }, [isOpen, invoices]);
 
     const formatCurrency = (value: number): string => {
         return new Intl.NumberFormat('vi-VN').format(value);
@@ -76,6 +60,29 @@ export default function PaymentModal({
         return Math.max(0, Number(invoice.totalAmount || 0) - Number(invoice.amountPaid || 0));
     };
 
+    const outstandingInvoices = invoices.filter((invoice) => resolveInvoiceAmountDue(invoice) > 0);
+
+    useEffect(() => {
+        if (isOpen) {
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 16);
+            setPaymentDate(dateStr);
+            setAmount(0);
+            setNote('');
+            setAllocateToInvoices(outstandingInvoices.length > 0);
+
+            const allocs: Record<string, number> = {};
+            outstandingInvoices.forEach((inv) => {
+                allocs[inv.id] = 0;
+            });
+            setAllocations(allocs);
+        }
+    }, [isOpen, invoices]);
+
+    const effectiveCurrentDebt = outstandingInvoices.length > 0
+        ? outstandingInvoices.reduce((sum, invoice) => sum + resolveInvoiceAmountDue(invoice), 0)
+        : currentDebt;
+
     const handleAmountChange = (value: string) => {
         const num = parseFloat(value) || 0;
         setAmount(num);
@@ -91,7 +98,7 @@ export default function PaymentModal({
         const newAllocations: Record<string, number> = {};
 
         // Sort invoices by date (oldest first)
-        const sortedInvoices = [...invoices].sort((a, b) =>
+        const sortedInvoices = [...outstandingInvoices].sort((a, b) =>
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
 
@@ -109,11 +116,11 @@ export default function PaymentModal({
         setAllocations(newAllocations);
     };
 
-    const handleAllocationChange = (invoiceId: string, value: string) => {
+    const handleAllocationChange = (invoiceId: string, value: string, maxAmount: number) => {
         const num = parseFloat(value) || 0;
         setAllocations(prev => ({
             ...prev,
-            [invoiceId]: num
+            [invoiceId]: Math.min(maxAmount, Math.max(0, num))
         }));
     };
 
@@ -126,7 +133,135 @@ export default function PaymentModal({
     };
 
     const getRemainingDebt = (): number => {
-        return currentDebt - amount;
+        return Math.max(0, effectiveCurrentDebt - amount);
+    };
+
+    const getPaymentErrorMessage = (error: any): string => {
+        const rawMessage = error?.response?.data?.message;
+        if (Array.isArray(rawMessage)) {
+            const asStrings = rawMessage.filter((item) => typeof item === 'string');
+            if (asStrings.length > 0) {
+                return asStrings.join('\n');
+            }
+            return 'Lỗi khi tạo phiếu thu';
+        }
+
+        if (typeof rawMessage !== 'string') {
+            const fallback = error?.response?.data?.error;
+            if (typeof fallback === 'string' && fallback.trim()) {
+                return fallback;
+            }
+            return 'Lỗi khi tạo phiếu thu';
+        }
+
+        if (rawMessage.includes('INVALID_PAYMENT_AMOUNT')) {
+            return 'Số tiền thu không hợp lệ.';
+        }
+        if (rawMessage.includes('INVALID_PAYMENT_DATE')) {
+            return 'Thời gian phiếu thu không hợp lệ.';
+        }
+        if (rawMessage.includes('PAYMENT_EXCEEDS_OUTSTANDING_DEBT')) {
+            return 'Số tiền thu không được vượt quá công nợ còn lại.';
+        }
+        if (rawMessage.includes('ALLOCATIONS_MUST_MATCH_PAYMENT_AMOUNT')) {
+            return 'Tổng tiền phân bổ phải bằng số tiền thu.';
+        }
+        if (rawMessage.includes('DUPLICATE_INVOICE_ALLOCATION')) {
+            return 'Một hóa đơn đang bị phân bổ nhiều lần.';
+        }
+        if (rawMessage.includes('ALLOCATION_EXCEEDS_OUTSTANDING')) {
+            return 'Có hóa đơn bị phân bổ vượt quá số còn cần thu.';
+        }
+        if (rawMessage.includes('INVOICE_NOT_FOUND')) {
+            return 'Có hóa đơn phân bổ không hợp lệ hoặc không còn tồn tại.';
+        }
+
+        return rawMessage;
+    };
+
+    const printReceipt = (payment: any) => {
+        const paymentData = payment?.data || payment;
+        const paymentAmount = Number(paymentData?.amount || amount || 0);
+        const paymentCode = paymentData?.code || 'PT';
+        const paymentTime = paymentData?.createdAt || new Date().toISOString();
+        const paymentMethodLabel =
+            paymentData?.method === 'TRANSFER' ? 'Chuyển khoản'
+                : paymentData?.method === 'CARD' ? 'Thẻ'
+                    : 'Tiền mặt';
+        const allocationsData = Array.isArray(paymentData?.allocations) ? paymentData.allocations : [];
+        const allocationRows = allocationsData.length > 0
+            ? allocationsData.map((allocation: any, index: number) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${allocation.invoice?.invoiceNumber || ''}</td>
+                    <td style="text-align:right;">${new Intl.NumberFormat('vi-VN').format(Number(allocation.amount || 0))}</td>
+                </tr>
+            `).join('')
+            : `
+                <tr>
+                    <td colspan="3" style="text-align:center;">Thanh toán không phân bổ theo hóa đơn</td>
+                </tr>
+            `;
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            alert('Không thể mở cửa sổ in. Vui lòng cho phép popup.');
+            return;
+        }
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8" />
+                <title>Phiếu thu ${paymentCode}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
+                    .header { text-align: center; margin-bottom: 24px; }
+                    .header h1 { margin: 0 0 8px; font-size: 24px; }
+                    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin-bottom: 20px; }
+                    .meta-row strong { display: inline-block; min-width: 120px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+                    th, td { border: 1px solid #333; padding: 8px; font-size: 14px; }
+                    th { background: #f3f3f3; }
+                    .summary { margin-top: 20px; text-align: right; font-size: 16px; }
+                    .note { margin-top: 16px; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>PHIEU THU CONG NO</h1>
+                    <div>Ma phieu: <strong>${paymentCode}</strong></div>
+                </div>
+                <div class="meta">
+                    <div class="meta-row"><strong>Khach hang:</strong> ${customerName}</div>
+                    <div class="meta-row"><strong>Thoi gian:</strong> ${formatDateTime(paymentTime)}</div>
+                    <div class="meta-row"><strong>Dia chi:</strong> ${customerAddress || 'N/A'}</div>
+                    <div class="meta-row"><strong>Phuong thuc:</strong> ${paymentMethodLabel}</div>
+                    <div class="meta-row"><strong>Nguoi thu:</strong> ${paymentData?.collector || collector}</div>
+                    <div class="meta-row"><strong>So tien:</strong> ${new Intl.NumberFormat('vi-VN').format(paymentAmount)} đ</div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>STT</th>
+                            <th>Hoa don</th>
+                            <th>So tien thu</th>
+                        </tr>
+                    </thead>
+                    <tbody>${allocationRows}</tbody>
+                </table>
+                <div class="summary">
+                    <strong>Tong thu: ${new Intl.NumberFormat('vi-VN').format(paymentAmount)} đ</strong>
+                </div>
+                <div class="note"><strong>Ghi chu:</strong> ${paymentData?.note || note || 'Khong co'}</div>
+            </body>
+            </html>
+        `);
+
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => printWindow.print(), 250);
     };
 
     const handleSubmit = async (printAfter: boolean = false) => {
@@ -135,7 +270,49 @@ export default function PaymentModal({
             return;
         }
 
-        alert('Chức năng tạo phiếu thu công nợ khách đang được hoàn thiện, hiện chưa lưu dữ liệu thật.');
+        if (effectiveCurrentDebt > 0 && amount > effectiveCurrentDebt) {
+            alert('Số tiền thanh toán không được vượt quá số nợ cần thu.');
+            return;
+        }
+
+        if (allocateToInvoices && outstandingInvoices.length > 0 && Math.abs(getUnallocated()) > 0.001) {
+            alert('Vui lòng phân bổ hết số tiền thu vào các hóa đơn.');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const response = await customersAPI.payDebt(customerId, {
+                amount,
+                paymentMethod,
+                collector,
+                note,
+                allocateToInvoices,
+                createdAt: paymentDate ? new Date(paymentDate).toISOString() : undefined,
+                allocations: Object.entries(allocations)
+                    .map(([invoiceId, allocationAmount]) => ({
+                        invoiceId,
+                        amount: Number(allocationAmount || 0),
+                    }))
+                    .filter((allocation) => allocation.amount > 0),
+            });
+
+            const paymentData = response.data?.data || response.data;
+
+            alert('Tạo phiếu thu thành công!');
+            onSuccess();
+            onClose();
+
+            if (printAfter) {
+                printReceipt(paymentData);
+            }
+        } catch (error: any) {
+            console.error('Payment error:', error);
+            console.error('Payment error response:', error?.response?.data);
+            alert(getPaymentErrorMessage(error));
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (!isOpen) return null;
@@ -147,7 +324,7 @@ export default function PaymentModal({
                     <div className="payment-modal-title">
                         <h2>Thanh toán</h2>
                         <span className="payment-customer-info">
-                            {customerAddress || customerName} · Nợ hiện tại: {formatCurrency(currentDebt)}
+                            {customerAddress || customerName} · Nợ hiện tại: {formatCurrency(effectiveCurrentDebt)}
                         </span>
                     </div>
                     <button className="payment-close-btn" onClick={onClose}>
@@ -221,14 +398,27 @@ export default function PaymentModal({
                             <input
                                 type="checkbox"
                                 checked={allocateToInvoices}
-                                onChange={(e) => setAllocateToInvoices(e.target.checked)}
+                                onChange={(e) => {
+                                    const nextValue = e.target.checked;
+                                    setAllocateToInvoices(nextValue);
+
+                                    if (nextValue) {
+                                        autoAllocate(amount);
+                                    } else {
+                                        const resetAllocations: Record<string, number> = {};
+                                        outstandingInvoices.forEach((invoice) => {
+                                            resetAllocations[invoice.id] = 0;
+                                        });
+                                        setAllocations(resetAllocations);
+                                    }
+                                }}
                             />
                             Phân bổ vào hóa đơn
                         </label>
                     </div>
 
                     {/* Invoice allocation table */}
-                    {allocateToInvoices && (
+                    {allocateToInvoices && outstandingInvoices.length > 0 && (
                         <div className="payment-allocation-table">
                             <table>
                                 <thead>
@@ -244,15 +434,21 @@ export default function PaymentModal({
                                 <tbody>
                                     <tr className="total-row">
                                         <td colSpan={4}></td>
-                                        <td className="text-right"><strong>{formatCurrency(currentDebt)}</strong></td>
+                                        <td className="text-right"><strong>{formatCurrency(effectiveCurrentDebt)}</strong></td>
                                         <td></td>
                                     </tr>
-                                    {invoices.map((inv) => {
+                                    {outstandingInvoices.map((inv) => {
                                         const amountDue = resolveInvoiceAmountDue(inv);
                                         return (
                                             <tr key={inv.id}>
                                                 <td>
-                                                    <a href="#" className="invoice-link">{inv.invoiceNumber}</a>
+                                                    <a
+                                                        href="#"
+                                                        className="invoice-link"
+                                                        onClick={(e) => e.preventDefault()}
+                                                    >
+                                                        {inv.invoiceNumber}
+                                                    </a>
                                                 </td>
                                                 <td>{formatDateTime(inv.createdAt)}</td>
                                                 <td className="text-right">{formatCurrency(inv.totalAmount)}</td>
@@ -262,7 +458,7 @@ export default function PaymentModal({
                                                     <input
                                                         type="number"
                                                         value={allocations[inv.id] || ''}
-                                                        onChange={(e) => handleAllocationChange(inv.id, e.target.value)}
+                                                        onChange={(e) => handleAllocationChange(inv.id, e.target.value, amountDue)}
                                                         className="allocation-input"
                                                     />
                                                 </td>

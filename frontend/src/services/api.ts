@@ -110,6 +110,9 @@ export const customersAPI = {
     getOrders: (id: string) => api.get(`/customers/${id}/orders`),
     getInvoices: (id: string) => api.get(`/customers/${id}/invoices`),
     getDebts: (id: string, filter?: string) => api.get(`/customers/${id}/debts`, { params: { filter } }),
+    payDebt: (id: string, data: any) => api.post(`/customers/${id}/payments`, data),
+    getPayments: (id: string) => api.get(`/customers/${id}/payments`),
+    deletePayment: (customerId: string, paymentId: string) => api.delete(`/customers/${customerId}/payments/${paymentId}`),
 };
 
 export const suppliersAPI = {

@@ -925,23 +925,64 @@ export default function SupplierList() {
         return Object.keys(newErrors).length === 0;
     };
 
+    const normalizeOptionalString = (value?: string) => {
+        const trimmed = (value || '').trim();
+        return trimmed.length > 0 ? trimmed : undefined;
+    };
+
+    const getApiErrorMessage = (error: any, fallback: string) => {
+        const message = error?.response?.data?.message;
+        if (Array.isArray(message)) {
+            const lines = message.filter((item) => typeof item === 'string');
+            if (lines.length > 0) {
+                return lines.join('\n');
+            }
+        }
+
+        if (typeof message === 'string' && message.trim()) {
+            return message;
+        }
+
+        const errorText = error?.response?.data?.error;
+        if (typeof errorText === 'string' && errorText.trim()) {
+            return errorText;
+        }
+
+        return fallback;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!validate()) return;
 
         setSubmitting(true);
         try {
+            const payload = {
+                ...formData,
+                code: normalizeOptionalString(formData.code),
+                name: formData.name.trim(),
+                email: normalizeOptionalString(formData.email),
+                phone: normalizeOptionalString(formData.phone),
+                address: normalizeOptionalString(formData.address),
+                taxNumber: normalizeOptionalString(formData.taxNumber),
+                area: normalizeOptionalString(formData.area),
+                ward: normalizeOptionalString(formData.ward),
+                notes: normalizeOptionalString(formData.notes),
+                supplierGroup: normalizeOptionalString(formData.supplierGroup),
+                company: normalizeOptionalString(formData.company),
+            };
+
             if (editingSupplier) {
-                await suppliersAPI.update(editingSupplier.id, formData);
+                await suppliersAPI.update(editingSupplier.id, payload);
                 toast.success('Cập nhật nhà cung cấp thành công');
             } else {
-                await suppliersAPI.create(formData);
+                await suppliersAPI.create(payload);
                 toast.success('Thêm nhà cung cấp thành công');
             }
             closeFormModal();
             fetchSuppliers();
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Có lỗi xảy ra');
+            toast.error(getApiErrorMessage(error, 'Có lỗi xảy ra'));
         } finally {
             setSubmitting(false);
         }
