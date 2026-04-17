@@ -512,7 +512,7 @@ export default function SupplierList() {
         setSelectedSupplierForDebt(supplier);
         setAdjustmentForm({
             adjustDate: new Date().toISOString().slice(0, 16),
-            adjustAmount: 0,
+            adjustAmount: Number(supplier.currentDebt || 0),
             description: ''
         });
         setAdjustmentModalOpen(true);
@@ -1141,6 +1141,76 @@ export default function SupplierList() {
         } catch (error: any) {
             console.error('Payment error:', error);
             toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi thanh toán');
+        }
+    };
+
+    const handleAdjustmentSubmit = async () => {
+        if (!selectedSupplierForDebt) return;
+
+        const newDebtValue = Number(adjustmentForm.adjustAmount || 0);
+        if (!Number.isFinite(newDebtValue) || newDebtValue < 0) {
+            toast.error('Vui lòng nhập số nợ hợp lệ');
+            return;
+        }
+
+        const currentDebt = Number(selectedSupplierForDebt.currentDebt || 0);
+        const delta = newDebtValue - currentDebt;
+        if (!Number.isFinite(delta) || Math.abs(delta) < 0.000001) {
+            toast.error('Không có thay đổi công nợ để cập nhật');
+            return;
+        }
+
+        try {
+            await suppliersAPI.createDebtAdjustment(selectedSupplierForDebt.id, {
+                type: 'ADJUSTMENT',
+                amount: delta,
+                note: adjustmentForm.description?.trim() || undefined,
+                createdAt: adjustmentForm.adjustDate,
+            });
+
+            toast.success('Điều chỉnh công nợ thành công!');
+            setAdjustmentModalOpen(false);
+            await fetchSuppliers();
+        } catch (error: any) {
+            console.error('Adjustment error:', error);
+            toast.error(getApiErrorMessage(error, 'Có lỗi xảy ra khi điều chỉnh'));
+        }
+    };
+
+    const handleDiscountSubmit = async () => {
+        if (!selectedSupplierForDebt) return;
+
+        const discountAmount = Number(discountForm.discountAmount || 0);
+        if (!discountAmount || discountAmount <= 0) {
+            toast.error('Vui lòng nhập số tiền chiết khấu hợp lệ');
+            return;
+        }
+
+        const currentDebt = Number(selectedSupplierForDebt.currentDebt || 0);
+        if (discountAmount > currentDebt) {
+            toast.error('Số tiền chiết khấu không được vượt quá số nợ hiện tại');
+            return;
+        }
+
+        try {
+            const effectiveNote = discountForm.allocateToPurchases
+                ? `[Chưa phân bổ vào phiếu nhập] ${discountForm.note || ''}`.trim()
+                : discountForm.note;
+
+            await suppliersAPI.createDebtAdjustment(selectedSupplierForDebt.id, {
+                type: 'DISCOUNT',
+                amount: discountAmount,
+                executor: discountForm.executor,
+                note: effectiveNote?.trim() || undefined,
+                createdAt: discountForm.dateTime,
+            });
+
+            toast.success('Tạo chiết khấu thành công!');
+            setDiscountModalOpen(false);
+            await fetchSuppliers();
+        } catch (error: any) {
+            console.error('Discount error:', error);
+            toast.error(getApiErrorMessage(error, 'Có lỗi xảy ra khi tạo chiết khấu'));
         }
     };
 
@@ -2306,7 +2376,7 @@ export default function SupplierList() {
                         <button type="button" className="btn btn-secondary" onClick={() => setAdjustmentModalOpen(false)}>
                             Bỏ qua
                         </button>
-                        <button type="button" className="btn btn-primary" onClick={() => { toast.success('Điều chỉnh thành công!'); setAdjustmentModalOpen(false); }}>
+                        <button type="button" className="btn btn-primary" onClick={handleAdjustmentSubmit}>
                             Chỉnh sửa
                         </button>
                     </div>
@@ -2375,7 +2445,7 @@ export default function SupplierList() {
                         <button type="button" className="btn btn-secondary" onClick={() => setDiscountModalOpen(false)}>
                             Bỏ qua
                         </button>
-                        <button type="button" className="btn btn-primary" onClick={() => { toast.success('Tạo chiết khấu thành công!'); setDiscountModalOpen(false); }}>
+                        <button type="button" className="btn btn-primary" onClick={handleDiscountSubmit}>
                             Tạo phiếu
                         </button>
                     </div>

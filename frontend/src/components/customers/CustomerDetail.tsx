@@ -845,6 +845,9 @@ export default function CustomerDetail({
                                 <option value="all">Tất cả giao dịch</option>
                                 <option value="Bán hàng">Bán hàng</option>
                                 <option value="Thanh toán">Thanh toán</option>
+                                <option value="Điều chỉnh">Điều chỉnh</option>
+                                <option value="Chiết khấu">Chiết khấu</option>
+                                <option value="Dư đầu kỳ">Dư đầu kỳ</option>
                             </select>
                         </div>
 

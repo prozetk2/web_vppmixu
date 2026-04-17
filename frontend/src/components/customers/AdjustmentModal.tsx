@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MdClose, MdInfo } from 'react-icons/md';
+import { customersAPI } from '../../services/api';
 import './AdjustmentModal.css';
 
 interface AdjustmentModalProps {
@@ -14,6 +15,7 @@ interface AdjustmentModalProps {
 export default function AdjustmentModal({
     isOpen,
     onClose,
+    customerId,
     currentDebt,
     onSuccess,
 }: AdjustmentModalProps) {
@@ -38,7 +40,40 @@ export default function AdjustmentModal({
     };
 
     const handleSubmit = async () => {
-        alert('Chức năng điều chỉnh công nợ khách đang được hoàn thiện, hiện chưa lưu dữ liệu thật.');
+        if (!adjustmentDate) {
+            alert('Vui lòng chọn ngày điều chỉnh');
+            return;
+        }
+
+        const delta = Number(newDebtValue || 0) - Number(currentDebt || 0);
+        if (!Number.isFinite(delta) || Math.abs(delta) < 0.000001) {
+            alert('Không có thay đổi công nợ để cập nhật');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await customersAPI.createDebtAdjustment(customerId, {
+                type: 'ADJUSTMENT',
+                amount: delta,
+                note: description?.trim() || undefined,
+                createdAt: `${adjustmentDate}T00:00`,
+            });
+
+            alert('Điều chỉnh công nợ thành công!');
+            onSuccess();
+            onClose();
+        } catch (error: any) {
+            console.error('Debt adjustment error:', error);
+            const message = error?.response?.data?.message;
+            if (Array.isArray(message) && message.length > 0) {
+                alert(message.join('\n'));
+            } else {
+                alert(message || 'Có lỗi xảy ra');
+            }
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (!isOpen) return null;

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
+import { CreateCustomerDebtAdjustmentDto } from './dto/create-debt-adjustment.dto';
 import { CreateCustomerPaymentDto } from './dto/create-payment.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 
@@ -98,9 +99,21 @@ export class CustomersService {
             },
         });
 
-        const currentDebt = invoices.length > 0
-            ? invoices.reduce((sum, invoice) => sum + this.resolveInvoiceAmountDue(invoice), 0)
-            : Math.max(0, Number(fallbackCurrentDebt ?? customer.currentDebt ?? 0));
+        let currentDebt: number;
+        if (invoices.length > 0) {
+            const adjustmentAgg = await tx.$queryRaw<Array<{ amount: Prisma.Decimal | number | string | null }>>(Prisma.sql`
+                SELECT COALESCE(SUM("amount"), 0) AS "amount"
+                FROM "customer_debt_adjustment"
+                WHERE "customer_id" = ${customer.id}
+            `);
+
+            const baseDebt = invoices.reduce((sum, invoice) => sum + this.resolveInvoiceAmountDue(invoice), 0);
+            const adjustmentSum = Number(adjustmentAgg[0]?.amount || 0);
+            currentDebt = Math.max(0, baseDebt + adjustmentSum);
+        } else {
+            // With no invoices, customer.currentDebt is treated as the source of truth (imported/opening debt).
+            currentDebt = Math.max(0, Number(fallbackCurrentDebt ?? customer.currentDebt ?? 0));
+        }
 
         await tx.customer.update({
             where: { id: customer.id },
@@ -140,6 +153,10 @@ export class CustomersService {
 
     private generatePaymentCode() {
         return `PT${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    }
+
+    private generateDebtAdjustmentCode(prefix: string) {
+        return `${prefix}${Date.now()}${Math.floor(Math.random() * 1000)}`;
     }
 
     private async createCustomerPayment(
@@ -375,6 +392,21 @@ export class CustomersService {
             },
         });
 
+        const customerIds = customers.map((c) => c.id);
+        const adjustmentAgg = customerIds.length
+            ? await this.prisma.$queryRaw<Array<{ customerId: bigint; amount: Prisma.Decimal | number | string }>>(Prisma.sql`
+                SELECT
+                    "customer_id" AS "customerId",
+                    COALESCE(SUM("amount"), 0) AS "amount"
+                FROM "customer_debt_adjustment"
+                WHERE "customer_id" IN (${Prisma.join(customerIds)})
+                GROUP BY "customer_id"
+            `)
+            : [];
+        const adjustmentMap = new Map<string, number>(
+            adjustmentAgg.map((row) => [row.customerId.toString(), Number(row.amount || 0)]),
+        );
+
         // Calculate statistics for each customer
         return customers.map((customer) => {
             // Nếu đã có dữ liệu từ Excel/Import, ưu tiên sử dụng
@@ -417,6 +449,14 @@ export class CustomersService {
                 totalSalesAfterReturn = totalSales;
             }
 
+            if (!hasImportedData) {
+                const adjustmentSum = adjustmentMap.get(customer.id.toString()) || 0;
+                currentDebt = Math.max(0, currentDebt + adjustmentSum);
+                if (currentDebt <= 0) {
+                    debtDays = 0;
+                }
+            }
+
             // Remove orders from response and add statistics
             const { orders, ...customerData } = customer;
 
@@ -451,9 +491,20 @@ export class CustomersService {
             return customer;
         }
 
+        const adjustmentAgg = await this.prisma.$queryRaw<Array<{ amount: Prisma.Decimal | number | string | null }>>(Prisma.sql`
+            SELECT COALESCE(SUM("amount"), 0) AS "amount"
+            FROM "customer_debt_adjustment"
+            WHERE "customer_id" = ${BigInt(id)}
+        `);
+
+        const adjustmentSum = Number(adjustmentAgg[0]?.amount || 0);
+
         return {
             ...customer,
-            currentDebt: invoices.reduce((sum, invoice) => sum + this.resolveInvoiceAmountDue(invoice), 0),
+            currentDebt: Math.max(
+                0,
+                invoices.reduce((sum, invoice) => sum + this.resolveInvoiceAmountDue(invoice), 0) + adjustmentSum,
+            ),
         };
     }
 
@@ -871,6 +922,100 @@ export class CustomersService {
         });
     }
 
+    async createDebtAdjustment(id: string, dto: CreateCustomerDebtAdjustmentDto) {
+        const customer = await this.ensureExists(id);
+        const customerId = BigInt(id);
+
+        const rawAmount = Number(dto.amount || 0);
+        if (Number.isNaN(rawAmount) || !Number.isFinite(rawAmount) || rawAmount === 0) {
+            throw new BadRequestException('INVALID_ADJUSTMENT_AMOUNT');
+        }
+
+        const createdAt = dto.createdAt ? new Date(dto.createdAt) : new Date();
+        if (Number.isNaN(createdAt.getTime())) {
+            throw new BadRequestException('INVALID_ADJUSTMENT_DATE');
+        }
+
+        const type = (dto.type || 'ADJUSTMENT').toUpperCase();
+        if (!['ADJUSTMENT', 'DISCOUNT'].includes(type)) {
+            throw new BadRequestException('INVALID_ADJUSTMENT_TYPE');
+        }
+
+        const amount = type === 'DISCOUNT' ? -Math.abs(rawAmount) : rawAmount;
+        const executor = dto.executor?.trim() || null;
+        const note = dto.note || null;
+        const prefix = type === 'DISCOUNT' ? 'CKKH' : 'DCKH';
+        const code = this.generateDebtAdjustmentCode(prefix);
+
+        return this.prisma.$transaction(async (tx) => {
+            const rows = await tx.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`
+                INSERT INTO "customer_debt_adjustment" (
+                    "code",
+                    "customer_id",
+                    "type",
+                    "amount",
+                    "executor",
+                    "note",
+                    "created_at"
+                )
+                VALUES (
+                    ${code},
+                    ${customerId},
+                    ${type},
+                    ${amount},
+                    ${executor},
+                    ${note},
+                    ${createdAt}
+                )
+                RETURNING "id"
+            `);
+
+            const invoiceCount = await tx.invoice.count({
+                where: this.getCustomerInvoiceWhere(customer),
+            });
+
+            if (invoiceCount > 0) {
+                await this.recalculateCurrentDebt(customer, tx);
+            } else {
+                const latestCustomer = await tx.customer.findUnique({
+                    where: { id: customerId },
+                    select: { currentDebt: true },
+                });
+
+                const currentDebt = Math.max(0, Number(latestCustomer?.currentDebt || 0));
+                await tx.customer.update({
+                    where: { id: customerId },
+                    data: { currentDebt: Math.max(0, currentDebt + amount) },
+                });
+            }
+
+            const created = await tx.$queryRaw<Array<{
+                id: bigint;
+                code: string | null;
+                customerId: bigint;
+                type: string;
+                amount: Prisma.Decimal | number | string;
+                executor: string | null;
+                note: string | null;
+                createdAt: Date;
+            }>>(Prisma.sql`
+                SELECT
+                    "id",
+                    "code",
+                    "customer_id" AS "customerId",
+                    "type",
+                    "amount",
+                    "executor",
+                    "note",
+                    "created_at" AS "createdAt"
+                FROM "customer_debt_adjustment"
+                WHERE "id" = ${rows[0].id}
+            `);
+
+            return created[0] || null;
+        });
+    }
+
     // Get customer's debt summary with transactions
     async getDebts(id: string, filter?: string) {
         const customer = await this.ensureExists(id);
@@ -885,6 +1030,27 @@ export class CustomersService {
         });
 
         const customerPayments = await this.getCustomerPaymentsWithAllocations(BigInt(id), this.prisma, 'asc');
+        const customerAdjustments = await this.prisma.$queryRaw<Array<{
+            id: bigint;
+            code: string | null;
+            type: string;
+            amount: Prisma.Decimal | number | string;
+            executor: string | null;
+            note: string | null;
+            createdAt: Date;
+        }>>(Prisma.sql`
+            SELECT
+                "id",
+                "code",
+                "type",
+                "amount",
+                "executor",
+                "note",
+                "created_at" AS "createdAt"
+            FROM "customer_debt_adjustment"
+            WHERE "customer_id" = ${BigInt(id)}
+            ORDER BY "created_at" ASC, "id" ASC
+        `);
 
         const rawTransactions: Array<{
             id: string;
@@ -900,24 +1066,35 @@ export class CustomersService {
         const hasImportedData = customer.currentDebt !== null && customer.totalSales !== null;
 
         if (hasImportedData && invoices.length === 0) {
-            if (customerPayments.length === 0) {
+            const totalSales = Number(customer.totalSales || 0);
+            const closingDebt = Math.max(0, Number(customer.currentDebt || 0));
+            const totalPayments = customerPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
+            const normalizedAdjustments = customerAdjustments.map((adj) => {
+                const raw = Number(adj.amount || 0);
+                const normalized = adj.type?.toUpperCase() === 'DISCOUNT' && raw > 0 ? -raw : raw;
+                return {
+                    ...adj,
+                    normalizedAmount: normalized,
+                    label: adj.type?.toUpperCase() === 'DISCOUNT' ? 'Chiết khấu' : 'Điều chỉnh',
+                };
+            });
+            const adjustmentSum = normalizedAdjustments.reduce((sum, adj) => sum + adj.normalizedAmount, 0);
+
+            if (customerPayments.length === 0 && normalizedAdjustments.length === 0) {
                 return {
                     customerId: id,
                     customerName: customer.name,
                     customerCode: customer.code,
-                    totalSales: Number(customer.totalSales || 0),
-                    totalPaid: Number(customer.totalSales || 0) - Number(customer.currentDebt || 0),
-                    totalDebt: Number(customer.currentDebt || 0),
+                    totalSales,
+                    totalPaid: Math.max(0, totalSales - closingDebt + adjustmentSum),
+                    totalDebt: closingDebt,
                     transactionCount: 0,
                     transactions: [],
                 };
             }
 
-            const openingDebt = Math.max(
-                0,
-                Number(customer.currentDebt || 0)
-                + customerPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
-            );
+            const openingDebt = Math.max(0, closingDebt + totalPayments - adjustmentSum);
 
             rawTransactions.push({
                 id: 'opening-balance',
@@ -927,6 +1104,18 @@ export class CustomersService {
                 value: openingDebt,
                 note: 'Số dư công nợ trước khi ghi nhận phiếu thu',
             });
+
+            for (const adj of normalizedAdjustments) {
+                const noteParts = [adj.executor?.trim(), adj.note].filter((p) => typeof p === 'string' && p.trim().length > 0);
+                rawTransactions.push({
+                    id: adj.id.toString(),
+                    code: adj.code || (adj.type?.toUpperCase() === 'DISCOUNT' ? `CK${adj.id}` : `DC${adj.id}`),
+                    time: adj.createdAt,
+                    type: adj.label,
+                    value: adj.normalizedAmount,
+                    note: noteParts.length > 0 ? noteParts.join(' - ') : undefined,
+                });
+            }
 
             for (const payment of customerPayments) {
                 rawTransactions.push({
@@ -972,9 +1161,9 @@ export class CustomersService {
                 customerId: id,
                 customerName: customer.name,
                 customerCode: customer.code,
-                totalSales: Number(customer.totalSales || 0),
-                totalPaid: Number(customer.totalSales || 0) - Number(customer.currentDebt || 0),
-                totalDebt: Number(customer.currentDebt || 0),
+                totalSales,
+                totalPaid: Math.max(0, totalSales - closingDebt + adjustmentSum),
+                totalDebt: closingDebt,
                 transactionCount: filteredTransactions.length,
                 transactions: filteredTransactions,
             };
@@ -1045,6 +1234,29 @@ export class CustomersService {
             });
         }
 
+        const normalizedAdjustments = customerAdjustments.map((adj) => {
+            const raw = Number(adj.amount || 0);
+            const normalized = adj.type?.toUpperCase() === 'DISCOUNT' && raw > 0 ? -raw : raw;
+            return {
+                ...adj,
+                normalizedAmount: normalized,
+                label: adj.type?.toUpperCase() === 'DISCOUNT' ? 'Chiết khấu' : 'Điều chỉnh',
+            };
+        });
+        const adjustmentSum = normalizedAdjustments.reduce((sum, adj) => sum + adj.normalizedAmount, 0);
+
+        for (const adj of normalizedAdjustments) {
+            const noteParts = [adj.executor?.trim(), adj.note].filter((p) => typeof p === 'string' && p.trim().length > 0);
+            rawTransactions.push({
+                id: adj.id.toString(),
+                code: adj.code || (adj.type?.toUpperCase() === 'DISCOUNT' ? `CK${adj.id}` : `DC${adj.id}`),
+                time: adj.createdAt,
+                type: adj.label,
+                value: adj.normalizedAmount,
+                note: noteParts.length > 0 ? noteParts.join(' - ') : undefined,
+            });
+        }
+
         const transactions = rawTransactions
             .sort((a, b) => {
                 const timeDiff = new Date(a.time).getTime() - new Date(b.time).getTime();
@@ -1085,7 +1297,8 @@ export class CustomersService {
         // Calculate totals
         const totalSales = invoices.reduce((sum, inv) => sum + Number(inv.totalAmount || 0), 0);
         const totalPaid = invoices.reduce((sum, inv) => sum + Number(inv.amountPaid || 0), 0);
-        const totalDebt = Math.max(0, totalSales - totalPaid);
+        const baseDebt = invoices.reduce((sum, inv) => sum + this.resolveInvoiceAmountDue(inv), 0);
+        const totalDebt = Math.max(0, baseDebt + adjustmentSum);
 
         return {
             customerId: id,

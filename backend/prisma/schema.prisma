@@ -176,6 +176,7 @@ model Customer {
   invoices        Invoice[]
   orders          Order[]
   customerPayments CustomerPayment[]
+  debtAdjustments  CustomerDebtAdjustment[]
 
   @@map("customer")
 }
@@ -378,6 +379,22 @@ model CustomerPaymentAllocation {
   @@map("customer_payment_allocation")
 }
 
+model CustomerDebtAdjustment {
+  id         BigInt   @id @default(autoincrement())
+  code       String?  @unique
+  customerId BigInt   @map("customer_id")
+  type       String
+  amount     Decimal
+  executor   String?
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@map("customer_debt_adjustment")
+}
+
 model Product {
   id           BigInt    @id @default(autoincrement())
   sku          String?   @unique
@@ -533,8 +550,25 @@ model Supplier {
   purchaseOrders  PurchaseOrder[]
   payments        SupplierPayment[]
   products        Product[]
+  debtAdjustments SupplierDebtAdjustment[]
 
   @@map("supplier")
+}
+
+model SupplierDebtAdjustment {
+  id         BigInt   @id @default(autoincrement())
+  code       String?  @unique
+  supplierId BigInt   @map("supplier_id")
+  type       String
+  amount     Decimal
+  executor   String?
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  supplier   Supplier @relation(fields: [supplierId], references: [id])
+
+  @@index([supplierId])
+  @@map("supplier_debt_adjustment")
 }
 
 model SupplierPayment {

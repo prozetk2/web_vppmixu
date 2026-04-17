@@ -113,6 +113,7 @@ export const customersAPI = {
     payDebt: (id: string, data: any) => api.post(`/customers/${id}/payments`, data),
     getPayments: (id: string) => api.get(`/customers/${id}/payments`),
     deletePayment: (customerId: string, paymentId: string) => api.delete(`/customers/${customerId}/payments/${paymentId}`),
+    createDebtAdjustment: (customerId: string, data: any) => api.post(`/customers/${customerId}/debt-adjustments`, data),
 };
 
 export const suppliersAPI = {
@@ -125,6 +126,7 @@ export const suppliersAPI = {
     payDebt: (id: string, data: any) => api.post(`/suppliers/${id}/payments`, data),
     getPayments: (id: string) => api.get(`/suppliers/${id}/payments`),
     deletePayment: (supplierId: string, paymentId: string) => api.delete(`/suppliers/${supplierId}/payments/${paymentId}`),
+    createDebtAdjustment: (supplierId: string, data: any) => api.post(`/suppliers/${supplierId}/debt-adjustments`, data),
 
 };
 

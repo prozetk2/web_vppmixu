@@ -5,6 +5,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CreateCustomerPaymentDto } from './dto/create-payment.dto';
+import { CreateCustomerDebtAdjustmentDto } from './dto/create-debt-adjustment.dto';
 import { CustomersService } from './customers.service';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -70,5 +71,11 @@ export class CustomersController {
     @Roles('ADMIN', 'MANAGER')
     deletePayment(@Param('id') id: string, @Param('paymentId') paymentId: string) {
         return this.customersService.deletePayment(id, paymentId);
+    }
+
+    @Post(':id/debt-adjustments')
+    @Roles('ADMIN', 'MANAGER', 'SALESPERSON')
+    createDebtAdjustment(@Param('id') id: string, @Body() dto: CreateCustomerDebtAdjustmentDto) {
+        return this.customersService.createDebtAdjustment(id, dto);
     }
 }
