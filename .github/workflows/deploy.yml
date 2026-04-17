@@ -10,7 +10,7 @@ jobs:
   deploy:
     name: Deploy to Server
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.0
@@ -20,17 +20,74 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
+            set -eu
             cd ${{ secrets.DEPLOY_PATH }}
-            
-            # Pull latest code từ GitHub
-            git pull origin main
-            
-            # Build lại images và restart containers
-            docker-compose -f docker-compose.prod.yml down
-            docker-compose -f docker-compose.prod.yml build --no-cache
-            docker-compose -f docker-compose.prod.yml up -d
-            
+
+            # Fetch code mới nhất và luôn deploy đúng HEAD của origin/main.
+            git fetch origin main
+            git checkout main
+
+            CURRENT_HEAD=$(git rev-parse HEAD)
+            REMOTE_HEAD=$(git rev-parse origin/main)
+
+            if [ "$CURRENT_HEAD" = "$REMOTE_HEAD" ]; then
+              echo "Không có commit mới để deploy."
+              exit 0
+            fi
+
+            BASE_COMMIT=$(git merge-base HEAD origin/main || true)
+            if [ -z "$BASE_COMMIT" ]; then
+              BASE_COMMIT="$CURRENT_HEAD"
+            fi
+
+            CHANGED_FILES=$(git diff --name-only "$BASE_COMMIT".."origin/main")
+            echo "Các file thay đổi:"
+            echo "$CHANGED_FILES"
+
+            FRONTEND_CHANGED=false
+            BACKEND_CHANGED=false
+
+            while IFS= read -r file; do
+              [ -z "$file" ] && continue
+              case "$file" in
+                frontend/*)
+                  FRONTEND_CHANGED=true
+                  ;;
+                backend/*)
+                  BACKEND_CHANGED=true
+                  ;;
+                docker-compose.prod.yml)
+                  FRONTEND_CHANGED=true
+                  BACKEND_CHANGED=true
+                  ;;
+              esac
+            done <<EOF
+            $CHANGED_FILES
+            EOF
+
+            # Đồng bộ repo về đúng origin/main trước khi build.
+            git reset --hard origin/main
+
+            if [ "$FRONTEND_CHANGED" = false ] && [ "$BACKEND_CHANGED" = false ]; then
+              echo "Không có thay đổi FE/BE cần rebuild. Chỉ đồng bộ source."
+              exit 0
+            fi
+
+            if [ "$FRONTEND_CHANGED" = true ] && [ "$BACKEND_CHANGED" = true ]; then
+              echo "Thay đổi cả FE và BE -> rebuild cả hai service."
+              docker-compose -f docker-compose.prod.yml build --no-cache frontend backend
+              docker-compose -f docker-compose.prod.yml up -d --no-deps backend frontend
+            elif [ "$FRONTEND_CHANGED" = true ]; then
+              echo "Chỉ thay đổi FE -> rebuild frontend."
+              docker-compose -f docker-compose.prod.yml build --no-cache frontend
+              docker-compose -f docker-compose.prod.yml up -d --no-deps frontend
+            else
+              echo "Chỉ thay đổi BE -> rebuild backend."
+              docker-compose -f docker-compose.prod.yml build --no-cache backend
+              docker-compose -f docker-compose.prod.yml up -d --no-deps backend
+            fi
+
             # Dọn dẹp images cũ
             docker image prune -af
-            
+
             echo "✅ Deploy thành công!"
