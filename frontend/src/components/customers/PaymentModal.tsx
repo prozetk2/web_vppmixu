@@ -39,6 +39,7 @@ export default function PaymentModal({
     const [amount, setAmount] = useState<number>(0);
     const [note, setNote] = useState('');
     const [allocateToInvoices, setAllocateToInvoices] = useState(true);
+    const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
     const [allocations, setAllocations] = useState<Record<string, number>>({});
     const [loading, setLoading] = useState(false);
 
@@ -62,6 +63,19 @@ export default function PaymentModal({
 
     const outstandingInvoices = invoices.filter((invoice) => resolveInvoiceAmountDue(invoice) > 0);
 
+    const createEmptyAllocations = (): Record<string, number> => {
+        const nextAllocations: Record<string, number> = {};
+        outstandingInvoices.forEach((invoice) => {
+            nextAllocations[invoice.id] = 0;
+        });
+
+        return nextAllocations;
+    };
+
+    const selectedInvoice = allocateToInvoices
+        ? outstandingInvoices.find((invoice) => invoice.id === selectedInvoiceId)
+        : undefined;
+
     useEffect(() => {
         if (isOpen) {
             const now = new Date();
@@ -70,28 +84,14 @@ export default function PaymentModal({
             setAmount(0);
             setNote('');
             setAllocateToInvoices(outstandingInvoices.length > 0);
-
-            const allocs: Record<string, number> = {};
-            outstandingInvoices.forEach((inv) => {
-                allocs[inv.id] = 0;
-            });
-            setAllocations(allocs);
+            setSelectedInvoiceId('');
+            setAllocations(createEmptyAllocations());
         }
     }, [isOpen, invoices]);
 
     const effectiveCurrentDebt = outstandingInvoices.length > 0
         ? outstandingInvoices.reduce((sum, invoice) => sum + resolveInvoiceAmountDue(invoice), 0)
         : currentDebt;
-
-    const handleAmountChange = (value: string) => {
-        const num = parseFloat(value) || 0;
-        setAmount(num);
-
-        // Auto-allocate to invoices if enabled
-        if (allocateToInvoices) {
-            autoAllocate(num);
-        }
-    };
 
     const autoAllocate = (totalAmount: number) => {
         let remaining = totalAmount;
@@ -116,12 +116,49 @@ export default function PaymentModal({
         setAllocations(newAllocations);
     };
 
-    const handleAllocationChange = (invoiceId: string, value: string, maxAmount: number) => {
+    const allocateToSelectedInvoice = (invoiceId: string, totalAmount: number) => {
+        const invoice = outstandingInvoices.find((item) => item.id === invoiceId);
+        if (!invoice) {
+            setAllocations(createEmptyAllocations());
+            return;
+        }
+
+        const nextAllocations = createEmptyAllocations();
+        nextAllocations[invoiceId] = Math.min(totalAmount, resolveInvoiceAmountDue(invoice));
+        setAllocations(nextAllocations);
+    };
+
+    const refreshAllocations = (totalAmount: number, nextSelectedInvoiceId: string, nextAllocateToInvoices: boolean) => {
+        if (!nextAllocateToInvoices) {
+            setAllocations(createEmptyAllocations());
+            return;
+        }
+
+        if (nextSelectedInvoiceId) {
+            allocateToSelectedInvoice(nextSelectedInvoiceId, totalAmount);
+            return;
+        }
+
+        autoAllocate(totalAmount);
+    };
+
+    const handleAmountChange = (value: string) => {
         const num = parseFloat(value) || 0;
-        setAllocations(prev => ({
-            ...prev,
-            [invoiceId]: Math.min(maxAmount, Math.max(0, num))
-        }));
+        setAmount(num);
+
+        if (allocateToInvoices) {
+            refreshAllocations(num, selectedInvoiceId, true);
+        }
+    };
+
+    const handleInvoiceSelection = (invoiceId: string) => {
+        setSelectedInvoiceId(invoiceId);
+        refreshAllocations(amount, invoiceId, true);
+    };
+
+    const handleClearSelectedInvoice = () => {
+        setSelectedInvoiceId('');
+        refreshAllocations(amount, '', true);
     };
 
     const getTotalAllocated = (): number => {
@@ -132,9 +169,11 @@ export default function PaymentModal({
         return amount - getTotalAllocated();
     };
 
-    const getRemainingDebt = (): number => {
-        return Math.max(0, effectiveCurrentDebt - amount);
-    };
+    const paymentTargetOutstanding = selectedInvoice
+        ? resolveInvoiceAmountDue(selectedInvoice)
+        : effectiveCurrentDebt;
+
+    const getRemainingDebt = (): number => Math.max(0, paymentTargetOutstanding - amount);
 
     const getPaymentErrorMessage = (error: any): string => {
         const rawMessage = error?.response?.data?.message;
@@ -275,6 +314,11 @@ export default function PaymentModal({
             return;
         }
 
+        if (selectedInvoice && amount > paymentTargetOutstanding) {
+            alert(`Số tiền thanh toán không được vượt quá số còn cần thu của hóa đơn ${selectedInvoice.invoiceNumber}.`);
+            return;
+        }
+
         if (allocateToInvoices && outstandingInvoices.length > 0 && Math.abs(getUnallocated()) > 0.001) {
             alert('Vui lòng phân bổ hết số tiền thu vào các hóa đơn.');
             return;
@@ -403,13 +447,10 @@ export default function PaymentModal({
                                     setAllocateToInvoices(nextValue);
 
                                     if (nextValue) {
-                                        autoAllocate(amount);
+                                        refreshAllocations(amount, selectedInvoiceId, true);
                                     } else {
-                                        const resetAllocations: Record<string, number> = {};
-                                        outstandingInvoices.forEach((invoice) => {
-                                            resetAllocations[invoice.id] = 0;
-                                        });
-                                        setAllocations(resetAllocations);
+                                        setSelectedInvoiceId('');
+                                        setAllocations(createEmptyAllocations());
                                     }
                                 }}
                             />
@@ -420,9 +461,33 @@ export default function PaymentModal({
                     {/* Invoice allocation table */}
                     {allocateToInvoices && outstandingInvoices.length > 0 && (
                         <div className="payment-allocation-table">
+                            <div className="allocation-selection-hint">
+                                <div className="allocation-selection-copy">
+                                    <span>
+                                        {selectedInvoice
+                                            ? `Đang thu theo hóa đơn ${selectedInvoice.invoiceNumber}.`
+                                            : 'Chưa chọn mã hóa đơn, hệ thống sẽ tự phân bổ vào các hóa đơn cũ nhất.'}
+                                    </span>
+                                    <strong>
+                                        {selectedInvoice
+                                            ? `Còn cần thu hóa đơn: ${formatCurrency(paymentTargetOutstanding)}`
+                                            : `Tổng nợ hóa đơn: ${formatCurrency(effectiveCurrentDebt)}`}
+                                    </strong>
+                                </div>
+                                {selectedInvoice && (
+                                    <button
+                                        type="button"
+                                        className="clear-selection-btn"
+                                        onClick={handleClearSelectedInvoice}
+                                    >
+                                        Bỏ chọn
+                                    </button>
+                                )}
+                            </div>
                             <table>
                                 <thead>
                                     <tr>
+                                        <th>Chọn</th>
                                         <th>Mã hóa đơn</th>
                                         <th>Thời gian</th>
                                         <th className="text-right">Giá trị hóa đơn</th>
@@ -432,20 +497,30 @@ export default function PaymentModal({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr className="total-row">
-                                        <td colSpan={4}></td>
-                                        <td className="text-right"><strong>{formatCurrency(effectiveCurrentDebt)}</strong></td>
-                                        <td></td>
-                                    </tr>
                                     {outstandingInvoices.map((inv) => {
                                         const amountDue = resolveInvoiceAmountDue(inv);
                                         return (
-                                            <tr key={inv.id}>
+                                            <tr
+                                                key={inv.id}
+                                                className={selectedInvoiceId === inv.id ? 'selected-allocation-row' : ''}
+                                                onClick={() => handleInvoiceSelection(inv.id)}
+                                            >
+                                                <td className="text-center">
+                                                    <input
+                                                        type="radio"
+                                                        name="selectedCustomerInvoice"
+                                                        checked={selectedInvoiceId === inv.id}
+                                                        onChange={() => handleInvoiceSelection(inv.id)}
+                                                    />
+                                                </td>
                                                 <td>
                                                     <a
                                                         href="#"
                                                         className="invoice-link"
-                                                        onClick={(e) => e.preventDefault()}
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            handleInvoiceSelection(inv.id);
+                                                        }}
                                                     >
                                                         {inv.invoiceNumber}
                                                     </a>
@@ -454,14 +529,7 @@ export default function PaymentModal({
                                                 <td className="text-right">{formatCurrency(inv.totalAmount)}</td>
                                                 <td className="text-right">{formatCurrency(inv.amountPaid)}</td>
                                                 <td className="text-right">{formatCurrency(amountDue)}</td>
-                                                <td className="text-right">
-                                                    <input
-                                                        type="number"
-                                                        value={allocations[inv.id] || ''}
-                                                        onChange={(e) => handleAllocationChange(inv.id, e.target.value, amountDue)}
-                                                        className="allocation-input"
-                                                    />
-                                                </td>
+                                                <td className="text-right">{formatCurrency(allocations[inv.id] || 0)}</td>
                                             </tr>
                                         );
                                     })}

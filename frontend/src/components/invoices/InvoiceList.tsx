@@ -737,6 +737,26 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                 const normalized = typeof value === 'string' ? value.trim() : '';
                 return normalized ? escapeHtml(normalized) : fallback;
             };
+            const detailCustomer = (detail as any)?.customer;
+            const listCustomer = (invoice as any)?.customer;
+            const customerNameForPrint =
+                detail.customerName ||
+                detailCustomer?.name ||
+                invoice.customerName ||
+                listCustomer?.name ||
+                'Khách lẻ';
+            const customerPhoneForPrint =
+                detail.customerPhone ||
+                detailCustomer?.phone ||
+                invoice.customerPhone ||
+                listCustomer?.phone ||
+                null;
+            const customerAddressForPrint =
+                detail.customerAddress ||
+                detailCustomer?.address ||
+                invoice.customerAddress ||
+                listCustomer?.address ||
+                null;
             const itemRows = items.length > 0
                 ? items.map((item: InvoiceItem, index: number) => `
                     <tr class="item-row">
@@ -1016,18 +1036,18 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                             </div>
                         </div>
 
-                        <div class="customer-info-print">
+                            <div class="customer-info-print">
                             <div class="row">
                                 <span class="label">Khách hàng:</span>
-                                <span class="value">${printField(detail.customerName || invoice.customerName || 'Khách lẻ', 'Khách lẻ')}</span>
+                                <span class="value">${printField(customerNameForPrint, 'Khách lẻ')}</span>
                             </div>
                             <div class="row">
                                 <span class="label">Số điện thoại:</span>
-                                <span class="value">${printField(detail.customerPhone || invoice.customerPhone)}</span>
+                                <span class="value">${printField(customerPhoneForPrint)}</span>
                             </div>
                             <div class="row">
                                 <span class="label">Địa chỉ:</span>
-                                <span class="value">${printField(detail.customerAddress || invoice.customerAddress)}</span>
+                                <span class="value">${printField(customerAddressForPrint)}</span>
                             </div>
                         </div>
 

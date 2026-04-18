@@ -2,7 +2,7 @@
   "name": "web_vppmixu",
   "private": true,
   "scripts": {
-    "docker:dev": "docker compose -f backend/docker-compose.yml -f backend/docker-compose.dev.yml up --build"
+    "docker:dev": "docker compose -f backend/docker-compose.yml up --build"
   },
   "dependencies": {
     "@nestjs/config": "^4.0.2",

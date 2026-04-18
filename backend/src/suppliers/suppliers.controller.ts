@@ -7,6 +7,7 @@ import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { SupplierQueryDto } from './dto/supplier-query.dto';
 import { SuppliersService } from './suppliers.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { CreateSupplierDebtAdjustmentDto } from './dto/create-debt-adjustment.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('suppliers')
 export class SuppliersController {
@@ -44,6 +45,11 @@ export class SuppliersController {
         return this.suppliersService.deletePayment(id, paymentId);
     }
 
+    @Post(':id/debt-adjustments')
+    @Roles('ADMIN', 'MANAGER', 'ACCOUNTANT')
+    createDebtAdjustment(@Param('id') id: string, @Body() dto: CreateSupplierDebtAdjustmentDto) {
+        return this.suppliersService.createDebtAdjustment(id, dto);
+    }
 
     @Put(':id')
     @Roles('ADMIN', 'MANAGER', 'ACCOUNTANT')

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { CreateSupplierDebtAdjustmentDto } from './dto/create-debt-adjustment.dto';
 
 import { SupplierQueryDto } from './dto/supplier-query.dto';
 import { Prisma } from '@prisma/client';
@@ -30,9 +31,16 @@ export class SuppliersService {
             _sum: { amount: true },
         });
 
+        const adjustmentAgg = await tx.$queryRaw<Array<{ amount: Prisma.Decimal | number | string | null }>>(Prisma.sql`
+            SELECT COALESCE(SUM("amount"), 0) AS "amount"
+            FROM "supplier_debt_adjustment"
+            WHERE "supplier_id" = ${supplierId}
+        `);
+
         const totalPurchase = Number(supplier?.totalPurchase || 0);
         const totalPaid = Number(paymentAgg._sum.amount || 0);
-        const currentDebt = Math.max(0, totalPurchase - totalPaid);
+        const adjustmentSum = Number(adjustmentAgg[0]?.amount || 0);
+        const currentDebt = Math.max(0, totalPurchase - totalPaid + adjustmentSum);
 
         await tx.supplier.update({
             where: { id: supplierId },
@@ -40,6 +48,14 @@ export class SuppliersService {
         });
 
         return currentDebt;
+    }
+
+    private generateDebtAdjustmentCode(prefix: string) {
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const rand = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+        return `${prefix}${yy}${mm}${rand}`;
     }
 
     async create(dto: CreateSupplierDto) {
@@ -141,14 +157,29 @@ export class SuppliersService {
             })
             : [];
 
+        const adjustmentAgg = supplierIds.length
+            ? await this.prisma.$queryRaw<Array<{ supplierId: bigint; amount: Prisma.Decimal | number | string }>>(Prisma.sql`
+                SELECT
+                    "supplier_id" AS "supplierId",
+                    COALESCE(SUM("amount"), 0) AS "amount"
+                FROM "supplier_debt_adjustment"
+                WHERE "supplier_id" IN (${Prisma.join(supplierIds)})
+                GROUP BY "supplier_id"
+            `)
+            : [];
+
         const paidMap = new Map<string, number>(
             paymentAgg.map((p) => [p.supplierId.toString(), Number(p._sum.amount || 0)]),
+        );
+        const adjustmentMap = new Map<string, number>(
+            adjustmentAgg.map((p) => [p.supplierId.toString(), Number(p.amount || 0)]),
         );
 
         const suppliersWithDebt = suppliers.map((s) => {
             const totalPurchase = Number(s.totalPurchase || 0);
             const totalPaid = paidMap.get(s.id.toString()) || 0;
-            const currentDebt = Math.max(0, totalPurchase - totalPaid);
+            const adjustmentSum = adjustmentMap.get(s.id.toString()) || 0;
+            const currentDebt = Math.max(0, totalPurchase - totalPaid + adjustmentSum);
             return {
                 ...s,
                 currentDebt,
@@ -184,13 +215,98 @@ export class SuppliersService {
             where: { supplierId: BigInt(id) },
             _sum: { amount: true },
         });
+
+        const adjustmentAgg = await this.prisma.$queryRaw<Array<{ amount: Prisma.Decimal | number | string | null }>>(Prisma.sql`
+            SELECT COALESCE(SUM("amount"), 0) AS "amount"
+            FROM "supplier_debt_adjustment"
+            WHERE "supplier_id" = ${BigInt(id)}
+        `);
         const totalPurchase = Number(supplier.totalPurchase || 0);
         const totalPaid = Number(paymentAgg._sum.amount || 0);
+        const adjustmentSum = Number(adjustmentAgg[0]?.amount || 0);
 
         return {
             ...supplier,
-            currentDebt: Math.max(0, totalPurchase - totalPaid),
+            currentDebt: Math.max(0, totalPurchase - totalPaid + adjustmentSum),
         };
+    }
+
+    async createDebtAdjustment(id: string, dto: CreateSupplierDebtAdjustmentDto) {
+        await this.ensureExists(id);
+
+        const supplierId = BigInt(id);
+        const rawAmount = Number(dto.amount || 0);
+        if (Number.isNaN(rawAmount) || !Number.isFinite(rawAmount) || rawAmount === 0) {
+            throw new BadRequestException('INVALID_ADJUSTMENT_AMOUNT');
+        }
+
+        const createdAt = dto.createdAt ? new Date(dto.createdAt) : new Date();
+        if (Number.isNaN(createdAt.getTime())) {
+            throw new BadRequestException('INVALID_ADJUSTMENT_DATE');
+        }
+
+        const type = (dto.type || 'ADJUSTMENT').toUpperCase();
+        if (!['ADJUSTMENT', 'DISCOUNT'].includes(type)) {
+            throw new BadRequestException('INVALID_ADJUSTMENT_TYPE');
+        }
+
+        const amount = type === 'DISCOUNT' ? -Math.abs(rawAmount) : rawAmount;
+        const executor = dto.executor?.trim() || null;
+        const note = dto.note || null;
+
+        const prefix = type === 'DISCOUNT' ? 'CKNCC' : 'DCNCC';
+        const code = this.generateDebtAdjustmentCode(prefix);
+
+        return this.prisma.$transaction(async (tx) => {
+            const rows = await tx.$queryRaw<Array<{ id: bigint }>>(Prisma.sql`
+                INSERT INTO "supplier_debt_adjustment" (
+                    "code",
+                    "supplier_id",
+                    "type",
+                    "amount",
+                    "executor",
+                    "note",
+                    "created_at"
+                )
+                VALUES (
+                    ${code},
+                    ${supplierId},
+                    ${type},
+                    ${amount},
+                    ${executor},
+                    ${note},
+                    ${createdAt}
+                )
+                RETURNING "id"
+            `);
+
+            await this.recalculateCurrentDebt(supplierId, tx);
+
+            const created = await tx.$queryRaw<Array<{
+                id: bigint;
+                code: string | null;
+                supplierId: bigint;
+                type: string;
+                amount: Prisma.Decimal | number | string;
+                executor: string | null;
+                note: string | null;
+                createdAt: Date;
+            }>>(Prisma.sql`
+                SELECT
+                    "id",
+                    "code",
+                    "supplier_id" AS "supplierId",
+                    "type",
+                    "amount",
+                    "executor",
+                    "note",
+                    "created_at" AS "createdAt"
+                FROM "supplier_debt_adjustment"
+                WHERE "id" = ${rows[0].id}
+            `);
+
+            return created[0] || null;
+        });
     }
 
     async update(id: string, dto: UpdateSupplierDto) {

@@ -283,10 +283,12 @@ export default function ExportDebtModal({
             }
 
             // Ghi nợ / Ghi có
-            if (tx.type === 'Bán hàng') {
-                mainRow.push(getPositiveDebtValue(tx.value), '');
+            const signedValue = Number(tx.value || 0);
+            const absValue = getPositiveDebtValue(tx.value);
+            if (signedValue >= 0) {
+                mainRow.push(absValue, '');
             } else {
-                mainRow.push('', getPositiveDebtValue(tx.value));
+                mainRow.push('', absValue);
             }
 
             if (showDetails && selectedFields.note) mainRow.push(tx.note || '');

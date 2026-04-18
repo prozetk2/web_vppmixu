@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MdClose } from 'react-icons/md';
+import { customersAPI } from '../../services/api';
 import './DiscountModal.css';
 
 interface DiscountModalProps {
@@ -15,6 +16,7 @@ interface DiscountModalProps {
 export default function DiscountModal({
     isOpen,
     onClose,
+    customerId,
     customerAddress,
     currentDebt,
     onSuccess,
@@ -52,7 +54,44 @@ export default function DiscountModal({
             return;
         }
 
-        alert('Chức năng tạo phiếu chiết khấu công nợ khách đang được hoàn thiện, hiện chưa lưu dữ liệu thật.');
+        if (discountAmount > currentDebt) {
+            alert('Số tiền chiết khấu không được vượt quá số nợ hiện tại');
+            return;
+        }
+
+        if (!discountDate) {
+            alert('Vui lòng chọn thời gian');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const effectiveNote = allocateToInvoices
+                ? `[Chưa phân bổ vào hóa đơn] ${note || ''}`.trim()
+                : note;
+
+            await customersAPI.createDebtAdjustment(customerId, {
+                type: 'DISCOUNT',
+                amount: discountAmount,
+                executor,
+                note: effectiveNote?.trim() || undefined,
+                createdAt: discountDate,
+            });
+
+            alert('Tạo phiếu chiết khấu thành công!');
+            onSuccess();
+            onClose();
+        } catch (error: any) {
+            console.error('Discount error:', error);
+            const message = error?.response?.data?.message;
+            if (Array.isArray(message) && message.length > 0) {
+                alert(message.join('\n'));
+            } else {
+                alert(message || 'Có lỗi xảy ra');
+            }
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (!isOpen) return null;

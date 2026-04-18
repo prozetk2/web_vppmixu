@@ -146,6 +146,43 @@
     overflow: hidden;
 }
 
+.allocation-selection-hint {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e8eaed;
+    font-size: 13px;
+    color: #5f6368;
+}
+
+.allocation-selection-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.allocation-selection-copy strong {
+    color: #202124;
+    font-size: 13px;
+}
+
+.clear-selection-btn {
+    background: none;
+    border: none;
+    color: #1a73e8;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0;
+}
+
+.clear-selection-btn:hover {
+    text-decoration: underline;
+}
+
 .payment-allocation-table table {
     width: 100%;
     border-collapse: collapse;
@@ -173,9 +210,12 @@
     text-align: right;
 }
 
-.payment-allocation-table .total-row td {
-    background: #f8f9fa;
-    font-weight: 500;
+.payment-allocation-table .text-center {
+    text-align: center;
+}
+
+.payment-allocation-table .selected-allocation-row {
+    background: #eef4ff;
 }
 
 .payment-allocation-table .invoice-link {
