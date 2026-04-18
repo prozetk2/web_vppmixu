@@ -625,6 +625,57 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
         toast.success('Xuất file thành công');
     };
 
+    // Export single invoice to Excel
+    const handleExportSingleInvoice = (invoice: any) => {
+        const exportData: any[] = [];
+
+        const baseRow = {
+            'Chi nhánh': invoice.branch || '',
+            'Mã hóa đơn': invoice.invoiceNumber,
+            'Thời gian': formatDate(invoice.issuedAt || invoice.createdAt),
+            'Mã khách hàng': invoice.customerCode || '',
+            'Tên khách hàng': invoice.customerName || '',
+            'Điện thoại': invoice.customerPhone || '',
+            'Địa chỉ': invoice.customerAddress || '',
+            'Trạng thái': STATUS_LABELS[invoice.status] || invoice.status,
+        };
+
+        if (invoice.items && invoice.items.length > 0) {
+            invoice.items.forEach((item: any) => {
+                exportData.push({
+                    ...baseRow,
+                    'Mã hàng': item.productCode || '',
+                    'Tên hàng': item.productName || '',
+                    'ĐVT': item.unit || '',
+                    'Số lượng': item.quantity,
+                    'Đơn giá': item.unitPrice,
+                    'Giảm giá': item.discountAmount || 0,
+                    'Giá bán': item.salePrice || item.unitPrice,
+                    'Thành tiền': item.totalPrice,
+                });
+            });
+        } else {
+            exportData.push({
+                ...baseRow,
+                'Mã hàng': '',
+                'Tên hàng': '',
+                'ĐVT': '',
+                'Số lượng': 0,
+                'Đơn giá': 0,
+                'Giảm giá': 0,
+                'Giá bán': 0,
+                'Thành tiền': 0,
+            });
+        }
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Hóa đơn');
+        XLSX.writeFile(wb, `hoa_don_${invoice.invoiceNumber}_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+        toast.success('Xuất file thành công');
+    };
+
     const handleDelete = async () => {
         if (!deleteId) return;
         try {
@@ -1610,7 +1661,10 @@ export default function InvoiceList({ onEditInPOS }: InvoiceListProps) {
                                                                     >
                                                                         <MdContentCopy /> Sao chép
                                                                     </button>
-                                                                    <button className="btn-action" onClick={() => handleExport('detailed')}>
+                                                                    <button 
+                                                                        className="btn-action" 
+                                                                        onClick={() => handleExportSingleInvoice(expandedInvoiceDetail || invoice)}
+                                                                    >
                                                                         <MdFileDownload /> Xuất file
                                                                     </button>
                                                                 </div>
