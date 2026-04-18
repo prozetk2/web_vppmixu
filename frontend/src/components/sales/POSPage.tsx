@@ -1828,19 +1828,27 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     // Filter products by search
     const filteredProducts = useMemo(() => {
         if (!search.trim()) return products;
-        const term = removeAccents(search);
+        
+        // Always use accent-sensitive search (phân biệt dấu)
+        const term = search.toLowerCase();
         
         // Split search term into words for better matching
         const searchWords = term.split(/\s+/).filter(w => w.length > 0);
         
         return products
             .map((p) => {
-                const name = removeAccents(p.name || '');
-                const sku = removeAccents(p.sku || '');
-                const barcode = removeAccents((p as any).barcode || '');
-                const category = removeAccents(p.categoryName || '');
+                // Normalize product fields (lowercase only, keep accents)
+                const name = (p.name || '').toLowerCase();
+                const sku = (p.sku || '').toLowerCase();
+                const barcode = ((p as any).barcode || '').toLowerCase();
+                const category = (p.categoryName || '').toLowerCase();
                 
                 let score = 0;
+                
+                // Helper: Check if any word in text starts with the search term
+                const hasWordStartingWith = (text: string, searchTerm: string) => {
+                    return text.split(/\s+/).some(word => word.startsWith(searchTerm));
+                };
                 
                 // Exact match (highest priority)
                 if (name === term || sku === term || barcode === term) {
@@ -1850,20 +1858,21 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
                 else if (name.startsWith(term) || sku.startsWith(term) || barcode.startsWith(term)) {
                     score = 500;
                 }
-                // Word boundary match (medium-high priority)
-                else if (name.split(/\s+/).some(word => word.startsWith(term)) || 
-                         category.split(/\s+/).some(word => word.startsWith(term))) {
+                // Word boundary match - any word starts with search term (medium-high priority)
+                else if (hasWordStartingWith(name, term) || 
+                         hasWordStartingWith(category, term) ||
+                         hasWordStartingWith(sku, term) ||
+                         hasWordStartingWith(barcode, term)) {
                     score = 300;
                 }
-                // All search words found (medium priority)
+                // All search words found as word starts (medium priority)
                 else if (searchWords.length > 1 && searchWords.every(word => 
-                    name.includes(word) || sku.includes(word) || barcode.includes(word) || category.includes(word)
+                    hasWordStartingWith(name, word) || 
+                    hasWordStartingWith(sku, word) || 
+                    hasWordStartingWith(barcode, word) || 
+                    hasWordStartingWith(category, word)
                 )) {
                     score = 200;
-                }
-                // Contains search term (lower priority)
-                else if (name.includes(term) || sku.includes(term) || barcode.includes(term) || category.includes(term)) {
-                    score = 100;
                 }
                 
                 return { product: p, score };

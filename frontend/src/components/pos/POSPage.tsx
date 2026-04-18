@@ -95,14 +95,21 @@ export default function POSPage() {
 
     useEffect(() => {
         if (searchTerm) {
-            const term = removeAccents(searchTerm);
+            // Always use accent-sensitive search (phân biệt dấu)
+            const term = searchTerm.toLowerCase();
             const searchWords = term.split(/\s+/).filter(w => w.length > 0);
+            
+            // Helper: Check if any word in text starts with the search term
+            const hasWordStartingWith = (text: string, searchTerm: string) => {
+                return text.split(/\s+/).some(word => word.startsWith(searchTerm));
+            };
             
             const filtered = products
                 .map(p => {
-                    const name = removeAccents(p.name || '');
-                    const sku = removeAccents(p.sku || '');
-                    const category = removeAccents(p.categoryName || '');
+                    // Normalize product fields (lowercase only, keep accents)
+                    const name = (p.name || '').toLowerCase();
+                    const sku = (p.sku || '').toLowerCase();
+                    const category = (p.categoryName || '').toLowerCase();
                     
                     let score = 0;
                     
@@ -115,19 +122,18 @@ export default function POSPage() {
                         score = 500;
                     }
                     // Word boundary match
-                    else if (name.split(/\s+/).some(word => word.startsWith(term)) || 
-                             category.split(/\s+/).some(word => word.startsWith(term))) {
+                    else if (hasWordStartingWith(name, term) || 
+                             hasWordStartingWith(category, term) ||
+                             hasWordStartingWith(sku, term)) {
                         score = 300;
                     }
-                    // All words found
+                    // All words found as word starts
                     else if (searchWords.length > 1 && searchWords.every(word => 
-                        name.includes(word) || sku.includes(word) || category.includes(word)
+                        hasWordStartingWith(name, word) || 
+                        hasWordStartingWith(sku, word) || 
+                        hasWordStartingWith(category, word)
                     )) {
                         score = 200;
-                    }
-                    // Contains
-                    else if (name.includes(term) || sku.includes(term) || category.includes(term)) {
-                        score = 100;
                     }
                     
                     return { product: p, score };
