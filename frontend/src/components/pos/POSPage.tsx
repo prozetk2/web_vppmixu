@@ -39,6 +39,16 @@ interface CartItem {
     total: number;
 }
 
+// Helper function to remove Vietnamese accents for better search
+const removeAccents = (str: string) => {
+    return str
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .toLowerCase();
+};
+
 export default function POSPage() {
     const [products, setProducts] = useState<Product[]>([]);
     const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -85,12 +95,47 @@ export default function POSPage() {
 
     useEffect(() => {
         if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            const filtered = products.filter(p =>
-                p.name.toLowerCase().includes(term) ||
-                p.sku.toLowerCase().includes(term) ||
-                (p.categoryName && p.categoryName.toLowerCase().includes(term))
-            );
+            const term = removeAccents(searchTerm);
+            const searchWords = term.split(/\s+/).filter(w => w.length > 0);
+            
+            const filtered = products
+                .map(p => {
+                    const name = removeAccents(p.name || '');
+                    const sku = removeAccents(p.sku || '');
+                    const category = removeAccents(p.categoryName || '');
+                    
+                    let score = 0;
+                    
+                    // Exact match
+                    if (name === term || sku === term) {
+                        score = 1000;
+                    }
+                    // Starts with
+                    else if (name.startsWith(term) || sku.startsWith(term)) {
+                        score = 500;
+                    }
+                    // Word boundary match
+                    else if (name.split(/\s+/).some(word => word.startsWith(term)) || 
+                             category.split(/\s+/).some(word => word.startsWith(term))) {
+                        score = 300;
+                    }
+                    // All words found
+                    else if (searchWords.length > 1 && searchWords.every(word => 
+                        name.includes(word) || sku.includes(word) || category.includes(word)
+                    )) {
+                        score = 200;
+                    }
+                    // Contains
+                    else if (name.includes(term) || sku.includes(term) || category.includes(term)) {
+                        score = 100;
+                    }
+                    
+                    return { product: p, score };
+                })
+                .filter(item => item.score > 0)
+                .sort((a, b) => b.score - a.score)
+                .map(item => item.product);
+            
             setFilteredProducts(filtered);
             setShowProductList(true);
         } else {
@@ -98,6 +143,7 @@ export default function POSPage() {
             setShowProductList(false);
         }
     }, [searchTerm, products]);
+
 
     const fetchPriceLists = async () => {
         try {

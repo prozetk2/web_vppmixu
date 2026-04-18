@@ -1829,13 +1829,48 @@ export default function POSPage({ editData, onClearEdit }: POSPageProps) {
     const filteredProducts = useMemo(() => {
         if (!search.trim()) return products;
         const term = removeAccents(search);
-        return products.filter((p) => {
-            const name = removeAccents(p.name || '');
-            const sku = removeAccents(p.sku || '');
-            const barcode = removeAccents((p as any).barcode || '');
-            const category = removeAccents(p.categoryName || '');
-            return name.includes(term) || sku.includes(term) || barcode.includes(term) || category.includes(term);
-        });
+        
+        // Split search term into words for better matching
+        const searchWords = term.split(/\s+/).filter(w => w.length > 0);
+        
+        return products
+            .map((p) => {
+                const name = removeAccents(p.name || '');
+                const sku = removeAccents(p.sku || '');
+                const barcode = removeAccents((p as any).barcode || '');
+                const category = removeAccents(p.categoryName || '');
+                
+                let score = 0;
+                
+                // Exact match (highest priority)
+                if (name === term || sku === term || barcode === term) {
+                    score = 1000;
+                }
+                // Starts with search term (high priority)
+                else if (name.startsWith(term) || sku.startsWith(term) || barcode.startsWith(term)) {
+                    score = 500;
+                }
+                // Word boundary match (medium-high priority)
+                else if (name.split(/\s+/).some(word => word.startsWith(term)) || 
+                         category.split(/\s+/).some(word => word.startsWith(term))) {
+                    score = 300;
+                }
+                // All search words found (medium priority)
+                else if (searchWords.length > 1 && searchWords.every(word => 
+                    name.includes(word) || sku.includes(word) || barcode.includes(word) || category.includes(word)
+                )) {
+                    score = 200;
+                }
+                // Contains search term (lower priority)
+                else if (name.includes(term) || sku.includes(term) || barcode.includes(term) || category.includes(term)) {
+                    score = 100;
+                }
+                
+                return { product: p, score };
+            })
+            .filter(item => item.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .map(item => item.product);
     }, [products, search]);
 
     // Add product to cart
